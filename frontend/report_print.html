@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Báo Cáo Đánh Giá Ứng Viên</title>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <style>
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+      .avoid-break { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans p-8">
+  
+  <div id="loading" class="text-center py-20 text-gray-500">Đang tải báo cáo...</div>
+  <div id="report-content" class="max-w-4xl mx-auto bg-white p-10 shadow-lg hidden"></div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    
+    // Attempt to get admin key from localStorage or prompt if missing
+    let ADMIN_KEY = localStorage.getItem('pai_admin_key');
+
+    async function loadReport() {
+      const params = new URLSearchParams(window.location.search);
+      const ivId = params.get('id');
+      if (!ivId) {
+        document.getElementById('loading').innerText = 'Không tìm thấy ID ứng viên.';
+        return;
+      }
+      
+      try {
+        const res = await fetch(`${API_BASE}/interview/${ivId}/report`, {
+          headers: { 'x-admin-key': ADMIN_KEY }
+        });
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`Không thể tải báo cáo (Mã lỗi: ${res.status}). Chi tiết: ${errorText}`);
+        }
+        const d = await res.json();
+        
+        document.title = `Bao_Cao_${(d.candidate_name||'Ung_Vien').replace(/\s+/g,'_')}.pdf`;
+        
+        const overallHtml = (d.overall_strengths || d.overall_weaknesses || d.overall_competencies) ? `
+          <div class="mt-8 border border-gray-400 p-6 avoid-break">
+            <h2 class="text-lg font-bold text-gray-900 uppercase mb-4 border-b border-gray-400 pb-2">Đánh Giá Tổng Quan</h2>
+            ${d.overall_strengths ? `<div class="mb-4"><h3 class="font-bold text-gray-800">Điểm mạnh:</h3><p class="text-sm whitespace-pre-wrap mt-1 text-gray-700 leading-relaxed">${d.overall_strengths}</p></div>` : ''}
+            ${d.overall_weaknesses ? `<div class="mb-4"><h3 class="font-bold text-gray-800">Điểm yếu cần cải thiện:</h3><p class="text-sm whitespace-pre-wrap mt-1 text-gray-700 leading-relaxed">${d.overall_weaknesses}</p></div>` : ''}
+            ${d.overall_competencies ? `<div><h3 class="font-bold text-gray-800">Năng lực nổi trội:</h3><p class="text-sm whitespace-pre-wrap mt-1 text-gray-700 leading-relaxed">${d.overall_competencies}</p></div>` : ''}
+          </div>
+        ` : '';
+
+        let detailsHtml = '<h2 class="text-lg font-bold text-gray-800 uppercase mt-8 mb-4 border-b border-gray-300 pb-2">Chi Tiết Từng Phần</h2>';
+        const qtMap = { 'General': 'Câu hỏi Chung', 'Technical': 'Chuyên Môn', 'Soft Skill': 'Kỹ năng Mềm', 'Experience': 'Kinh Nghiệm' };
+        
+        for (const qt in d.groups) {
+          detailsHtml += `<h3 class="text-md font-bold text-gray-700 uppercase mt-6 mb-3 bg-gray-100 p-2 rounded">${qtMap[qt] || qt}</h3>`;
+          d.groups[qt].forEach((a, i) => {
+            const scBadge = a.ai_level ? `<span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-bold ml-2">Đánh giá: ${a.ai_level}</span>` : '';
+            detailsHtml += `
+              <div class="mb-6 avoid-break pl-4 border-l-2 border-gray-400">
+                <p class="font-bold text-gray-800 text-sm mb-2">Câu ${a.question_number}: ${a.question_text}</p>
+                <div class="text-sm text-gray-600 mb-2">
+                  <span class="font-semibold text-gray-700">Trả lời:</span> 
+                  <span class="italic">${a.transcript || '(Không có)'}</span>
+                </div>
+                <div class="text-sm pt-2">
+                  <span class="font-semibold text-gray-700 flex items-center mb-1">Nhận xét: ${scBadge}</span>
+                  <span class="whitespace-pre-wrap text-gray-600">${a.ai_feedback || '(Không có)'}</span>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        const scoreColor = 'text-gray-900';
+
+        document.getElementById('report-content').innerHTML = `
+          <div class="flex justify-between items-end border-b-2 border-gray-800 pb-4 mb-6">
+            <div>
+              <h1 class="text-3xl font-black text-gray-900 uppercase">BÁO CÁO PHỎNG VẤN ỨNG VIÊN</h1>
+            </div>
+            <div class="text-right">
+              <p class="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-1">Điểm Trung Bình</p>
+              <p class="text-3xl font-bold text-gray-900">${d.avg_score}/10</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 text-sm bg-white p-4 rounded border border-gray-300 avoid-break">
+            <div><span class="text-gray-600">Ứng viên:</span> <span class="font-bold text-gray-900 text-base">${d.candidate_name || 'Ẩn danh'}</span></div>
+            <div><span class="text-gray-600">Vị trí:</span> <span class="font-semibold text-gray-900">${(d.position||'').replace(/_/g,' ')}</span></div>
+            <div><span class="text-gray-600">Ngày nộp:</span> <span class="font-semibold text-gray-900">${d.submitted_at ? d.submitted_at.substring(0,10) : ''}</span></div>
+            <div><span class="text-gray-600">Trạng thái:</span> <span class="font-semibold text-gray-900">${d.status}</span></div>
+          </div>
+
+          ${overallHtml}
+          ${detailsHtml}
+        `;
+        
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('report-content').classList.remove('hidden');
+        
+        // Auto-print after slight delay for fonts to load
+        setTimeout(() => {
+          window.print();
+        }, 500);
+
+      } catch (err) {
+        document.getElementById('loading').innerText = 'Lỗi: ' + err.message;
+      }
+    }
+    
+    loadReport();
+  </script>
+</body>
+</html>

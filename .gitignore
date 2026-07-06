@@ -1,24 +1,42 @@
-# Secrets
+# Secrets & Env
 .env
 .env.*
+*.pem
+key.pem
+cert.pem
 
-# API key hardcoded — không push
-test_video.py
-test_video2.py
+# Database
+*.db
+ats_phongvan.db
+ats_phongvan.db-journal
 
-# Personal data
-*.pdf
-Generated_CVs/
-
-# Build artifacts / duplicate
-Generated_Audio/
+# Dependencies
+node_modules/
 __pycache__/
 *.pyc
 *.pyo
 
-# LatentSync repo + checkpoints (quá lớn, tự clone khi chạy)
+# Output & Generated Data
+outputs/
+inputs/
+Generated_Audio/
+Generated_CVs/
+Generated_Questions/
 LatentSync/
 
-# OS
+# Scratch & Test Scripts
+test_*.py
+test_*.js
+patch_*.py
+update_*.py
+serve_https.py
+fix_*.py
+gen_missing_audio.py
+generate_sample_cvs.py
+migrate_old_sessions.py
+
+# Personal & OS files
+*.pdf
+*.docx
 .DS_Store
 Thumbs.db

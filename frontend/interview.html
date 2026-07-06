@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PAI HR — Phỏng vấn</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
+<style>
+  body { font-family: 'Inter', sans-serif; background: #f0f2f5; }
+  @keyframes recPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .rec-dot { animation: recPulse 1s ease-in-out infinite; }
+  @keyframes waveBar { 0%,100%{transform:scaleY(.4)} 50%{transform:scaleY(1)} }
+  .wave-anim .bar { animation: waveBar .6s ease-in-out infinite; }
+  .wave-anim .bar:nth-child(2){animation-delay:.1s}
+  .wave-anim .bar:nth-child(3){animation-delay:.2s}
+  .wave-anim .bar:nth-child(4){animation-delay:.3s}
+  .wave-anim .bar:nth-child(5){animation-delay:.4s}
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .animate-spin { animation: spin .8s linear infinite; display:inline-block; }
+  /* Toast */
+  #toast-bar { transition: opacity .3s, transform .3s; }
+  /* Section timer */
+  @keyframes timerWarn { 0%,100%{opacity:1}50%{opacity:.4} }
+  .timer-warn { animation: timerWarn 1s ease-in-out infinite; color:#dc2626; }
+  /* Consent modal backdrop */
+  #consent-modal { transition: opacity .2s; }
+  /* Survey */
+  .nps-btn { width:2.4rem; height:2.4rem; border:2px solid #e5e7eb; border-radius:.5rem; font-size:.8rem; font-weight:700; cursor:pointer; transition:all .15s; }
+  .nps-btn:hover, .nps-btn.selected { background:#0051d5; color:#fff; border-color:#0051d5; }
+  .nps-btn[data-v="0"],.nps-btn[data-v="1"],.nps-btn[data-v="2"],.nps-btn[data-v="3"],
+  .nps-btn[data-v="4"],.nps-btn[data-v="5"],.nps-btn[data-v="6"] { --accent:#dc2626; }
+  .nps-btn[data-v="7"],.nps-btn[data-v="8"] { --accent:#d97706; }
+  .nps-btn[data-v="9"],.nps-btn[data-v="10"] { --accent:#16a34a; }
+  .nps-btn.selected { background:var(--accent,#0051d5); border-color:var(--accent,#0051d5); }
+  .star-btn { font-size:1.6rem; cursor:pointer; color:#d1d5db; transition:color .1s; }
+  .star-btn.lit { color:#f59e0b; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="bg-[#131b2e] text-white px-6 py-4 flex items-center gap-3 sticky top-0 z-50 shadow-lg">
+  <div class="w-9 h-9 bg-[#0051d5] rounded-xl flex items-center justify-center font-extrabold text-lg">P</div>
+  <div>
+    <p class="font-bold text-sm leading-none">PAI HR</p>
+    <p class="text-white/50 text-xs">Phỏng vấn trực tuyến</p>
+  </div>
+  <div class="ml-auto">
+    <span id="step-badge" class="hidden px-3 py-1 bg-[#0051d5]/30 text-[#93c5fd] rounded-full text-xs font-bold">BƯỚC 1 / 3</span>
+  </div>
+</header>
+
+<!-- ── TOAST ─────────────────────────────────────────────── -->
+<div id="toast-bar" class="fixed top-20 left-1/2 -translate-x-1/2 z-[100] opacity-0 pointer-events-none">
+  <div id="toast-inner" class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold max-w-sm text-center"></div>
+</div>
+
+<!-- ── CONSENT MODAL (§22) ───────────────────────────────── -->
+<div id="consent-modal" class="fixed inset-0 z-[200] flex items-center justify-center opacity-0 pointer-events-none" style="background:rgba(0,0,0,.6)">
+  <div class="bg-white rounded-2xl p-7 max-w-md w-full mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+        <span class="material-symbols-outlined text-[#0051d5]">shield_person</span>
+      </div>
+      <div>
+        <p class="font-bold text-gray-900">Thông báo & Đồng ý</p>
+        <p class="text-gray-400 text-xs">Trước khi bắt đầu phỏng vấn</p>
+      </div>
+    </div>
+    <p class="text-gray-600 text-sm leading-relaxed mb-5">
+      Buổi phỏng vấn này sử dụng trí tuệ nhân tạo để ghi âm và phân tích câu trả lời của bạn.
+      Dữ liệu chỉ được dùng cho mục đích tuyển dụng tại CT Group và được bảo mật theo chính sách của công ty.
+    </p>
+    <div class="space-y-3 mb-6">
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" id="consent-audio" class="mt-0.5 w-4 h-4 accent-[#0051d5] shrink-0" required/>
+        <span class="text-sm text-gray-700">
+          <strong class="text-gray-900">Tôi đồng ý ghi âm câu trả lời</strong> để hệ thống phân tích và đánh giá
+          <span class="text-red-500"> *</span>
+        </span>
+      </label>
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" id="consent-camera" class="mt-0.5 w-4 h-4 accent-[#0051d5] shrink-0"/>
+        <span class="text-sm text-gray-600">
+          Tôi đồng ý bật camera (không bắt buộc — nếu được yêu cầu bởi HR)
+        </span>
+      </label>
+    </div>
+    <p id="consent-error" class="hidden text-red-500 text-xs mb-3 font-medium">Vui lòng đồng ý ghi âm để tiếp tục.</p>
+    <button onclick="acceptConsent()"
+      class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition active:scale-[.98]">
+      Đồng ý và Bắt đầu
+    </button>
+    <button onclick="window.history.back()"
+      class="w-full mt-2 py-2 text-gray-400 text-xs hover:text-gray-600 transition">
+      Huỷ — Quay lại trang trước
+    </button>
+  </div>
+</div>
+
+<main class="max-w-3xl mx-auto px-4 py-8">
+
+<!-- ── STEP 1: Setup ─────────────────────────────────────── -->
+<div id="step-1">
+  <h1 class="text-xl font-bold text-gray-900 mb-1">Phỏng vấn ứng viên</h1>
+  <p class="text-gray-500 text-sm mb-6">Upload CV và chọn vị trí để bắt đầu</p>
+
+  <div class="space-y-4">
+    <!-- CV Upload -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+      <h3 class="font-semibold text-gray-800 mb-3">Hồ sơ ứng viên</h3>
+      <label id="upload-zone"
+        class="block border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-[#0051d5] hover:bg-blue-50/30 transition-all group">
+        <input type="file" accept=".pdf,.docx,.doc" class="hidden" id="cv-file-input" onchange="handleFileUpload(event)"/>
+        <span class="material-symbols-outlined text-4xl text-gray-400 group-hover:text-[#0051d5] block mb-2">upload_file</span>
+        <p class="font-semibold text-gray-700">Upload CV / Resume</p>
+        <p class="text-gray-400 text-sm mt-1">PDF hoặc DOCX · Tối đa 10MB</p>
+        <span class="mt-3 inline-block px-4 py-1.5 bg-[#0051d5] text-white rounded-lg text-sm font-semibold">Chọn file</span>
+      </label>
+      <div id="file-uploaded" class="hidden mt-3 flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+        <span class="material-symbols-outlined text-emerald-600" style="font-variation-settings:'FILL' 1;">check_circle</span>
+        <div class="flex-1">
+          <p class="font-semibold text-emerald-800 text-sm" id="file-name-display">file.pdf</p>
+          <p class="text-emerald-600 text-xs">Đã tải lên thành công</p>
+        </div>
+        <button onclick="removeFile()" class="material-symbols-outlined text-emerald-400 hover:text-emerald-700">close</button>
+      </div>
+    </div>
+
+    <!-- Position -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+      <h3 class="font-semibold text-gray-800 mb-3">Vị trí ứng tuyển</h3>
+      <div class="relative">
+        <select id="position-select" onchange="onPositionChange()"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none appearance-none bg-gray-50">
+          <option value="">-- Chọn vị trí --</option>
+          <optgroup label="💻 Công Nghệ Thông Tin">
+            <option value="AIML_Engineer">AI/ML Engineer</option>
+            <option value="Automation_Tester">Automation Tester</option>
+            <option value="Backend_Developer">Backend Developer</option>
+            <option value="Business_Analyst">Business Analyst</option>
+            <option value="Cyber_Security_Analyst">Cyber Security Analyst</option>
+            <option value="Data_Analyst">Data Analyst</option>
+            <option value="Data_Engineer">Data Engineer</option>
+            <option value="DevOps_Engineer">DevOps Engineer</option>
+            <option value="Frontend_Developer">Frontend Developer</option>
+            <option value="Fullstack_Developer">Fullstack Developer</option>
+            <option value="Mobile_Developer_(iOSAndroid)">Mobile Developer (iOS/Android)</option>
+            <option value="QAQC_Tester">QA/QC Tester</option>
+            <option value="System_Admin">System Admin</option>
+            <option value="UIUX_Designer">UI/UX Designer</option>
+          </optgroup>
+          <optgroup label="🏪 Kinh Doanh & Bán Hàng">
+            <option value="Account_Executive_(Agency)">Account Executive</option>
+            <option value="B2B_Sales_Executive">B2B Sales Executive</option>
+            <option value="E-commerce_Executive">E-commerce Executive</option>
+            <option value="Sales_Admin">Sales Admin</option>
+            <option value="Telesales">Telesales</option>
+          </optgroup>
+          <optgroup label="🚚 Chuỗi Cung Ứng & Logistics">
+            <option value="ImportExport_Executive_(Chuyên_viên_Xuất_Nhập_Khẩu)">Import/Export Executive</option>
+            <option value="Logistics_Coordinator_(Điều_phối_Vận_tải)">Logistics Coordinator</option>
+            <option value="Procurement_Executive_(Chuyên_viên_Thu_mua)">Procurement Executive</option>
+            <option value="Procurement_Specialist_(Thu_mua)">Procurement Specialist</option>
+            <option value="Warehouse_Supervisor_(Giám_sát_Kho)">Warehouse Supervisor</option>
+          </optgroup>
+          <optgroup label="⚙️ Kỹ Thuật & Sản Xuất">
+            <option value="Maintenance_Engineer_(Kỹ_sư_Bảo_trì)">Maintenance Engineer</option>
+            <option value="Mechanical_Engineer_(Kỹ_sư_Cơ_khí)">Mechanical Engineer</option>
+            <option value="QC_Engineer_(Kỹ_sư_Quản_lý_Chất_lượng)">QC Engineer</option>
+          </optgroup>
+          <optgroup label="📣 Marketing & Truyền Thông">
+            <option value="Brand_Executive">Brand Executive</option>
+            <option value="Content_Creator">Content Creator</option>
+            <option value="Digital_Marketer">Digital Marketer</option>
+            <option value="Digital_Marketing_Executive">Digital Marketing Executive</option>
+            <option value="Event_Coordinator">Event Coordinator</option>
+            <option value="PR_Executive">PR Executive</option>
+            <option value="SEO_Specialist">SEO Specialist</option>
+          </optgroup>
+          <optgroup label="🪪 Nhân Sự & Hành Chính">
+            <option value="C&B_Executive_(Chuyên_viên_Lương_và_Phúc_lợi)">C&B Executive</option>
+            <option value="HR_Admin_(Hành_chính_Nhân_sự)">HR Admin</option>
+            <option value="L&D_Executive_(Đào_tạo_&_Phát_triển)">L&D Executive</option>
+            <option value="Office_Admin_(Hành_chính_văn_phòng)">Office Admin</option>
+            <option value="Receptionist_(Lễ_tân)">Receptionist</option>
+            <option value="Talent_Acquisition_(Chuyên_viên_Tuyển_dụng)">Talent Acquisition</option>
+          </optgroup>
+          <optgroup label="🎨 Thiết Kế & Sáng Tạo">
+            <option value="Graphic_Designer">Graphic Designer</option>
+            <option value="Motion_Graphic_Designer">Motion Graphic Designer</option>
+            <option value="Video_Editor">Video Editor</option>
+          </optgroup>
+          <optgroup label="🏦 Tài Chính & Kế Toán">
+            <option value="Financial_Analyst_(Chuyên_viên_Phân_tích_Tài_chính)">Financial Analyst</option>
+            <option value="General_Accountant_(Kế_toán_tổng_hợp)">General Accountant</option>
+            <option value="Internal_Auditor_(Kiểm_toán_nội_bộ)">Internal Auditor</option>
+            <option value="Payable_Accountant_(Kế_toán_công_nợ_phải_trả_-_AP)">Payable Accountant (AP)</option>
+            <option value="Receivable_Accountant_(Kế_toán_công_nợ_phải_thu_-_AR)">Receivable Accountant (AR)</option>
+            <option value="Tax_Accountant_(Kế_toán_thuế)">Tax Accountant</option>
+          </optgroup>
+        </select>
+        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+      </div>
+      <div id="jd-preview" class="hidden mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+        <p class="font-semibold text-sm text-gray-800" id="jd-title">—</p>
+        <p class="text-gray-500 text-xs mt-1" id="jd-desc">—</p>
+        <div class="mt-2 flex gap-1.5 flex-wrap" id="jd-tags"></div>
+      </div>
+
+      <!-- §13 — Level -->
+      <div class="mt-4">
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cấp bậc ứng tuyển</label>
+        <div class="flex flex-wrap gap-2" id="level-buttons">
+          <button onclick="selectLevel('Entry')"   data-lv="Entry"   class="level-btn px-4 py-1.5 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#0051d5] hover:text-[#0051d5] transition">Entry</button>
+          <button onclick="selectLevel('Junior')"  data-lv="Junior"  class="level-btn px-4 py-1.5 rounded-xl border-2 border-[#0051d5] text-[#0051d5] bg-blue-50 text-sm font-semibold transition">Junior</button>
+          <button onclick="selectLevel('Mid')"     data-lv="Mid"     class="level-btn px-4 py-1.5 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#0051d5] hover:text-[#0051d5] transition">Mid</button>
+          <button onclick="selectLevel('Senior')"  data-lv="Senior"  class="level-btn px-4 py-1.5 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#0051d5] hover:text-[#0051d5] transition">Senior</button>
+          <button onclick="selectLevel('Manager')" data-lv="Manager" class="level-btn px-4 py-1.5 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#0051d5] hover:text-[#0051d5] transition">Manager</button>
+          <button onclick="selectLevel('Director')" data-lv="Director" class="level-btn px-4 py-1.5 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#0051d5] hover:text-[#0051d5] transition">Director</button>
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-start" onclick="startInterview()"
+      class="w-full py-3.5 bg-[#0051d5] text-white rounded-2xl font-bold text-sm hover:opacity-90 transition active:scale-[.98] flex items-center justify-center gap-2">
+      Bắt đầu phỏng vấn
+      <span class="material-symbols-outlined text-base">arrow_forward</span>
+    </button>
+    <p id="start-hint" class="hidden text-center text-xs text-red-500 mt-2 font-medium"></p>
+  </div>
+</div>
+
+<!-- ── PREP LOADING OVERLAY ───────────────────────────────── -->
+<div id="prep-loading" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,.5)">
+  <div class="bg-white rounded-2xl p-8 text-center max-w-xs w-full mx-4 shadow-2xl">
+    <div class="w-14 h-14 border-4 border-[#0051d5] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+    <p class="font-bold text-gray-900 mb-1">Đang chuẩn bị câu hỏi</p>
+    <p class="text-gray-400 text-xs" id="prep-status">Đang phân tích CV và tạo câu hỏi phù hợp...</p>
+  </div>
+</div>
+
+<!-- ── STEP 2: Questions ──────────────────────────────────── -->
+<div id="step-2" class="hidden">
+
+  <!-- Intro audio banner -->
+  <div id="intro-banner" class="hidden bg-[#0051d5] text-white rounded-2xl p-4 mb-5 flex items-center gap-4 shadow-sm">
+    <button onclick="toggleIntro()" id="intro-play-btn"
+      class="w-11 h-11 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/30 transition active:scale-95">
+      <span class="material-symbols-outlined" id="intro-icon" style="font-variation-settings:'FILL' 1;">play_arrow</span>
+    </button>
+    <div class="flex-1 min-w-0">
+      <p class="font-bold text-sm">Giới thiệu buổi phỏng vấn</p>
+      <p class="text-white/70 text-xs" id="intro-hint">Nhấn ▶ để nghe hướng dẫn trước khi bắt đầu</p>
+    </div>
+    <audio id="intro-audio" onended="onIntroEnded()" ontimeupdate="onIntroProgress()"></audio>
+    <span class="text-white/70 text-xs font-mono flex-shrink-0" id="intro-time">0:00</span>
+  </div>
+
+  <!-- Progress -->
+  <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-5 shadow-sm">
+    <div class="flex items-center justify-between mb-2">
+      <div>
+        <p class="font-bold text-gray-900 text-sm" id="interview-position-name">—</p>
+        <p class="text-gray-400 text-xs">Trả lời lần lượt từng câu hỏi</p>
+      </div>
+      <span class="font-bold text-[#0051d5] text-sm" id="q-counter">0 / 8</span>
+    </div>
+    <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+      <div id="q-progress-bar" class="h-full bg-[#0051d5] transition-all duration-500" style="width:0%"></div>
+    </div>
+    <div class="flex gap-1.5 mt-3" id="q-dots"></div>
+  </div>
+
+  <!-- Question cards -->
+  <div id="question-cards" class="space-y-4"></div>
+
+  <!-- Submit -->
+  <div id="submit-section" class="hidden mt-5">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4 text-center">
+      <span class="material-symbols-outlined text-emerald-600 text-3xl block mb-1" style="font-variation-settings:'FILL' 1;">check_circle</span>
+      <p class="font-bold text-emerald-800">Đã trả lời đủ 8 câu hỏi!</p>
+      <p class="text-emerald-600 text-sm">Nhấn nộp bài để hoàn thành phỏng vấn.</p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="prevQuestionFromSubmit()" class="flex-1 py-3.5 bg-gray-100 text-gray-700 rounded-2xl font-bold text-sm hover:bg-gray-200 transition active:scale-[.98] flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-base">arrow_back</span>
+        Xem lại
+      </button>
+      <button onclick="submitInterview()"
+        class="flex-[2] py-3.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:opacity-90 transition active:scale-[.98] flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-base">send</span>
+        Nộp bài phỏng vấn
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── STEP 3: Done + Survey (§26) ───────────────────────── -->
+<div id="step-3" class="hidden py-8">
+  <div class="text-center mb-8">
+    <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5">
+      <span class="material-symbols-outlined text-4xl text-emerald-600" style="font-variation-settings:'FILL' 1;">task_alt</span>
+    </div>
+    <h2 class="text-2xl font-bold text-gray-900 mb-2">Hoàn thành phỏng vấn!</h2>
+    <p class="text-gray-500 text-sm mb-1">Vị trí: <strong id="done-position" class="text-gray-800">—</strong></p>
+    <p class="text-gray-400 text-xs mb-2">Mã phiên: <span id="done-session-id">—</span></p>
+    <p class="text-gray-500 text-sm max-w-sm mx-auto">Kết quả sẽ được gửi qua email sau khi đội tuyển dụng đánh giá.</p>
+  </div>
+
+  <!-- Survey card -->
+  <div id="survey-card" class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="material-symbols-outlined text-[#0051d5]">rate_review</span>
+      <h3 class="font-bold text-gray-900">Đánh giá trải nghiệm phỏng vấn</h3>
+    </div>
+    <p class="text-gray-400 text-xs mb-5">Ý kiến của bạn giúp CT Group cải thiện quy trình. Hoàn toàn ẩn danh.</p>
+
+    <!-- 5 rating questions -->
+    <div class="space-y-5" id="survey-ratings">
+      <div data-key="ui">
+        <p class="text-sm font-semibold text-gray-700 mb-2">1. Giao diện phỏng vấn dễ sử dụng?</p>
+        <div class="flex gap-1" data-rating="ui"></div>
+      </div>
+      <div data-key="questions">
+        <p class="text-sm font-semibold text-gray-700 mb-2">2. Câu hỏi rõ ràng, liên quan đến vị trí?</p>
+        <div class="flex gap-1" data-rating="questions"></div>
+      </div>
+      <div data-key="audio_quality">
+        <p class="text-sm font-semibold text-gray-700 mb-2">3. Chất lượng âm thanh câu hỏi tốt?</p>
+        <div class="flex gap-1" data-rating="audio_quality"></div>
+      </div>
+      <div data-key="fairness">
+        <p class="text-sm font-semibold text-gray-700 mb-2">4. Bạn cảm thấy quy trình công bằng?</p>
+        <div class="flex gap-1" data-rating="fairness"></div>
+      </div>
+      <div data-key="overall">
+        <p class="text-sm font-semibold text-gray-700 mb-2">5. Đánh giá tổng thể buổi phỏng vấn</p>
+        <div class="flex gap-1" data-rating="overall"></div>
+      </div>
+    </div>
+
+    <!-- NPS -->
+    <div class="mt-6 pt-5 border-t border-gray-100">
+      <p class="text-sm font-semibold text-gray-700 mb-3">6. Bạn có giới thiệu CT Group cho bạn bè ứng tuyển không? (0 = Không, 10 = Rất có thể)</p>
+      <div class="flex flex-wrap gap-1.5" id="nps-buttons">
+        <button data-v="0"  class="nps-btn" onclick="selectNPS(0)">0</button>
+        <button data-v="1"  class="nps-btn" onclick="selectNPS(1)">1</button>
+        <button data-v="2"  class="nps-btn" onclick="selectNPS(2)">2</button>
+        <button data-v="3"  class="nps-btn" onclick="selectNPS(3)">3</button>
+        <button data-v="4"  class="nps-btn" onclick="selectNPS(4)">4</button>
+        <button data-v="5"  class="nps-btn" onclick="selectNPS(5)">5</button>
+        <button data-v="6"  class="nps-btn" onclick="selectNPS(6)">6</button>
+        <button data-v="7"  class="nps-btn" onclick="selectNPS(7)">7</button>
+        <button data-v="8"  class="nps-btn" onclick="selectNPS(8)">8</button>
+        <button data-v="9"  class="nps-btn" onclick="selectNPS(9)">9</button>
+        <button data-v="10" class="nps-btn" onclick="selectNPS(10)">10</button>
+      </div>
+    </div>
+
+    <!-- Open questions -->
+    <div class="mt-6 pt-5 border-t border-gray-100 space-y-4">
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">7. Điều bạn thích nhất về buổi phỏng vấn?</label>
+        <textarea id="survey-like" rows="2" placeholder="Chia sẻ điều bạn đánh giá cao..."
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none resize-none"></textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">8. Bạn muốn cải thiện điều gì?</label>
+        <textarea id="survey-improve" rows="2" placeholder="Góp ý để chúng tôi làm tốt hơn..."
+          class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none resize-none"></textarea>
+      </div>
+    </div>
+
+    <button id="survey-submit-btn" onclick="submitSurvey()"
+      class="w-full mt-5 py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition active:scale-[.98] flex items-center justify-center gap-2">
+      <span class="material-symbols-outlined text-base">send</span>
+      Gửi đánh giá
+    </button>
+  </div>
+
+  <!-- Post-survey thank you -->
+  <div id="survey-done" class="hidden mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
+    <span class="material-symbols-outlined text-emerald-600 text-2xl" style="font-variation-settings:'FILL' 1;">favorite</span>
+    <p class="font-semibold text-emerald-800 text-sm mt-1">Cảm ơn bạn đã chia sẻ!</p>
+    <p class="text-emerald-600 text-xs mt-0.5">Ý kiến của bạn giúp chúng tôi cải thiện trải nghiệm tuyển dụng.</p>
+  </div>
+</div>
+
+</main>
+
+<script>
+const API_BASE = location.origin;
+const _params  = new URLSearchParams(location.search);
+const REF      = _params.get('ref') || '';
+const URL_POS  = (_params.get('pos') || '').replace(/^Junior_/, '');
+const IV_ID_PARAM = _params.get('iv') || '';
+const REIV     = _params.get('reiv') || '';
+const SCOPE    = _params.get('scope') || '';
+
+let PREP_ID = '';
+let PREP_QUESTIONS = {};
+let INTRO_AUDIO_URL = '';
+let selectedLevel = 'Junior';
+let consentAudio  = false;
+let surveyRatings = {};
+let surveyNPS     = null;
+let currentInterviewId = '';
+let sttTexts = {};
+let pushbackTexts = {};
+
+// ── Toast ──────────────────────────────────────────────────
+let _toastTimer = null;
+function showToast(msg, type = 'info', durationMs = 4000) {
+  const bar   = document.getElementById('toast-bar');
+  const inner = document.getElementById('toast-inner');
+  const styles = {
+    info:    'bg-[#0051d5] text-white',
+    success: 'bg-emerald-600 text-white',
+    warning: 'bg-amber-500 text-white',
+    error:   'bg-red-600 text-white',
+  };
+  inner.className = `flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold max-w-sm text-center ${styles[type] || styles.info}`;
+  inner.textContent = msg;
+  bar.style.opacity = '1';
+  bar.style.transform = 'translateX(-50%) translateY(0)';
+  bar.style.pointerEvents = 'auto';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    bar.style.opacity = '0';
+    bar.style.pointerEvents = 'none';
+  }, durationMs);
+}
+
+// ── Incident logger (§23) ──────────────────────────────────
+async function logIncident(type, description) {
+  try {
+    await fetch(`${API_BASE}/interview/incident`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interview_id: currentInterviewId || null, type, description }),
+    });
+  } catch(e) { /* fire-and-forget */ }
+}
+
+// ── Consent modal (§22) ──────────────────────────────────
+function showConsentModal() {
+  const modal = document.getElementById('consent-modal');
+  modal.style.opacity = '1';
+  modal.style.pointerEvents = 'auto';
+}
+function acceptConsent() {
+  const audioBox = document.getElementById('consent-audio');
+  if (!audioBox.checked) {
+    document.getElementById('consent-error').classList.remove('hidden');
+    return;
+  }
+  consentAudio = true;
+  const modal = document.getElementById('consent-modal');
+  modal.style.opacity = '0';
+  modal.style.pointerEvents = 'none';
+  _doStartInterview();
+}
+
+// ── Level selector (§13) ──────────────────────────────────
+function selectLevel(lv) {
+  selectedLevel = lv;
+  document.querySelectorAll('.level-btn').forEach(btn => {
+    const active = btn.dataset.lv === lv;
+    btn.className = `level-btn px-4 py-1.5 rounded-xl border-2 text-sm font-semibold transition ${
+      active ? 'border-[#0051d5] text-[#0051d5] bg-blue-50' : 'border-gray-200 text-gray-600 hover:border-[#0051d5] hover:text-[#0051d5]'
+    }`;
+  });
+}
+
+const JD_META = {
+  'Backend_Developer':   { title:'Junior Backend Developer',  tags:['Node.js','Python','REST API','SQL'],        desc:'Phát triển và duy trì các API backend.' },
+  'Frontend_Developer':  { title:'Junior Frontend Developer', tags:['React','TypeScript','CSS','UI'],             desc:'Xây dựng giao diện người dùng responsive.' },
+  'AIML_Engineer':       { title:'Junior AI/ML Engineer',     tags:['Python','PyTorch','ML','LLM'],               desc:'Nghiên cứu và triển khai mô hình machine learning.' },
+  'Data_Analyst':        { title:'Junior Data Analyst',       tags:['SQL','Power BI','Excel','Python'],           desc:'Phân tích dữ liệu kinh doanh, xây dựng báo cáo.' },
+  'DevOps_Engineer':     { title:'Junior DevOps Engineer',    tags:['Docker','Kubernetes','CI/CD','AWS'],         desc:'Xây dựng pipeline CI/CD, quản lý infrastructure.' },
+  'Brand_Executive':     { title:'Junior Brand Executive',    tags:['Brand','Marketing','Content','Social'],      desc:'Triển khai chiến lược thương hiệu.' },
+  'B2B_Sales_Executive': { title:'Junior B2B Sales',          tags:['Sales','CRM','B2B','Negotiation'],           desc:'Phát triển khách hàng doanh nghiệp.' },
+  'Talent_Acquisition_(Chuyên_viên_Tuyển_dụng)': { title:'Junior Talent Acquisition', tags:['HR','Recruiting'], desc:'Tuyển dụng và quản lý quy trình phỏng vấn.' },
+  '_default':            { title:'Junior Position',           tags:['Junior','Full-time'],                        desc:'Vị trí tuyển dụng cấp độ Junior.' },
+};
+
+let QUESTION_TYPES = [
+  { n:'01', type:'General',    label:'Giới thiệu' },
+  { n:'02', type:'General',    label:'Định hướng' },
+  { n:'03', type:'Technical',  label:'Kỹ thuật' },
+  { n:'04', type:'Technical',  label:'Kỹ thuật' },
+  { n:'05', type:'Soft Skill', label:'Kỹ năng mềm' },
+  { n:'06', type:'Soft Skill', label:'Kỹ năng mềm' },
+  { n:'07', type:'Experience', label:'Kinh nghiệm' },
+  { n:'08', type:'Experience', label:'Kinh nghiệm' },
+];
+if (SCOPE) {
+  const allowed = SCOPE.split(',').map(s => s.trim());
+  QUESTION_TYPES = QUESTION_TYPES.filter(q => allowed.includes(q.n));
+}
+const TYPE_COLOR = {
+  'General':    'bg-purple-100 text-purple-700',
+  'Technical':  'bg-blue-100 text-blue-700',
+  'Soft Skill': 'bg-emerald-100 text-emerald-700',
+  'Experience': 'bg-amber-100 text-amber-700',
+};
+const SECTION_LIMITS = { 'General': 240, 'Technical': 360, 'Soft Skill': 300, 'Experience': 360 };
+
+let selectedPosition = '', cvUploaded = false;
+let currentQuestionIndex = 0;
+let answers = {}, mediaRecorder = null, mediaStream = null;
+let recordingChunks = [], activeRecordingQ = null, recIntervals = {};
+let pushbackHistory = {};
+
+// ── IndexedDB Auto-save ────────────────────────────────────
+const DB_NAME = 'PAI_HR_Interview';
+const STORE_NAME = 'answers_store';
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function saveAnswerLocal(qn, blob) {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(blob, `ans_${REF || selectedPosition}_${qn}`);
+  } catch(e) { console.warn('Failed to auto-save to IndexedDB', e); }
+}
+
+async function getAnswerLocal(qn) {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(`ans_${REF || selectedPosition}_${qn}`);
+    return new Promise(resolve => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => resolve(null);
+    });
+  } catch(e) { return null; }
+}
+
+async function clearLocalAnswers() {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAllKeys();
+    req.onsuccess = () => {
+      const prefix = `ans_${REF || selectedPosition}_`;
+      req.result.forEach(key => {
+        if (typeof key === 'string' && key.startsWith(prefix)) store.delete(key);
+      });
+    };
+  } catch(e) {}
+}
+
+async function restoreSavedAnswers() {
+  let hasRestored = false;
+  for (const q of QUESTION_TYPES) {
+    const savedBlob = await getAnswerLocal(q.n);
+    if (savedBlob) {
+      answers[q.n] = savedBlob;
+      hasRestored = true;
+      const btn = document.getElementById('rec-btn-'+q.n);
+      if (btn) {
+        document.getElementById('status-'+q.n).innerHTML =
+          `<span class="flex items-center gap-1 text-emerald-600 text-xs font-bold"><span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">check_circle</span>ĐÃ GHI ÂM (TỪ LẦN TRƯỚC)</span>`;
+        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">replay</span> Trả lời lại`;
+        btn.classList.remove('bg-gray-800', 'bg-red-600');
+        btn.classList.add('bg-gray-500');
+        
+        const ccEl = document.getElementById('card-content-'+q.n);
+        if (ccEl) ccEl.classList.remove('hidden');
+        const lEl = document.getElementById('card-lock-'+q.n);
+        if (lEl) { lEl.classList.add('hidden'); lEl.classList.remove('flex'); }
+        const qtEl = document.getElementById('qtext-'+q.n);
+        if (qtEl) qtEl.classList.remove('blur-sm');
+      }
+    }
+  }
+  
+  if (hasRestored) {
+    showToast('Đã khôi phục câu trả lời từ lần trước. Bạn có thể tiếp tục hoặc ghi âm lại.', 'info', 6000);
+    updateProgress();
+    const doneMain = Object.keys(answers).filter(k => !k.includes('_')).length;
+    if (doneMain === QUESTION_TYPES.length) {
+      currentQuestionIndex = QUESTION_TYPES.length - 1;
+      // Show submit section
+      document.getElementById('submit-section').classList.remove('hidden');
+      updateDot(null);
+    } else {
+      const nextUnansweredIndex = QUESTION_TYPES.findIndex(q => !answers[q.n]);
+      if (nextUnansweredIndex !== -1) {
+        currentQuestionIndex = nextUnansweredIndex;
+      }
+    }
+    // Hide all cards, then show only currentQuestionIndex
+    QUESTION_TYPES.forEach((q, idx) => {
+      const card = document.getElementById('card-'+q.n);
+      if (card) {
+        if (idx === currentQuestionIndex) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+        // If they already answered this one, show Next btn so it's there if they go back
+        if (answers[q.n]) {
+          const nextBtn = document.getElementById('next-btn-'+q.n);
+          if (nextBtn) nextBtn.classList.remove('hidden');
+        }
+      }
+    });
+    renderQuestionDots();
+  }
+}
+// ───────────────────────────────────────────────────────────
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  cvUploaded = true;
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('file-uploaded').classList.remove('hidden');
+  document.getElementById('file-name-display').textContent = file.name;
+  checkCanStart();
+}
+
+function removeFile() {
+  cvUploaded = false;
+  document.getElementById('cv-file-input').value = '';
+  document.getElementById('upload-zone').classList.remove('hidden');
+  document.getElementById('file-uploaded').classList.add('hidden');
+  checkCanStart();
+}
+
+async function onPositionChange() {
+  selectedPosition = document.getElementById('position-select').value;
+  const preview = document.getElementById('jd-preview');
+  if (!selectedPosition) { preview.classList.add('hidden'); checkCanStart(); return; }
+
+  // Show loading state
+  document.getElementById('jd-title').textContent = 'Đang tải JD...';
+  document.getElementById('jd-desc').textContent  = '';
+  document.getElementById('jd-tags').innerHTML    = '';
+  preview.classList.remove('hidden');
+  checkCanStart();
+
+  // Load JD từ API
+  const posId = `${selectedLevel}_${selectedPosition}`;
+  try {
+    const r    = await fetch(`${API_BASE}/jobs/${encodeURIComponent(posId)}`);
+    const data = await r.json();
+    if (data.jd_content) {
+      renderJD(data.title, data.jd_content);
+      return;
+    }
+  } catch(e) { /* fallback */ }
+
+  // Fallback to static JD_META
+  const meta = JD_META[selectedPosition] || JD_META['_default'];
+  document.getElementById('jd-title').textContent = meta.title;
+  document.getElementById('jd-desc').textContent  = meta.desc;
+  document.getElementById('jd-tags').innerHTML    = meta.tags.map(t =>
+    `<span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">${t}</span>`
+  ).join('');
+}
+
+function renderJD(title, mdContent) {
+  document.getElementById('jd-title').textContent = title || selectedPosition.replace(/_/g,' ');
+
+  // Parse key sections from markdown
+  const lines    = mdContent.split('\n');
+  const sections = {};
+  let curSection = null;
+  lines.forEach(line => {
+    const h2 = line.match(/^##\s+\d+\.\s+(.+)/);
+    if (h2) { curSection = h2[1].trim(); sections[curSection] = []; return; }
+    if (curSection && line.trim().startsWith('-')) {
+      sections[curSection].push(line.replace(/^[\s\-]+/, '').trim());
+    }
+  });
+
+  // Pick most useful sections
+  const RESP_KEY  = Object.keys(sections).find(k => k.includes('MÔ TẢ') || k.includes('RESPONSIBILITY'));
+  const REQ_KEY   = Object.keys(sections).find(k => k.includes('YÊU CẦU') || k.includes('REQUIREMENT'));
+  const BEN_KEY   = Object.keys(sections).find(k => k.includes('QUYỀN LỢI') || k.includes('BENEFIT'));
+
+  const makeList = (items, max=4) => items.slice(0,max).map(i=>
+    `<li class="flex items-start gap-1.5 text-gray-600 text-xs leading-relaxed"><span class="text-[#0051d5] mt-0.5 shrink-0">▸</span>${i}</li>`
+  ).join('');
+
+  let html = '';
+  if (RESP_KEY && sections[RESP_KEY]?.length) {
+    html += `<div class="mb-2.5"><p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Công việc chính</p><ul class="space-y-1">${makeList(sections[RESP_KEY],4)}</ul></div>`;
+  }
+  if (REQ_KEY && sections[REQ_KEY]?.length) {
+    html += `<div class="mb-2.5"><p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Yêu cầu</p><ul class="space-y-1">${makeList(sections[REQ_KEY],4)}</ul></div>`;
+  }
+  if (BEN_KEY && sections[BEN_KEY]?.length) {
+    html += `<div><p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Quyền lợi</p><ul class="space-y-1">${makeList(sections[BEN_KEY],3)}</ul></div>`;
+  }
+  if (!html) {
+    // Plain fallback
+    const meta = JD_META[selectedPosition] || JD_META['_default'];
+    document.getElementById('jd-desc').textContent = meta.desc;
+    document.getElementById('jd-tags').innerHTML   = meta.tags.map(t =>
+      `<span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">${t}</span>`
+    ).join('');
+    return;
+  }
+  document.getElementById('jd-desc').innerHTML = html;
+  document.getElementById('jd-tags').innerHTML = '';
+}
+
+function checkCanStart() {
+  const hint = document.getElementById('start-hint');
+  if (!cvUploaded && !selectedPosition) {
+    hint.textContent = 'Vui lòng tải CV và chọn vị trí ứng tuyển trước khi bắt đầu.';
+    hint.classList.remove('hidden');
+  } else if (!cvUploaded) {
+    hint.textContent = 'Vui lòng tải CV của bạn lên trước.';
+    hint.classList.remove('hidden');
+  } else if (!selectedPosition) {
+    hint.textContent = 'Vui lòng chọn vị trí ứng tuyển trước.';
+    hint.classList.remove('hidden');
+  } else {
+    hint.classList.add('hidden');
+  }
+}
+
+function startInterview() {
+  if (!cvUploaded || !selectedPosition) { checkCanStart(); return; }
+  document.getElementById('start-hint').classList.add('hidden');
+  if (!consentAudio) { showConsentModal(); return; }
+  _doStartInterview();
+}
+
+function _doStartInterview() {
+  const meta = JD_META[selectedPosition] || JD_META['_default'];
+  prepInterview().then(() => {
+    document.getElementById('step-1').classList.add('hidden');
+    document.getElementById('step-2').classList.remove('hidden');
+    document.getElementById('step-badge').textContent = '';
+    document.getElementById('interview-position-name').textContent = `${meta.title} · ${selectedLevel}`;
+
+    if (INTRO_AUDIO_URL) {
+      document.getElementById('intro-audio').src = `${API_BASE}${INTRO_AUDIO_URL}`;
+      document.getElementById('intro-banner').classList.remove('hidden');
+    }
+
+    renderQuestionDots();
+    renderQuestionCards();
+    initSectionTimers();
+    updateProgress();
+    restoreSavedAnswers();
+    startSectionTimer(QUESTION_TYPES[0].n);
+  });
+}
+
+function renderQuestionDots() {
+  document.getElementById('q-dots').innerHTML = QUESTION_TYPES.map((q, i) => {
+    let className = 'w-1.5 bg-gray-200';
+    if (i === currentQuestionIndex) {
+      className = 'w-5 bg-[#0051d5]';
+    } else if (answers[q.n]) {
+      className = 'w-1.5 bg-emerald-500';
+    }
+    return `<div id="dot-${q.n}" class="h-1.5 rounded-full transition-all duration-300 ${className}"></div>`;
+  }).join('');
+}
+
+function updateDot(qn) {
+  QUESTION_TYPES.forEach(q => {
+    const dot = document.getElementById('dot-'+q.n);
+    if (!dot) return;
+    if (answers[q.n])     dot.className = 'h-1.5 w-1.5 rounded-full bg-emerald-500';
+    else if (q.n === qn)  dot.className = 'h-1.5 w-5 rounded-full bg-[#0051d5]';
+    else                  dot.className = 'h-1.5 w-1.5 rounded-full bg-gray-200';
+  });
+}
+
+function renderQuestionCards() {
+  document.getElementById('question-cards').innerHTML = QUESTION_TYPES.map((q, idx) => {
+    const qdata    = PREP_QUESTIONS[q.n] || {};
+    const audioSrc = qdata.audio_url ? `${API_BASE}${qdata.audio_url}` : '';
+    const qText    = qdata.text || '';
+    const cc       = TYPE_COLOR[q.type] || 'bg-gray-100 text-gray-700';
+    const isSoft   = q.type === 'Soft Skill';
+    return `
+    <div id="card-${q.n}" class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm transition-all duration-300 ${idx !== currentQuestionIndex ? 'hidden' : ''}">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 bg-[#0051d5] text-white rounded-xl flex items-center justify-center font-bold text-sm">${idx+1}/${QUESTION_TYPES.length}</span>
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full ${cc}">${q.label.toUpperCase()}</span>
+            <p class="text-gray-400 text-xs mt-0.5">Câu ${q.n}${isSoft ? ' · Phân tích định tính' : ''}</p>
+          </div>
+        </div>
+        <span id="status-${q.n}" class="text-xs font-semibold text-gray-400">CHƯA TRẢ LỜI</span>
+      </div>
+
+      <div id="card-content-${q.n}">
+        ${qText ? `<p class="text-gray-700 text-sm leading-relaxed mb-3 px-1 transition-all duration-500" id="qtext-${q.n}">${qText}</p>` : ''}
+        
+        <div class="bg-gray-50 rounded-xl p-3 mb-4 flex items-center gap-3">
+          <button onclick="toggleAudio('${q.n}')" id="play-btn-${q.n}"
+            class="w-10 h-10 bg-[#0051d5] text-white rounded-full flex items-center justify-center shrink-0 hover:opacity-90 active:scale-95 transition">
+            <span class="material-symbols-outlined" id="play-icon-${q.n}" style="font-variation-settings:'FILL' 1;">play_arrow</span>
+          </button>
+          <div class="flex-1">
+            <audio id="audio-${q.n}" ${audioSrc ? `src="${audioSrc}"` : ''} preload="auto"
+              onended="onAudioEnded('${q.n}')" ontimeupdate="onAudioProgress('${q.n}')"></audio>
+            <div class="flex items-end gap-0.5 h-7 cursor-pointer" onclick="seekAudio('${q.n}',event)" id="waveform-${q.n}">
+              ${Array.from({length:32},(_,i)=>
+                `<div class="flex-1 rounded-t-sm bg-blue-100 transition-all" style="height:${20+Math.sin(i*.7)*14+Math.cos(i*1.3)*8}%" id="wb-${q.n}-${i}"></div>`
+              ).join('')}
+            </div>
+            <div class="flex justify-between text-xs text-gray-400 mt-1">
+              <span id="time-${q.n}">0:00</span>
+              <span class="text-[#0051d5] font-semibold" id="hint-${q.n}">${audioSrc ? 'Nhấn ▶ để nghe câu hỏi' : 'Đang tải audio...'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-1.5 text-xs text-gray-400">
+            <span class="material-symbols-outlined text-base">timer</span>
+            <span>Thời gian gợi ý:</span>
+            <span id="sec-timer-${q.n}" class="font-mono font-bold text-gray-600">${Math.floor(SECTION_LIMITS[q.type]/60)}:00</span>
+          </div>
+          <div class="h-1 flex-1 mx-3 bg-gray-100 rounded-full overflow-hidden">
+            <div id="sec-timer-bar-${q.n}" class="h-full bg-blue-200 rounded-full" style="width:100%"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap">
+          <button id="rec-btn-${q.n}" onclick="toggleRecord('${q.n}')"
+            class="flex items-center gap-2 px-5 py-2.5 bg-gray-800 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95">
+            <span class="material-symbols-outlined" style="font-size:16px;">mic</span>
+            Bắt đầu trả lời
+          </button>
+          <div id="rec-wave-${q.n}" class="hidden items-end gap-0.5 h-6">
+            ${Array.from({length:5},()=>`<div class="bar w-1.5 bg-red-500 rounded-full h-3"></div>`).join('')}
+          </div>
+          <div id="rec-dot-${q.n}" class="hidden items-center gap-1.5">
+            <div class="w-2 h-2 bg-red-500 rounded-full rec-dot"></div>
+            <span class="text-red-500 text-xs font-bold" id="rec-timer-${q.n}">0:00</span>
+          </div>
+          <div class="flex items-center gap-2 ml-auto">
+            ${idx > 0 ? `
+            <button onclick="prevQuestion()" class="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-200 transition active:scale-95">
+              <span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span> Quay lại
+            </button>` : ''}
+            <button id="next-btn-${q.n}" onclick="nextQuestion()" class="hidden flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95">
+              ${idx === QUESTION_TYPES.length - 1 ? 'Nộp bài thi' : 'Câu tiếp theo'} <span class="material-symbols-outlined" style="font-size:16px;">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function prevQuestion() {
+  if (currentQuestionIndex > 0) {
+    const currentQ = QUESTION_TYPES[currentQuestionIndex];
+    stopSectionTimer(currentQ.n);
+    document.getElementById(`card-${currentQ.n}`).classList.add('hidden');
+    currentQuestionIndex--;
+    const prevQ = QUESTION_TYPES[currentQuestionIndex];
+    document.getElementById(`card-${prevQ.n}`).classList.remove('hidden');
+    renderQuestionDots();
+    startSectionTimer(prevQ.n);
+    // Hide submit section if they go back
+    document.getElementById('submit-section').classList.add('hidden');
+  }
+}
+
+function prevQuestionFromSubmit() {
+  document.getElementById('submit-section').classList.add('hidden');
+  currentQuestionIndex = QUESTION_TYPES.length - 1;
+  const prevQ = QUESTION_TYPES[currentQuestionIndex];
+  document.getElementById(`card-${prevQ.n}`).classList.remove('hidden');
+  renderQuestionDots();
+  startSectionTimer(prevQ.n);
+}
+
+function nextQuestion(force = false) {
+  const currentQ = QUESTION_TYPES[currentQuestionIndex];
+  if (answers[currentQ.n] || force) {
+    if (force && !answers[currentQ.n]) {
+      // Dummy auto-save if they didn't record anything
+      answers[currentQ.n] = new Blob([], { type:'audio/webm' });
+      saveAnswerLocal(currentQ.n, answers[currentQ.n]);
+      const stEl = document.getElementById('status-'+currentQ.n);
+      if (stEl) stEl.innerHTML = `<span class="flex items-center gap-1 text-red-600 text-xs font-bold"><span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">error</span>HẾT GIỜ</span>`;
+      unlockNext(currentQ.n);
+    }
+    
+    stopSectionTimer(currentQ.n);
+    document.getElementById(`card-${currentQ.n}`).classList.add('hidden');
+    
+    currentQuestionIndex++;
+    if (currentQuestionIndex < QUESTION_TYPES.length) {
+      const nextQ = QUESTION_TYPES[currentQuestionIndex];
+      document.getElementById(`card-${nextQ.n}`).classList.remove('hidden');
+      renderQuestionDots();
+      startSectionTimer(nextQ.n);
+    } else {
+      document.getElementById('submit-section').classList.remove('hidden');
+      document.getElementById('submit-section').scrollIntoView({ behavior:'smooth', block:'nearest' });
+      updateDot(null);
+    }
+  }
+}
+
+
+// ── Intro audio helpers ──────────────────────────────────────
+function toggleIntro() {
+  const audio = document.getElementById('intro-audio');
+  const icon  = document.getElementById('intro-icon');
+  if (audio.paused) {
+    document.querySelectorAll('audio').forEach(a => a.pause());
+    document.querySelectorAll('[id^="play-icon-"]').forEach(i => i.textContent = 'play_arrow');
+    audio.play().catch(() => {});
+    icon.textContent = 'pause';
+    document.getElementById('intro-hint').textContent = 'Đang phát...';
+  } else {
+    audio.pause();
+    icon.textContent = 'play_arrow';
+    document.getElementById('intro-hint').textContent = 'Đã tạm dừng';
+  }
+}
+function onIntroEnded() {
+  document.getElementById('intro-icon').textContent = 'replay';
+  document.getElementById('intro-hint').textContent = 'Nghe xong — sẵn sàng bắt đầu';
+}
+function onIntroProgress() {
+  const a = document.getElementById('intro-audio');
+  if (!a.duration) return;
+  const s = Math.floor(a.currentTime);
+  document.getElementById('intro-time').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+}
+
+function toggleAudio(qn) {
+  const audio = document.getElementById('audio-'+qn);
+  const icon  = document.getElementById('play-icon-'+qn);
+  if (audio.paused) {
+    document.querySelectorAll('audio').forEach(a=>a.pause());
+    document.querySelectorAll('[id^="play-icon-"]').forEach(i=>i.textContent='play_arrow');
+    audio.play().catch(()=>{});
+    icon.textContent = 'pause';
+    document.getElementById('hint-'+qn).textContent = 'Đang phát...';
+  } else {
+    audio.pause();
+    icon.textContent = 'play_arrow';
+  }
+}
+
+function onAudioEnded(qn) {
+  document.getElementById('play-icon-'+qn).textContent = 'replay';
+  document.getElementById('hint-'+qn).textContent = 'Nghe xong — sẵn sàng trả lời';
+}
+
+function onAudioProgress(qn) {
+  const audio = document.getElementById('audio-'+qn);
+  if (!audio.duration) return;
+  const pct = audio.currentTime / audio.duration;
+  const s   = Math.floor(audio.currentTime);
+  document.getElementById('time-'+qn).textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  for (let i=0;i<32;i++) {
+    const bar = document.getElementById(`wb-${qn}-${i}`);
+    if (bar) bar.style.background = i/32 < pct ? '#0051d5' : 'rgba(0,81,213,.15)';
+  }
+}
+
+function seekAudio(qn, e) {
+  const audio = document.getElementById('audio-'+qn);
+  if (!audio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  audio.currentTime = ((e.clientX-rect.left)/rect.width) * audio.duration;
+}
+
+async function toggleRecord(qn) {
+  if (activeRecordingQ && activeRecordingQ !== qn) stopRecord(activeRecordingQ);
+  if (activeRecordingQ === qn) stopRecord(qn); else await startRecord(qn);
+}
+
+async function startRecord(qn) {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    alert('Cần cấp quyền microphone để ghi âm.');
+    return;
+  }
+  recordingChunks = [];
+  mediaRecorder = new MediaRecorder(mediaStream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size>0) recordingChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    answers[qn] = new Blob(recordingChunks, { type:'audio/webm' });
+    onAnswerSaved(qn);
+  };
+  mediaRecorder.start();
+  activeRecordingQ = qn;
+
+  const btn = document.getElementById('rec-btn-'+qn);
+  btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">stop_circle</span> Xong`;
+  btn.classList.remove('bg-gray-800', 'bg-gray-500');
+  btn.classList.add('bg-red-600');
+  document.getElementById('rec-wave-'+qn).classList.remove('hidden');
+  document.getElementById('rec-wave-'+qn).classList.add('flex','wave-anim');
+  document.getElementById('rec-dot-'+qn).classList.remove('hidden');
+  document.getElementById('rec-dot-'+qn).classList.add('flex');
+  let secs = 0;
+  recIntervals[qn] = setInterval(()=>{
+    secs++;
+    const t = document.getElementById('rec-timer-'+qn);
+    if (t) t.textContent = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
+  },1000);
+}
+
+function stopRecord(qn) {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if (mediaStream) { mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; }
+  clearInterval(recIntervals[qn]);
+  activeRecordingQ = null;
+  document.getElementById('rec-wave-'+qn).classList.add('hidden');
+  document.getElementById('rec-dot-'+qn).classList.add('hidden');
+}
+
+function onAnswerSaved(qn) {
+  saveAnswerLocal(qn, answers[qn]);
+  document.getElementById('status-'+qn).innerHTML =
+    `<span class="flex items-center gap-1 text-emerald-600 text-xs font-bold"><span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">check_circle</span>ĐÃ GHI ÂM</span>`;
+  const btn = document.getElementById('rec-btn-'+qn);
+  btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">replay</span> Trả lời lại`;
+  btn.classList.remove('bg-red-600');
+  btn.classList.add('bg-gray-500');
+  
+  if (!qn.includes('_')) {
+    processAnswer(qn);
+  } else {
+    processAnswer(qn, true);
+  }
+}
+
+async function processAnswer(qn, isPushback = false) {
+  const mainQn = isPushback ? qn.split('_')[0] : qn;
+  const qObj = QUESTION_TYPES.find(q => q.n === mainQn);
+  if (!qObj) {
+    unlockNext(mainQn);
+    return;
+  }
+
+  // If re-recording, clear subsequent pushbacks
+  if (isPushback) {
+    const currentIndex = parseInt(qn.split('_')[1]);
+    const allPbs = Object.keys(answers).filter(k => k.startsWith(mainQn + '_'));
+    for (const p of allPbs) {
+      const idx = parseInt(p.split('_')[1]);
+      if (idx > currentIndex) {
+        delete answers[p];
+        delete sttTexts[p];
+        delete pushbackTexts[p];
+        const el = document.getElementById('pb-container-' + p);
+        if (el) el.remove();
+        const sttEl = document.getElementById('stt-box-' + p);
+        if (sttEl) sttEl.remove();
+      }
+    }
+  } else {
+    // Re-recording main question clears ALL pushbacks
+    const allPbs = Object.keys(answers).filter(k => k.startsWith(mainQn + '_'));
+    for (const p of allPbs) {
+      delete answers[p];
+      delete sttTexts[p];
+      delete pushbackTexts[p];
+      const el = document.getElementById('pb-container-' + p);
+      if (el) el.remove();
+      const sttEl = document.getElementById('stt-box-' + p);
+      if (sttEl) sttEl.remove();
+    }
+  }
+  
+  const statusEl = document.getElementById('status-'+qn);
+  const oldStatus = statusEl.innerHTML;
+  statusEl.innerHTML = `<span class="flex items-center gap-1 text-[#0051d5] text-xs font-bold"><span class="material-symbols-outlined text-sm animate-spin" style="font-variation-settings:'FILL' 1;">refresh</span> ĐANG CHUYỂN NGỮ...</span>`;
+  
+  try {
+    const form = new FormData();
+    form.append('audio', answers[qn]);
+    const qText = PREP_QUESTIONS[mainQn]?.text || '';
+    form.append('question_text', qText);
+    form.append('question_type', isPushback ? 'FollowUp' : qObj.type);
+    
+    // Build history
+    const historyArray = [];
+    if (isPushback && sttTexts[mainQn]) {
+      historyArray.push({role: 'user', content: sttTexts[mainQn]});
+    }
+    const pushbacks = Object.keys(answers).filter(k => k.startsWith(mainQn + '_')).sort();
+    for (const pb of pushbacks) {
+      if (pb >= qn) break; // Only include history BEFORE the current question
+      if (pushbackTexts[pb]) {
+        historyArray.push({role: 'assistant', content: pushbackTexts[pb]});
+      }
+      if (sttTexts[pb]) {
+        historyArray.push({role: 'user', content: sttTexts[pb]});
+      }
+    }
+    form.append('history', JSON.stringify(historyArray));
+    
+    const res = await fetch(`${API_BASE}/interview/evaluate-step`, { method: 'POST', body: form });
+    const data = await res.json();
+    
+    statusEl.innerHTML = oldStatus;
+    
+    if (data.transcript) {
+      sttTexts[qn] = data.transcript;
+      showTranscriptUI(qn, data.transcript);
+    }
+    
+    if (data.need_pushback && data.pushback_text) {
+      const nextPbIndex = Object.keys(answers).filter(k => k.startsWith(mainQn + '_')).length + 1;
+      const nextPbId = mainQn + '_' + nextPbIndex;
+      pushbackTexts[nextPbId] = data.pushback_text;
+      injectPushbackUI(mainQn, nextPbId, data.pushback_text, data.pushback_audio);
+    } else {
+      unlockNext(mainQn);
+    }
+  } catch(e) {
+    statusEl.innerHTML = oldStatus;
+    unlockNext(mainQn);
+  }
+}
+
+function showTranscriptUI(qn, text) {
+  const mainQn = qn.includes('_') ? qn.split('_')[0] : qn;
+  const cardContent = document.getElementById('card-content-' + mainQn);
+  if (!cardContent) return;
+  
+  // Remove existing STT box for this specific answer if any
+  const existingBox = document.getElementById('stt-box-' + qn);
+  if (existingBox) existingBox.remove();
+  
+  const title = qn.includes('_') ? 'CÂU TRẢ LỜI PHẢN BIỆN (STT)' : 'CÂU TRẢ LỜI CỦA BẠN (STT)';
+  
+  // Create a box to show STT
+  const sttHtml = `
+    <div id="stt-box-${qn}" class="mt-4 bg-gray-50 rounded-xl p-4 border border-gray-200">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-symbols-outlined text-gray-500 text-[18px]">format_quote</span>
+        <span class="text-xs font-bold text-gray-600 tracking-wider">${title}</span>
+      </div>
+      <p class="text-sm text-gray-800 leading-relaxed italic">"${text}"</p>
+    </div>
+  `;
+  
+  // Insert before pushback if exists, or append
+  const pbContainer = document.getElementById('pb-container-' + mainQn + '_1');
+  if (pbContainer && !qn.includes('_')) {
+    pbContainer.insertAdjacentHTML('beforebegin', sttHtml);
+  } else {
+    cardContent.insertAdjacentHTML('beforeend', sttHtml);
+  }
+}
+
+function injectPushbackUI(mainQn, pbId, text, audioUrl) {
+  const cardContent = document.getElementById('card-content-'+mainQn);
+  
+  if (document.getElementById('pb-container-'+pbId)) return;
+  
+  const pbHtml = `
+    <div id="pb-container-${pbId}" class="mt-5 pt-5 border-t border-gray-100">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-7 h-7 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center font-bold text-xs"><span class="material-symbols-outlined text-[16px]">smart_toy</span></span>
+        <span class="text-[11px] font-bold text-purple-700 tracking-wider">CÂU HỎI PHẢN BIỆN (FOLLOW-UP)</span>
+      </div>
+      <p class="text-gray-700 text-sm leading-relaxed mb-3 px-1">${text}</p>
+      
+      <div class="bg-purple-50 rounded-xl p-3 mb-4 flex items-center gap-3 relative overflow-hidden">
+        <button onclick="toggleAudio('${pbId}')" id="play-btn-${pbId}"
+          class="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center shrink-0 hover:opacity-90 active:scale-95 transition">
+          <span class="material-symbols-outlined" id="play-icon-${pbId}" style="font-variation-settings:'FILL' 1;">play_arrow</span>
+        </button>
+        <div class="flex-1">
+          <audio id="audio-${pbId}" src="${API_BASE}${audioUrl}" preload="auto"
+            onended="onAudioEnded('${pbId}')" ontimeupdate="onAudioProgress('${pbId}')"></audio>
+          <div class="flex items-end gap-0.5 h-7 cursor-pointer" onclick="seekAudio('${pbId}',event)" id="waveform-${pbId}">
+            ${Array.from({length:32},(_,i)=>
+              `<div class="flex-1 rounded-t-sm bg-purple-200 transition-all" style="height:${20+Math.sin(i*.7)*14+Math.cos(i*1.3)*8}%" id="wb-${pbId}-${i}"></div>`
+            ).join('')}
+          </div>
+          <div class="flex justify-between text-xs text-gray-400 mt-1">
+            <span id="time-${pbId}">0:00</span>
+            <span class="text-purple-700 font-semibold" id="hint-${pbId}">Nhấn ▶ để nghe câu hỏi</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3">
+        <button id="rec-btn-${pbId}" onclick="toggleRecord('${pbId}')"
+          class="flex items-center gap-2 px-5 py-2.5 bg-gray-800 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95">
+          <span class="material-symbols-outlined" style="font-size:16px;">mic</span>
+          Bắt đầu trả lời
+        </button>
+        <div id="rec-wave-${pbId}" class="hidden items-end gap-0.5 h-6">
+          ${Array.from({length:5},()=>`<div class="bar w-1.5 bg-red-500 rounded-full h-3"></div>`).join('')}
+        </div>
+        <div id="rec-dot-${pbId}" class="hidden items-center gap-1.5">
+          <div class="w-2 h-2 bg-red-500 rounded-full rec-dot"></div>
+          <span class="text-red-500 text-xs font-bold" id="rec-timer-${pbId}">0:00</span>
+        </div>
+        
+        <div class="ml-auto" id="status-${pbId}"></div>
+      </div>
+    </div>
+  `;
+  cardContent.insertAdjacentHTML('beforeend', pbHtml);
+  
+  // Scroll to pushback
+  document.getElementById('pb-container-'+pbId).scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+function unlockNext(qn) {
+  // Show Next button on current card
+  const btn = document.getElementById('next-btn-'+qn);
+  if (btn) btn.classList.remove('hidden');
+
+  const idx = QUESTION_TYPES.findIndex(q=>q.n===qn);
+  if (idx < QUESTION_TYPES.length-1) {
+    const next = QUESTION_TYPES[idx+1].n;
+    const ccEl = document.getElementById('card-content-'+next);
+    if (ccEl) ccEl.classList.remove('hidden');
+    const lEl = document.getElementById('card-lock-'+next);
+    if (lEl) { lEl.classList.add('hidden'); lEl.classList.remove('flex'); }
+    const qtEl = document.getElementById('qtext-'+next);
+    if (qtEl) qtEl.classList.remove('blur-sm');
+  }
+  updateProgress();
+}
+
+function updateProgress() {
+  const doneMain = Object.keys(answers).filter(k => !k.includes('_')).length;
+  document.getElementById('q-counter').textContent = `${doneMain} / ${QUESTION_TYPES.length}`;
+  document.getElementById('q-progress-bar').style.width = `${doneMain/QUESTION_TYPES.length*100}%`;
+}
+
+async function prepInterview() {
+  document.getElementById('prep-loading').classList.remove('hidden');
+  document.getElementById('prep-status').textContent = 'Đang phân tích CV và tạo câu hỏi phù hợp...';
+
+  // Offline check
+  if (!navigator.onLine) {
+    showToast('Không có kết nối mạng. Vui lòng kiểm tra lại trước khi tiếp tục.', 'warning', 8000);
+    logIncident('network_offline', 'No network at prep start');
+  }
+
+  try {
+    const body = new URLSearchParams({
+      position_id: `${selectedLevel}_${selectedPosition}`,
+      level: selectedLevel,
+    });
+    if (REF) body.append('app_ref', REF);
+
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 45000);
+    const r = await fetch(`${API_BASE}/interview/prep`, { method: 'POST', body, signal: controller.signal });
+    clearTimeout(timeout);
+    const data = await r.json();
+    PREP_ID         = data.prep_id || '';
+    PREP_QUESTIONS  = data.questions || {};
+    INTRO_AUDIO_URL = data.intro_audio || '';
+  } catch(e) {
+    const isTimeout = e.name === 'AbortError';
+    console.warn('Prep failed:', e);
+    logIncident(isTimeout ? 'prep_timeout' : 'prep_error', e.message || String(e));
+    showToast(
+      isTimeout ? 'Chuẩn bị câu hỏi mất quá lâu — dùng câu hỏi mặc định.' : 'Không thể kết nối server — dùng câu hỏi mặc định.',
+      'warning', 6000
+    );
+    PREP_QUESTIONS = {
+      '01': { text: 'Bạn hãy giải thích về kiến trúc và các công nghệ chính bạn thường sử dụng.', audio_url: '', type: 'Technical' },
+      '02': { text: 'Kể về một vấn đề kỹ thuật khó khăn bạn từng gặp và cách giải quyết.', audio_url: '', type: 'Technical' },
+      '03': { text: 'Kể về một lần làm việc với người có quan điểm khác bạn.', audio_url: '', type: 'Soft Skill' },
+      '04': { text: 'Bạn làm gì khi nhận nhiều việc cùng lúc với deadline gấp?', audio_url: '', type: 'Soft Skill' },
+      '07': { text: 'Mô tả một dự án bạn tự hào nhất: vai trò và kết quả đạt được.', audio_url: '', type: 'Experience' },
+      '08': { text: 'Kể về một lần bạn mắc sai lầm trong công việc và bài học rút ra.', audio_url: '', type: 'Experience' },
+      '07': { text: 'Bạn đã từng tham gia vào một dự án nào liên quan đến học máy chưa? Nếu có, hãy mô tả vai trò của bạn.', audio_url: '', type: 'Experience' },
+      '08': { text: 'Trong quá khứ, bạn đã có kinh nghiệm làm việc nhóm trong một dự án nào chưa? Hãy chia sẻ một ví dụ cụ thể.', audio_url: '', type: 'Experience' },
+    };
+  } finally {
+    document.getElementById('prep-loading').classList.add('hidden');
+  }
+}
+
+async function submitInterview() {
+  if (!navigator.onLine) {
+    showToast('Mất kết nối mạng. Câu trả lời đã được lưu cục bộ — vui lòng thử lại khi có mạng.', 'error', 8000);
+    logIncident('network_offline', 'No network at submit');
+    return;
+  }
+
+  const btn = document.querySelector('#submit-section button');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="material-symbols-outlined animate-spin">refresh</span> Đang gửi...`;
+
+  const cvInput = document.getElementById('cv-file-input');
+  const form    = new FormData();
+  form.append('position_id', `${selectedLevel}_${selectedPosition}`);
+  form.append('level', selectedLevel);
+  if (REF)     form.append('app_ref', REF);
+  if (PREP_ID) form.append('prep_id', PREP_ID);
+  if (REIV)    form.append('reiv', REIV);  // re-interview: ghi đè vào interview gốc
+  if (cvInput.files[0]) {
+    form.append('cv_file', cvInput.files[0], cvInput.files[0].name);
+  }
+  QUESTION_TYPES.forEach(q => {
+    if (answers[q.n]) form.append(`answer_${q.n}`, answers[q.n], `answer_${q.n}.webm`);
+  });
+  // Append any pushback answers
+  Object.keys(answers).forEach(k => {
+    if (k.includes('_')) {
+      form.append(`answer_${k}`, answers[k], `answer_${k}.webm`);
+    }
+  });
+
+  try {
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 120000);
+    const res  = await fetch(`${API_BASE}/interview/submit`, { method:'POST', body:form, signal: controller.signal });
+    clearTimeout(timeout);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.detail || 'Lỗi server');
+
+    currentInterviewId = data.interview_id || '';
+    await clearLocalAnswers();
+
+    document.getElementById('done-position').textContent   = `${JD_META[selectedPosition]?.title || selectedPosition} · ${selectedLevel}`;
+    document.getElementById('done-session-id').textContent = currentInterviewId;
+    document.getElementById('step-2').classList.add('hidden');
+    document.getElementById('step-3').classList.remove('hidden');
+    document.getElementById('step-badge').textContent = '';
+    initSurvey();
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = `<span class="material-symbols-outlined">send</span> Thử lại`;
+    const isTimeout = err.name === 'AbortError';
+    logIncident(isTimeout ? 'submit_timeout' : 'submit_error', err.message || String(err));
+    showToast(
+      isTimeout ? 'Gửi bài mất quá lâu — vui lòng thử lại.' : `Không thể gửi: ${err.message}`,
+      'error', 7000
+    );
+  }
+}
+
+// ── Survey (§26) ──────────────────────────────────────────
+function initSurvey() {
+  // Render star buttons for each rating question
+  document.querySelectorAll('[data-rating]').forEach(container => {
+    const key = container.dataset.rating;
+    container.innerHTML = [1,2,3,4,5].map(v =>
+      `<span class="star-btn" data-v="${v}" onclick="rateQuestion('${key}',${v})">★</span>`
+    ).join('');
+  });
+}
+
+function rateQuestion(key, val) {
+  surveyRatings[key] = val;
+  const container = document.querySelector(`[data-rating="${key}"]`);
+  if (!container) return;
+  container.querySelectorAll('.star-btn').forEach(s => {
+    s.classList.toggle('lit', parseInt(s.dataset.v) <= val);
+  });
+}
+
+function selectNPS(val) {
+  surveyNPS = val;
+  document.querySelectorAll('.nps-btn').forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.dataset.v) === val);
+  });
+}
+
+async function submitSurvey() {
+  const btn = document.getElementById('survey-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="material-symbols-outlined animate-spin">refresh</span> Đang gửi...`;
+
+  const payload = {
+    position_id: `${selectedLevel}_${selectedPosition}`,
+    ratings:     surveyRatings,
+    nps:         surveyNPS,
+    comments:    [
+      document.getElementById('survey-like').value.trim(),
+      document.getElementById('survey-improve').value.trim(),
+    ].filter(Boolean).join('\n---\n'),
+  };
+
+  try {
+    await fetch(`${API_BASE}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch(e) { /* best-effort */ }
+
+  document.getElementById('survey-card').classList.add('hidden');
+  document.getElementById('survey-done').classList.remove('hidden');
+}
+
+// ── Per-section timer (§17) ────────────────────────────────
+let sectionTimers = {};   // { qn: { elapsed, intervalId, limit } }
+
+function initSectionTimers() {
+  sectionTimers = {};
+  QUESTION_TYPES.forEach(q => {
+    sectionTimers[q.n] = { elapsed: 0, intervalId: null, limit: SECTION_LIMITS[q.type] || 180 };
+  });
+}
+
+function startSectionTimer(qn) {
+  const s = sectionTimers[qn];
+  if (!s || s.intervalId) return;
+  const timerEl = document.getElementById('sec-timer-' + qn);
+  if (!timerEl) return;
+
+  const barEl = document.getElementById('sec-timer-bar-' + qn);
+
+  let initialRemaining = s.limit - s.elapsed;
+  if (initialRemaining <= 0) {
+    const btn = document.getElementById('rec-btn-'+qn);
+    if (btn) { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none'); }
+    const pbBtn = document.getElementById('rec-btn-'+qn+'_1');
+    if (pbBtn) { pbBtn.disabled = true; pbBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none'); }
+    timerEl.textContent = `0:00`;
+    timerEl.classList.add('timer-warn');
+    if (barEl) { barEl.style.width = `0%`; barEl.style.background = '#dc2626'; }
+    return;
+  }
+
+  s.intervalId = setInterval(() => {
+    s.elapsed++;
+    const remaining = s.limit - s.elapsed;
+    const mins = Math.floor(Math.abs(remaining) / 60);
+    const secs = Math.abs(remaining) % 60;
+    timerEl.textContent = remaining >= 0
+      ? `${mins}:${String(secs).padStart(2,'0')}`
+      : `-${mins}:${String(secs).padStart(2,'0')}`;
+
+    if (barEl) {
+      const pct = Math.max(0, remaining / s.limit * 100);
+      barEl.style.width = `${pct}%`;
+      barEl.style.background = remaining <= 60 ? '#dc2626' : remaining <= s.limit * 0.4 ? '#d97706' : '';
+    }
+
+    if (remaining <= 60 && remaining > 0) {
+      timerEl.classList.add('timer-warn');
+    }
+    if (remaining === 60) {
+      showToast('Còn 1 phút cho câu này — hãy hoàn thành câu trả lời.', 'warning', 5000);
+    }
+    if (remaining === 0) {
+      showToast('Hết thời gian! Tự động chuyển câu hỏi.', 'warning', 6000);
+      logIncident('section_overtime', `Q${qn} exceeded time limit`);
+      
+      // Stop active recordings
+      if (activeRecordingQ && activeRecordingQ.startsWith(qn)) {
+         stopRecord(activeRecordingQ);
+      }
+      // Lock buttons
+      const btn = document.getElementById('rec-btn-'+qn);
+      if (btn) { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none'); }
+      const pbBtn = document.getElementById('rec-btn-'+qn+'_1');
+      if (pbBtn) { pbBtn.disabled = true; pbBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none'); }
+      
+      // Stop timer and jump
+      stopSectionTimer(qn);
+      if (currentQuestionIndex < QUESTION_TYPES.length && QUESTION_TYPES[currentQuestionIndex].n === qn) {
+          nextQuestion(true);
+      }
+    }
+  }, 1000);
+}
+
+function stopSectionTimer(qn) {
+  const s = sectionTimers[qn];
+  if (s && s.intervalId) {
+    clearInterval(s.intervalId);
+    s.intervalId = null;
+  }
+}
+
+// Patch removed
+
+// ── Auto-start từ email link — hiển thị consent modal trước ──
+if (URL_POS) {
+  selectedPosition = URL_POS;
+  cvUploaded = true;
+
+  // Level từ URL (HR gửi link đã kèm level) — ẩn bộ chọn level trên Step 1
+  const urlLevel = _params.get('lv');
+  if (urlLevel) {
+    selectedLevel = urlLevel;
+    selectLevel(urlLevel);
+    // Ẩn level buttons khi đã được xác định từ apply
+    const lb = document.getElementById('level-buttons');
+    if (lb) lb.closest('.mt-4').style.display = 'none';
+  }
+
+  // Show consent modal — _doStartInterview() called when accepted
+  showConsentModal();
+}
+
+// Khi đổi level, reload JD nếu đang có vị trí
+document.querySelectorAll('.level-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (selectedPosition) onPositionChange();
+  });
+});
+</script>
+</body>
+</html>

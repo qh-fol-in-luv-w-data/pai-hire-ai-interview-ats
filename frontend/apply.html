@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PAI HR — Nộp đơn ứng tuyển</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .spin { animation: spin .8s linear infinite; display:inline-block; }
+  @keyframes slideIn { from:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+  .slide-in { animation: slideIn .2s ease-out forwards; }
+
+  .job-card { transition: border-color .12s, box-shadow .12s, transform .12s; border: 1.5px solid #e5e7eb; cursor: pointer; }
+  .job-card:hover { border-color: #0051d5; box-shadow: 0 4px 16px rgba(0,81,213,.1); transform: translateY(-1px); }
+  .job-card.selected { border-color: #0051d5; background: #eef2ff; }
+
+  .lv-btn {
+    padding: .55rem 1.2rem;
+    border-radius: 999px;
+    font-size: .82rem;
+    font-weight: 600;
+    border: 1.5px solid #d1d5db;
+    background: #fff;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all .12s;
+    white-space: nowrap;
+  }
+  .lv-btn:hover { border-color: #0051d5; color: #0051d5; }
+  .lv-btn.active {
+    background: #0051d5;
+    border-color: #0051d5;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,81,213,.25);
+  }
+
+  .tag { display:inline-block; font-size:.68rem; font-weight:600; padding:.15rem .5rem; border-radius:999px; background:#eff6ff; color:#1e40af; }
+
+  ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+
+  .step-dot { width:1.8rem;height:1.8rem;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.75rem;flex-shrink:0; }
+  .step-done   { background:#dcfce7;color:#166534; }
+  .step-active { background:#0051d5;color:#fff; }
+  .step-pend   { background:#f1f5f9;color:#94a3b8; }
+
+  .jd-body h2 { font-weight:700;font-size:.82rem;color:#0d1b35;margin:.9rem 0 .35rem;padding-bottom:.25rem;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.04em; }
+  .jd-body h3 { font-weight:600;font-size:.78rem;color:#374151;margin:.65rem 0 .25rem; }
+  .jd-body ul { list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.28rem; }
+  .jd-body li { display:flex;align-items:flex-start;font-size:.8rem;color:#374151;line-height:1.55; }
+  .jd-body li::before { content:"▸";color:#0051d5;margin-right:.4rem;flex-shrink:0;margin-top:.1rem; }
+  .jd-body strong { font-weight:700;color:#111827; }
+  .jd-body p { font-size:.8rem;color:#6b7280;margin:.25rem 0; }
+</style>
+</head>
+<body class="bg-[#f0f3f8] min-h-screen">
+
+<!-- ── HEADER ─────────────────────────────────────────── -->
+<header class="bg-[#0d1b35] text-white px-5 py-3.5 flex items-center gap-3 sticky top-0 z-50 shadow-lg">
+  <div class="w-8 h-8 bg-[#0051d5] rounded-lg flex items-center justify-center font-extrabold">P</div>
+  <div>
+    <p class="font-bold text-sm leading-none">PAI HR · CT Group</p>
+    <p class="text-white/40 text-xs">Tuyển dụng AI</p>
+  </div>
+  <div class="ml-auto hidden md:flex items-center gap-1.5 text-xs text-white/40">
+    <span class="material-symbols-outlined text-sm">verified</span>
+    Ứng tuyển 100% trực tuyến
+  </div>
+</header>
+
+<!-- ── HERO ───────────────────────────────────────────── -->
+<div class="bg-[#0d1b35] text-white px-5 pt-8 pb-6 text-center">
+  <p class="text-[.68rem] font-bold tracking-[.18em] text-[#93c5fd] uppercase mb-1.5">Cơ hội nghề nghiệp</p>
+  <h1 class="text-xl md:text-2xl font-extrabold mb-2 leading-tight">Tìm việc làm phù hợp với bạn</h1>
+  <p class="text-white/50 text-xs max-w-xs mx-auto mb-5">Nộp CV · Phỏng vấn AI 15 phút · Kết quả trong 24 giờ</p>
+
+  <!-- Search + Category -->
+  <div class="flex items-center justify-center gap-2 flex-wrap">
+    <div class="relative">
+      <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[1.1rem]">search</span>
+      <input id="search-input" type="text" placeholder="Tìm vị trí, kỹ năng..."
+        class="pl-8 pr-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-[#0051d5]"
+        oninput="filterJobs()"/>
+    </div>
+    <select id="cat-filter" onchange="filterJobs()"
+      class="py-2 px-3 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0051d5]">
+      <option value="">Tất cả lĩnh vực</option>
+    </select>
+  </div>
+</div>
+
+<!-- ── LEVEL PICKER ───────────────────────────────────── -->
+<div class="bg-white border-b border-gray-200 shadow-sm sticky top-[57px] z-40">
+  <div class="max-w-7xl mx-auto px-5 py-3 flex items-center gap-2 flex-wrap">
+    <p class="text-xs font-bold text-gray-500 mr-1 shrink-0">Cấp bậc ứng tuyển <span class="text-red-500">*</span></p>
+    <div class="flex gap-2 flex-wrap" id="top-level-btns">
+      <button class="lv-btn" data-lv="Entry"    onclick="selectLevel('Entry')">Entry</button>
+      <button class="lv-btn active" data-lv="Junior" onclick="selectLevel('Junior')">Junior</button>
+      <button class="lv-btn" data-lv="Mid"      onclick="selectLevel('Mid')">Mid</button>
+      <button class="lv-btn" data-lv="Senior"   onclick="selectLevel('Senior')">Senior</button>
+      <button class="lv-btn" data-lv="Manager"  onclick="selectLevel('Manager')">Manager</button>
+      <button class="lv-btn" data-lv="Director" onclick="selectLevel('Director')">Director</button>
+    </div>
+    <div id="level-badge" class="ml-auto text-xs hidden md:flex items-center gap-1.5 text-[#0051d5] font-semibold">
+      <span class="material-symbols-outlined text-sm">badge</span>
+      <span id="level-badge-text">Junior</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ───────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-4 py-6 flex gap-5">
+
+  <!-- Flat job list -->
+  <div class="flex-1 min-w-0">
+    <p class="text-xs text-gray-400 mb-3">
+      <span id="job-count" class="font-bold text-gray-700">—</span> vị trí đang tuyển
+    </p>
+    <div id="job-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div class="col-span-2 text-center py-12 text-gray-400 text-sm">
+        <span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <div id="detail-panel" class="hidden w-full md:w-[420px] shrink-0">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-md sticky top-[108px] max-h-[calc(100vh-7rem)] overflow-y-auto">
+      <div id="detail-content"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── SUCCESS ─────────────────────────────────────────── -->
+<div id="success-screen" class="hidden fixed inset-0 z-50 bg-white flex items-center justify-center p-6">
+  <div class="text-center max-w-sm w-full">
+    <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <span class="material-symbols-outlined text-3xl text-emerald-600" style="font-variation-settings:'FILL' 1">check_circle</span>
+    </div>
+    <h2 class="text-xl font-extrabold text-gray-900 mb-1">Nộp CV thành công!</h2>
+    <p class="text-gray-400 text-sm mb-1">Mã hồ sơ: <span id="success-app-id" class="font-mono font-bold text-gray-800">—</span></p>
+    <p id="success-reapplicant" class="hidden text-purple-600 text-xs font-semibold mb-2">Đây là đơn tái ứng tuyển của bạn.</p>
+    <div class="bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-5 text-left space-y-2.5 text-sm mt-4">
+      <div class="flex items-center gap-2.5">
+        <div class="step-dot step-done"><span class="material-symbols-outlined text-xs" style="font-variation-settings:'FILL' 1">check</span></div>
+        <div><p class="font-semibold text-gray-800 text-xs">CV đã nhận</p><p class="text-gray-400 text-[.68rem]">Hệ thống đang chấm điểm AI</p></div>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <div class="step-dot step-active">2</div>
+        <div><p class="font-semibold text-gray-800 text-xs">Chờ kết quả CV</p><p class="text-gray-400 text-[.68rem]">AI đánh giá và gửi email trong vài phút</p></div>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <div class="step-dot step-pend">3</div>
+        <div><p class="font-semibold text-gray-400 text-xs">Phỏng vấn AI</p><p class="text-gray-400 text-[.68rem]">Link phỏng vấn gửi qua email nếu CV phù hợp</p></div>
+      </div>
+    </div>
+    <p class="text-[.7rem] text-gray-400 mb-4">Kiểm tra hộp thư <strong class="text-gray-600" id="success-email"></strong> (kể cả Spam)</p>
+    <button onclick="location.reload()" class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition">
+      Ứng tuyển vị trí khác
+    </button>
+  </div>
+</div>
+
+<script>
+const API_BASE = location.origin;
+
+let allJobs      = [];
+let filteredJobs = [];
+let selectedJob  = null;
+let selectedLevel = 'Junior';
+
+const CAT_ICONS = {
+  'Công Nghệ Thông Tin': 'computer',
+  'Kinh Doanh':          'storefront',
+  'Marketing':           'campaign',
+  'Nhân Sự':             'group',
+  'Kỹ Thuật':            'engineering',
+  'Chuỗi Cung Ứng':      'local_shipping',
+  'Thiết Kế':            'palette',
+  'Tài Chính':           'payments',
+};
+function catIcon(cat) {
+  return Object.entries(CAT_ICONS).find(([k]) => cat.includes(k))?.[1] || 'work';
+}
+function cleanTitle(t) {
+  return t.replace(/^(Entry|Junior|Mid|Senior|Manager|Director)\s+/i, '');
+}
+
+// ── Level picker ─────────────────────────────────────────
+async function selectLevel(lv) {
+  selectedLevel = lv;
+  document.querySelectorAll('#top-level-btns .lv-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lv === lv);
+  });
+  document.getElementById('level-badge').classList.remove('hidden');
+  document.getElementById('level-badge-text').textContent = lv;
+
+  // Reload JD in panel if open
+  if (selectedJob) {
+    const jdEl = document.querySelector('.jd-body');
+    if (jdEl) jdEl.innerHTML = '<p class="text-gray-400 text-[.72rem] py-1">Đang tải JD...</p>';
+    try {
+      const r = await fetch(`${API_BASE}/jobs/${encodeURIComponent(selectedJob.id)}?level=${lv}`);
+      const d = await r.json();
+      if (jdEl && d.jd_content) jdEl.innerHTML = parseMarkdown(d.jd_content);
+    } catch(_) {}
+  }
+}
+
+// ── Load jobs ────────────────────────────────────────────
+async function loadJobs() {
+  try {
+    const r    = await fetch(`${API_BASE}/jobs`);
+    const data = await r.json();
+    allJobs = data.jobs || [];
+
+    const cats = [...new Set(allJobs.map(j => j.category))].sort();
+    document.getElementById('cat-filter').innerHTML =
+      '<option value="">Tất cả lĩnh vực</option>' +
+      cats.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    filteredJobs = allJobs;
+    renderJobs();
+  } catch(e) {
+    document.getElementById('job-list').innerHTML =
+      '<div class="col-span-2 text-center py-8 text-red-400 text-sm">Không thể tải danh sách. Thử lại sau.</div>';
+  }
+}
+
+function filterJobs() {
+  const q   = document.getElementById('search-input').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value;
+  filteredJobs = allJobs.filter(j => {
+    const mQ = !q   || j.title.toLowerCase().includes(q) || j.category.toLowerCase().includes(q);
+    const mC = !cat || j.category === cat;
+    return mQ && mC;
+  });
+  renderJobs();
+}
+
+// ── Flat job grid ─────────────────────────────────────────
+function renderJobs() {
+  document.getElementById('job-count').textContent = filteredJobs.length;
+  if (!filteredJobs.length) {
+    document.getElementById('job-list').innerHTML =
+      '<div class="col-span-2 text-center py-8 text-gray-400 text-sm">Không tìm thấy vị trí phù hợp.</div>';
+    return;
+  }
+  document.getElementById('job-list').innerHTML = filteredJobs.map(j => `
+    <div class="job-card bg-white rounded-xl p-4 ${selectedJob?.id===j.id?'selected':''}"
+      onclick="selectJob('${j.id}')" id="card-${j.id}">
+      <div class="flex items-start gap-3">
+        <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[#0051d5] text-base">${catIcon(j.category)}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="font-bold text-gray-900 text-sm leading-snug truncate">${cleanTitle(j.title)}</p>
+          <p class="text-gray-400 text-[.7rem] mt-0.5 truncate">${j.category}</p>
+        </div>
+        <span class="material-symbols-outlined text-gray-300 text-lg shrink-0 mt-0.5">chevron_right</span>
+      </div>
+      <div class="flex gap-1.5 mt-2.5 flex-wrap">
+        <span class="tag">Full-time</span>
+        <span class="tag">HCM</span>
+        <span class="tag">AI Interview</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── Select job ────────────────────────────────────────────
+async function selectJob(jobId) {
+  selectedJob = allJobs.find(j => j.id === jobId);
+  if (!selectedJob) return;
+
+  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('card-' + jobId)?.classList.add('selected');
+
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('hidden');
+  document.getElementById('detail-content').innerHTML =
+    '<div class="p-5 text-center text-gray-400 text-sm py-10"><span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...</div>';
+
+  if (window.innerWidth < 768) panel.scrollIntoView({behavior:'smooth', block:'start'});
+
+  try {
+    const r = await fetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}?level=${selectedLevel}`);
+    renderDetail(await r.json());
+  } catch(e) {
+    renderDetail(selectedJob);
+  }
+}
+
+function renderDetail(job) {
+  const title  = cleanTitle(job.title || '');
+  const jdHtml = job.jd_content ? parseMarkdown(job.jd_content) : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="bg-[#0d1b35] text-white p-5 rounded-t-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="text-[.68rem] text-[#93c5fd] font-bold uppercase tracking-wider mb-1">${job.category||''}</p>
+          <h2 class="text-base font-extrabold leading-snug">${title}</h2>
+        </div>
+        <button onclick="closeDetail()" class="text-white/40 hover:text-white">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+      <div class="flex gap-1.5 mt-3 flex-wrap">
+        <span class="text-[.68rem] px-2 py-1 bg-white/10 rounded-full">📍 TP. Hồ Chí Minh</span>
+        <span class="text-[.68rem] px-2 py-1 bg-white/10 rounded-full">⏰ Full-time</span>
+        <span class="text-[.68rem] px-2 py-1 bg-white/10 rounded-full">🤖 AI Interview</span>
+        <span class="text-[.68rem] px-2 py-1 bg-[#0051d5]/60 rounded-full font-bold" id="jd-level-tag">${selectedLevel}</span>
+      </div>
+    </div>
+
+    <div class="p-4 border-b border-gray-100">
+      ${jdHtml ? `<div class="jd-body">${jdHtml}</div>` : '<p class="text-gray-400 text-sm">Không có mô tả.</p>'}
+    </div>
+
+    <div class="p-4">
+      <h3 class="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[#0051d5] text-base">edit_document</span>
+        Thông tin ứng tuyển
+      </h3>
+
+      <div class="space-y-2.5">
+        <div>
+          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">Họ tên đầy đủ <span class="text-red-500">*</span></label>
+          <input id="apply-name" type="text" placeholder="Nguyễn Văn A"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+        </div>
+        <div>
+          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">Email <span class="text-red-500">*</span></label>
+          <input id="apply-email" type="email" placeholder="email@example.com"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+          <p class="text-[.68rem] text-gray-400 mt-1">Kết quả & link phỏng vấn gửi về đây</p>
+        </div>
+        <div>
+          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">Số điện thoại</label>
+          <input id="apply-phone" type="tel" placeholder="0901 234 567"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+        </div>
+        <div>
+          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">CV / Resume <span class="text-red-500">*</span></label>
+          <label id="cv-upload-zone"
+            class="block border-2 border-dashed border-gray-200 rounded-xl p-3.5 text-center cursor-pointer hover:border-[#0051d5] hover:bg-blue-50/30 transition group">
+            <input type="file" accept=".pdf,.docx,.doc" class="hidden" id="apply-cv" onchange="handleCV(event)"/>
+            <span class="material-symbols-outlined text-xl text-gray-300 group-hover:text-[#0051d5] block">upload_file</span>
+            <p class="text-xs text-gray-500 font-semibold">Chọn file CV</p>
+            <p class="text-[.65rem] text-gray-400">PDF, DOCX · Tối đa 10MB</p>
+          </label>
+          <div id="cv-uploaded" class="hidden mt-1.5 flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <span class="material-symbols-outlined text-emerald-600 text-sm" style="font-variation-settings:'FILL' 1">check_circle</span>
+            <p class="text-emerald-800 text-xs font-semibold flex-1 truncate" id="cv-name"></p>
+            <button onclick="removeCV()" class="text-emerald-400 hover:text-emerald-700 text-xs ml-1">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <p id="apply-error" class="hidden text-red-500 text-xs mt-2 font-semibold"></p>
+
+      <button id="apply-btn" onclick="submitApply()"
+        class="w-full mt-3.5 py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition active:scale-[.98] flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-base">send</span>
+        Nộp đơn · Cấp bậc <span id="form-level-label" class="ml-1 underline">${selectedLevel}</span>
+      </button>
+
+      <p class="text-center text-[.65rem] text-gray-400 mt-2.5">
+        Bằng cách nộp đơn, bạn đồng ý cho CT Group xử lý thông tin để đánh giá ứng viên.
+      </p>
+    </div>`;
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
+  selectedJob = null;
+}
+
+// ── Markdown parser ──────────────────────────────────────
+function parseMarkdown(md) {
+  let html = '', inList = false;
+  md.split('\n').forEach(line => {
+    if (line.match(/^#{1,2}\s+/)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      if (line.startsWith('# ')) return;
+      html += `<h2>${line.replace(/^#{1,2}\s+/,'').replace(/[*_]/g,'')}</h2>`;
+    } else if (line.match(/^###\s+/)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h3>${line.replace(/^###\s+/,'')}</h3>`;
+    } else if (line.trim().match(/^[-*]\s/)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${line.replace(/^[\s\-*]+/,'').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</li>`;
+    } else if (line.trim() === '') {
+      if (inList) { html += '</ul>'; inList = false; }
+    } else if (line.trim() && !line.includes('---')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p>${line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</p>`;
+    }
+  });
+  if (inList) html += '</ul>';
+  return html;
+}
+
+// ── CV upload ────────────────────────────────────────────
+function handleCV(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  if (f.size > 10*1024*1024) { alert('File vượt 10MB'); return; }
+  document.getElementById('cv-upload-zone').classList.add('hidden');
+  document.getElementById('cv-uploaded').classList.remove('hidden');
+  document.getElementById('cv-name').textContent = f.name;
+}
+function removeCV() {
+  document.getElementById('apply-cv').value = '';
+  document.getElementById('cv-upload-zone').classList.remove('hidden');
+  document.getElementById('cv-uploaded').classList.add('hidden');
+}
+
+// ── Submit ───────────────────────────────────────────────
+async function submitApply() {
+  const name  = document.getElementById('apply-name').value.trim();
+  const email = document.getElementById('apply-email').value.trim();
+  const phone = document.getElementById('apply-phone').value.trim();
+  const cvFile = document.getElementById('apply-cv').files[0];
+  document.getElementById('apply-error').classList.add('hidden');
+
+  if (!name)                      return showErr('Vui lòng nhập họ tên.');
+  if (!email || !email.includes('@')) return showErr('Vui lòng nhập email hợp lệ.');
+  if (!cvFile)                    return showErr('Vui lòng upload CV của bạn.');
+  if (!selectedJob)               return showErr('Vui lòng chọn vị trí ứng tuyển.');
+
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">↻</span><span class="ml-2">Đang gửi...</span>';
+
+  const form = new FormData();
+  form.append('name',    name);
+  form.append('email',   email);
+  form.append('phone',   phone);
+  form.append('level',   selectedLevel);
+  form.append('cv_file', cvFile, cvFile.name);
+
+  try {
+    const r    = await fetch(`${API_BASE}/jobs/${encodeURIComponent(selectedJob.id)}/apply`, { method:'POST', body:form });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Lỗi server');
+    document.getElementById('success-app-id').textContent = data.application_id || '—';
+    document.getElementById('success-email').textContent  = email;
+    if (data.is_reapplicant) document.getElementById('success-reapplicant').classList.remove('hidden');
+    document.getElementById('success-screen').classList.remove('hidden');
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = `<span class="material-symbols-outlined text-base">send</span> Nộp đơn · ${selectedLevel}`;
+    showErr(`Không thể gửi: ${err.message}`);
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById('apply-error');
+  el.textContent = msg; el.classList.remove('hidden');
+}
+
+// ── Boot ─────────────────────────────────────────────────
+loadJobs();
+const _p = new URLSearchParams(location.search);
+if (_p.get('lv')) selectLevel(_p.get('lv'));
+if (_p.get('pos')) setTimeout(() => selectJob(_p.get('pos')), 800);
+</script>
+</body>
+</html>

@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PAI HR — Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#fcf8fa",
+                    "tertiary-container": "#271901",
+                    "on-secondary-fixed": "#00174b",
+                    "on-tertiary-fixed": "#271901",
+                    "on-primary-fixed-variant": "#3f465c",
+                    "on-primary-fixed": "#131b2e",
+                    "surface-container-low": "#f6f3f5",
+                    "inverse-on-surface": "#f3f0f2",
+                    "on-tertiary": "#ffffff",
+                    "surface-dim": "#dcd9db",
+                    "on-secondary-container": "#fefcff",
+                    "inverse-surface": "#303032",
+                    "on-tertiary-fixed-variant": "#574425",
+                    "surface-bright": "#fcf8fa",
+                    "primary-container": "#131b2e",
+                    "tertiary": "#000000",
+                    "primary-fixed-dim": "#bec6e0",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "surface-container": "#f0edef",
+                    "tertiary-fixed": "#fcdeb5",
+                    "surface-tint": "#565e74",
+                    "on-tertiary-container": "#98805d",
+                    "on-error-container": "#93000a",
+                    "on-surface": "#1b1b1d",
+                    "secondary-fixed-dim": "#b4c5ff",
+                    "on-primary-container": "#7c839b",
+                    "outline": "#76777d",
+                    "on-secondary-fixed-variant": "#003ea8",
+                    "on-primary": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "error": "#ba1a1a",
+                    "primary": "#000000",
+                    "secondary-container": "#316bf3",
+                    "primary-fixed": "#dae2fd",
+                    "on-surface-variant": "#45464d",
+                    "on-error": "#ffffff",
+                    "secondary": "#0051d5",
+                    "surface-variant": "#e4e2e4",
+                    "surface-container-highest": "#e4e2e4",
+                    "outline-variant": "#c6c6cd",
+                    "secondary-fixed": "#dbe1ff",
+                    "inverse-primary": "#bec6e0",
+                    "tertiary-fixed-dim": "#dec29a",
+                    "surface-container-high": "#eae7e9",
+                    "on-background": "#1b1b1d",
+                    "background": "#fcf8fa"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "md": "1.5rem",
+                    "lg": "2rem",
+                    "base": "4px",
+                    "xs": "0.5rem",
+                    "sidebar-collapsed": "72px",
+                    "xl": "3rem",
+                    "sidebar-width": "260px",
+                    "sm": "1rem",
+                    "container-max": "1440px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "label-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Inter"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #fcf8fa; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-ai { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(49, 107, 243, 0.2); }
+        .ai-border-gradient { border: 1px solid transparent; background: linear-gradient(white, white) padding-box, linear-gradient(to right, #0051d5, #b4c5ff) border-box; }
+        .scroll-hide::-webkit-scrollbar { display: none; }
+        .active-nav-shadow { box-shadow: 0 4px 12px rgba(0, 81, 213, 0.2); }
+        @media print {
+            body * { visibility: hidden; }
+            #iv-report-panel, #iv-report-panel * { visibility: visible; }
+            #iv-report-panel { position: absolute; left: 0; top: 0; width: 100%; border: none; box-shadow: none; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .break-inside-avoid { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="flex min-h-screen text-on-surface bg-background">
+
+<!-- LOGIN PAGE -->
+
+<div id="login-page" class="fixed inset-0 z-[9999] flex items-center justify-center bg-primary-container">
+  <div class="w-full max-w-md px-6">
+    <!-- Logo -->
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-secondary rounded-2xl shadow-lg mb-4">
+        <span class="material-symbols-outlined text-on-secondary text-3xl" style="font-variation-settings:'FILL' 1;">psychology</span>
+      </div>
+      <h1 class="font-bold text-2xl text-on-primary-container tracking-tight">PAI HR</h1>
+      <p class="text-on-surface-variant text-sm mt-1">Hệ thống quản lý tuyển dụng</p>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-surface-container-lowest rounded-2xl shadow-xl border border-outline-variant p-8">
+      <h2 class="text-lg font-bold text-primary mb-1">Đăng nhập</h2>
+      <p class="text-on-surface-variant text-sm mb-6">Nhập thông tin để tiếp tục</p>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-on-surface mb-1.5">Admin Key</label>
+          <input id="login-key-input" type="password" placeholder="Nhập admin key…"
+            class="w-full border border-outline-variant rounded-xl px-4 py-3 text-body-md bg-surface-container-low focus:ring-2 focus:ring-secondary focus:outline-none transition"
+            onkeydown="if(event.key==='Enter')doLogin()"/>
+        </div>
+        <p id="login-error" class="hidden text-red-500 text-sm">Sai key, vui lòng thử lại.</p>
+        <button onclick="doLogin()"
+          class="w-full py-3 bg-secondary text-on-secondary font-bold rounded-xl hover:opacity-90 active:scale-95 transition text-sm">
+          Đăng nhập Admin
+        </button>
+      </div>
+    </div>
+
+    <p class="text-center text-xs text-on-surface-variant mt-6 opacity-60">PAI HR © 2026</p>
+  </div>
+</div>
+
+
+
+<!-- APP SHELL -->
+<div id="app-shell" class="hidden flex min-h-screen w-full">
+  <!-- SIDEBAR -->
+<aside class="w-sidebar-width h-screen sticky left-0 top-0 flex flex-col h-full py-md px-sm bg-primary-container border-r border-outline-variant z-50">
+<div class="mb-xl px-xs">
+<h1 class="font-headline-md text-headline-md font-bold text-on-primary-container leading-none">PAI HR Admin</h1>
+<p class="text-on-primary-container opacity-60 font-body-sm mt-1">Enterprise Suite</p>
+</div>
+
+<nav class="flex-1 space-y-1 overflow-y-auto scroll-hide">
+<a id="nav-dashboard" onclick="switchTab('dashboard')" class="admin-nav flex items-center gap-3 px-3 py-2.5 bg-secondary text-on-secondary rounded-lg font-bold transition-all duration-200 opacity-90 active:scale-95 active-nav-shadow cursor-pointer">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-sm">Dashboard</span>
+</a>
+<a id="nav-interviews" onclick="switchTab('interviews')" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="record_voice_over">record_voice_over</span>
+<span class="font-body-sm">Phỏng vấn</span>
+<span id="iv-count-badge" class="ml-auto bg-secondary text-white text-xs px-2 py-0.5 rounded-full font-bold hidden"></span>
+</a>
+<a id="nav-applications" onclick="switchTab('applications')" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="font-body-sm">Hồ sơ</span>
+</a>
+<a id="nav-feedback" onclick="switchTab('feedback')" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="star_rate">star_rate</span>
+<span class="font-body-sm">Phản hồi</span>
+</a>
+</nav>
+
+<div class="mt-auto pt-md border-t border-on-primary-fixed-variant/20">
+<button onclick="logout()" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-error hover:bg-error/10 rounded-lg transition-colors duration-200 font-bold text-sm">
+<span class="material-symbols-outlined text-lg">logout</span> Đăng xuất
+</button>
+</div>
+</aside>
+
+  
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+    <header class="h-16 border-b border-outline-variant bg-surface-container-lowest flex items-center px-6 shrink-0 sticky top-0 z-40">
+      <h2 class="font-bold text-lg text-on-surface" id="topbar-title">Dashboard</h2>
+    </header>
+    
+    <div class="flex-1 overflow-y-auto p-6 scroll-smooth">
+      <div class="max-w-7xl mx-auto space-y-6">
+        
+
+<!-- ── TAB: DASHBOARD ─────────────────────────────────────── -->
+<div id="tab-dashboard">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant">
+      <p class="text-xs text-outline font-semibold uppercase tracking-wider mb-1">Tổng hồ sơ</p>
+      <p class="text-3xl font-extrabold text-on-surface" id="stat-total">—</p>
+      <p class="text-xs text-outline mt-1">ứng viên đã nộp</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-emerald-100">
+      <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">Đạt yêu cầu</p>
+      <p class="text-3xl font-extrabold text-emerald-600" id="stat-passed">—</p>
+      <p class="text-xs text-outline mt-1">vượt phỏng vấn AI</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-red-100">
+      <p class="text-xs text-red-500 font-semibold uppercase tracking-wider mb-1">Không đạt</p>
+      <p class="text-3xl font-extrabold text-red-500" id="stat-failed">—</p>
+      <p class="text-xs text-outline mt-1">chưa đủ điều kiện</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-amber-100">
+      <p class="text-xs text-amber-600 font-semibold uppercase tracking-wider mb-1">Điểm CV TB</p>
+      <p class="text-3xl font-extrabold text-amber-600" id="stat-avg">—</p>
+      <p class="text-xs text-outline mt-1">/ 10 điểm</p>
+    </div>
+  </div>
+
+  <!-- Interview stats -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant">
+      <h3 class="font-bold text-on-surface text-sm mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary">analytics</span>
+        Phỏng vấn theo trạng thái
+      </h3>
+      <div id="iv-status-chart" class="space-y-2.5"></div>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant">
+      <h3 class="font-bold text-on-surface text-sm mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary">work</span>
+        Top vị trí tuyển dụng
+      </h3>
+      <div id="top-positions" class="space-y-2.5"></div>
+    </div>
+  </div>
+
+  <!-- Recent -->
+  <div class="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
+    <div class="p-4 border-b border-outline-variant flex items-center justify-between">
+      <h3 class="font-bold text-on-surface text-sm">Phỏng vấn gần đây</h3>
+      <button onclick="switchTab('interviews')" class="text-secondary text-xs font-semibold hover:underline">Xem tất cả →</button>
+    </div>
+    <div id="recent-table" class="overflow-x-auto"></div>
+  </div>
+</div>
+
+<!-- ── TAB: INTERVIEWS ─────────────────────────────────────── -->
+<div id="tab-interviews" class="hidden">
+  <!-- Filters -->
+  <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant mb-4 flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-xs font-bold text-on-surface-variant mb-1">Trạng thái</label>
+      <select id="filter-status" onchange="loadInterviews()" class="border border-outline-variant rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none bg-surface-container-low">
+        <option value="">Tất cả</option>
+        <option value="pending_review">Chờ xem xét</option>
+        <option value="evaluated">Đã đánh giá tự động</option>
+        <option value="passed">Đạt</option>
+        <option value="failed">Không đạt</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-on-surface-variant mb-1">Level</label>
+      <select id="filter-level" onchange="loadInterviews()" class="border border-outline-variant rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none bg-surface-container-low">
+        <option value="">Tất cả</option>
+        <option>Entry</option><option>Junior</option><option>Mid</option>
+        <option>Senior</option><option>Manager</option><option>Director</option>
+      </select>
+    </div>
+    <div class="flex-1 min-w-[200px]">
+      <label class="block text-xs font-bold text-on-surface-variant mb-1">Tìm kiếm</label>
+      <input id="filter-search" type="text" placeholder="Tên ứng viên, vị trí..."
+        oninput="renderInterviewTable()" class="w-full border border-outline-variant rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none bg-surface-container-low"/>
+    </div>
+    <button onclick="loadInterviews()" class="flex items-center gap-1.5 px-4 py-2 bg-secondary text-white rounded-xl text-sm font-semibold hover:opacity-90 transition">
+      <span class="material-symbols-outlined text-base">refresh</span> Tải lại
+    </button>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
+    <div id="iv-table-wrap" class="overflow-x-auto">
+      <div class="p-8 text-center text-outline text-sm">Đang tải...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: APPLICATIONS ──────────────────────────────────── -->
+<div id="tab-applications" class="hidden">
+  <div class="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
+    <div class="p-4 border-b border-outline-variant flex items-center justify-between">
+      <h3 class="font-bold text-on-surface text-sm">Hồ sơ ứng tuyển</h3>
+      <span id="app-count" class="text-outline text-xs"></span>
+    </div>
+    <div id="app-table-wrap" class="overflow-x-auto">
+      <div class="p-8 text-center text-outline text-sm">Đang tải...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: FEEDBACK ──────────────────────────────────────── -->
+<div id="tab-feedback" class="hidden">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant">
+      <p class="text-xs text-outline font-semibold uppercase tracking-wider mb-1">Tổng phản hồi</p>
+      <p class="text-3xl font-extrabold text-on-surface" id="fb-total">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-[#0051d5]/20">
+      <p class="text-xs text-secondary font-semibold uppercase tracking-wider mb-1">NPS Trung bình</p>
+      <p class="text-3xl font-extrabold text-secondary" id="fb-nps">—</p>
+      <p class="text-xs text-outline mt-1">0 = Không, 10 = Rất có thể</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-emerald-100">
+      <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">Đánh giá tổng thể</p>
+      <p class="text-3xl font-extrabold text-emerald-600" id="fb-overall">—</p>
+      <p class="text-xs text-outline mt-1">/ 5 sao</p>
+    </div>
+  </div>
+  <div class="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-5">
+    <h3 class="font-bold text-on-surface text-sm mb-4">Chi tiết theo vị trí</h3>
+    <div id="fb-detail" class="overflow-x-auto"></div>
+  </div>
+</div>
+
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- INTERVIEW MODAL -->
+<div id="modal-backdrop" class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-all duration-300" style="opacity: 0; pointer-events: none;">
+  <div class="bg-surface-container-lowest w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col transform transition-transform duration-300 scale-100" onclick="event.stopPropagation()">
+    <!-- Header -->
+    <div class="p-6 border-b border-outline-variant flex items-start justify-between bg-surface-container-low">
+      <div>
+        <h2 id="modal-candidate-name" class="font-bold text-2xl text-on-surface">Tên ứng viên</h2>
+        <div class="flex items-center gap-3 mt-2">
+          <span id="modal-subtitle" class="text-on-surface-variant text-sm font-medium">Subtitle</span>
+          <div id="modal-status-badge"></div>
+        </div>
+      </div>
+      <button onclick="closeModal()" class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition active:scale-95">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+    </div>
+    <!-- Body -->
+    <div id="modal-body" class="p-6 overflow-y-auto flex-1 bg-surface-container-lowest text-on-surface">
+      <!-- rendered via JS -->
+    </div>
+  </div>
+</div>
+
+<script>
+
+const API_BASE  = location.origin;
+const ADMIN_KEY = localStorage.getItem('pai_admin_key') || '';
+
+let allInterviews = [];
+let currentIvId   = '';
+
+const STATUS_LABEL = {
+  pending_review: 'Chờ xem xét',
+  evaluated:      'Hệ thống đã đánh giá',
+  passed:         'Đạt',
+  failed:         'Không đạt',
+  reviewing:      'Đang xem xét',
+};
+const AI_COLORS = {
+  'nắm vững':    'ai-nắm-vững',
+  'am hiểu':     'ai-am-hiểu',
+  'có biết qua': 'ai-có-biết-qua',
+  'không biết':  'ai-không-biết',
+};
+const TYPE_COLOR = {
+  'Technical':  'bg-blue-100 text-blue-700',
+  'Soft Skill': 'bg-emerald-100 text-emerald-700',
+  'Experience': 'bg-amber-100 text-amber-700',
+};
+
+// ── Auth ──────────────────────────────────────────────────
+function doLogin() {
+  const inputEl = document.getElementById('login-key-input') || document.getElementById('admin-key-input');
+  if (!inputEl) return;
+  const key = inputEl.value.trim();
+  if (!key) return;
+  localStorage.setItem('pai_admin_key', key);
+  location.reload();
+}
+function logout() {
+  localStorage.removeItem('pai_admin_key');
+  location.reload();
+}
+function doLogout() { logout(); }
+
+async function checkAuth() {
+  if (!ADMIN_KEY) return {ok: false, msg: 'Chưa nhập key'};
+  try {
+    const r = await apiFetch('/admin/stats');
+    if(r.ok) return {ok: true};
+    return {ok: false, msg: `Sai admin key (HTTP ${r.status})`};
+  } catch (err) {
+    return {ok: false, msg: `Lỗi kết nối API: ${err.message}`};
+  }
+}
+
+async function apiFetch(path, opts = {}) {
+  return fetch(API_BASE + path, {
+    ...opts,
+    headers: { 'X-Admin-Key': ADMIN_KEY, ...(opts.headers || {}) },
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────
+async function init() {
+  const authRes = await checkAuth();
+  const loginPage = document.getElementById('login-page') || document.getElementById('login-screen');
+  const appShell = document.getElementById('app-shell');
+  
+  if (!authRes.ok) {
+    if(loginPage) {
+        loginPage.classList.remove('hidden');
+        loginPage.style.opacity = '1';
+        loginPage.style.pointerEvents = 'auto';
+    }
+    const errorEl = document.getElementById('login-error');
+    if (ADMIN_KEY && errorEl) {
+        errorEl.textContent = authRes.msg;
+        errorEl.classList.remove('hidden');
+    }
+    return;
+  }
+  
+  if(loginPage) {
+      loginPage.classList.add('hidden');
+      loginPage.style.opacity = '0';
+      loginPage.style.pointerEvents = 'none';
+  }
+  if(appShell) appShell.classList.remove('hidden');
+  loadDashboard();
+}
+
+// ── Tab switching ─────────────────────────────────────────
+function switchTab(tab) {
+  ['dashboard','interviews','applications','feedback'].forEach(t => {
+    const el = document.getElementById('tab-'+t);
+    if(el) el.classList.add('hidden');
+  });
+  const activeTab = document.getElementById('tab-'+tab);
+  if(activeTab) activeTab.classList.remove('hidden');
+  
+  document.querySelectorAll('.admin-nav').forEach(el => {
+    el.classList.remove('bg-secondary', 'text-on-secondary', 'font-bold', 'active-nav-shadow', 'opacity-90');
+    el.classList.add('text-on-primary-container', 'hover:bg-on-primary-fixed-variant/10');
+  });
+  
+  const activeNav = document.getElementById('nav-' + tab);
+  if (activeNav) {
+    activeNav.classList.remove('text-on-primary-container', 'hover:bg-on-primary-fixed-variant/10');
+    activeNav.classList.add('bg-secondary', 'text-on-secondary', 'font-bold', 'active-nav-shadow', 'opacity-90');
+  }
+  
+  if (tab === 'interviews')   loadInterviews();
+  if (tab === 'applications') loadApplications();
+  if (tab === 'feedback')     loadFeedback();
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+async function loadDashboard() {
+  const [statsR, ivsR] = await Promise.all([
+    apiFetch('/admin/stats'),
+    apiFetch('/admin/interviews?limit=100'),
+  ]);
+  const stats = await statsR.json();
+  const ivsData = await ivsR.json();
+  allInterviews = ivsData.interviews || [];
+
+  const statTotal = document.getElementById('stat-total');
+  const statPassed = document.getElementById('stat-passed');
+  const statFailed = document.getElementById('stat-failed');
+  const statAvg = document.getElementById('stat-avg');
+  const headerStats = document.getElementById('header-stats');
+
+  if(statTotal) statTotal.textContent  = stats.total  ?? '—';
+  if(statPassed) statPassed.textContent = stats.passed ?? '—';
+  if(statFailed) statFailed.textContent = stats.failed ?? '—';
+  if(statAvg) statAvg.textContent    = stats.avg_score != null ? stats.avg_score.toFixed(1) : '—';
+  
+  if(headerStats) {
+      headerStats.textContent = `${allInterviews.length} phỏng vấn`;
+      headerStats.classList.remove('hidden');
+  }
+
+  // Status distribution
+  const statusCount = {};
+  allInterviews.forEach(iv => {
+    statusCount[iv.status] = (statusCount[iv.status]||0)+1;
+  });
+  const total = allInterviews.length || 1;
+  const statusChart = document.getElementById('iv-status-chart');
+  if(statusChart) {
+      statusChart.innerHTML = Object.entries(statusCount).map(([s,c]) => `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="font-semibold text-gray-700">${STATUS_LABEL[s]||s}</span>
+            <span class="text-outline">${c} (${Math.round(c/total*100)}%)</span>
+          </div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full rounded-full bg-secondary" style="width:${c/total*100}%"></div>
+          </div>
+        </div>`).join('');
+  }
+
+  // Top positions
+  const posCount = {};
+  allInterviews.forEach(iv => {
+    const p = (iv.position_id||'').replace(/^(Junior|Mid|Senior|Entry|Manager|Director)_/,'').replace(/_/g,' ');
+    posCount[p] = (posCount[p]||0)+1;
+  });
+  const topPos = Object.entries(posCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxPos = topPos[0]?.[1]||1;
+  const topPositions = document.getElementById('top-positions');
+  if(topPositions) {
+      topPositions.innerHTML = topPos.map(([p,c]) => `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="font-semibold text-gray-700 truncate max-w-[200px]">${p}</span>
+            <span class="text-outline">${c}</span>
+          </div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full rounded-full bg-amber-400" style="width:${c/maxPos*100}%"></div>
+          </div>
+        </div>`).join('');
+  }
+
+  // Recent table
+  if(document.getElementById('recent-table')) {
+      renderSmallTable('recent-table', allInterviews.slice(0,8));
+  }
+  
+  const ivCountBadge = document.getElementById('iv-count-badge');
+  if(ivCountBadge) {
+      ivCountBadge.textContent = allInterviews.length;
+      ivCountBadge.classList.remove('hidden');
+  }
+}
+
+// ── Interviews tab ────────────────────────────────────────
+async function loadInterviews() {
+  document.getElementById('iv-table-wrap').innerHTML = '<div class="p-8 text-center text-outline text-sm"><span class="spin inline-block mr-2">↻</span>Đang tải...</div>';
+  const status = document.getElementById('filter-status').value;
+  const level  = document.getElementById('filter-level').value;
+  let url = '/admin/interviews?limit=200';
+  if (status) url += '&status='+encodeURIComponent(status);
+  if (level)  url += '&level='+encodeURIComponent(level);
+  try {
+    const r    = await apiFetch(url);
+    const data = await r.json();
+    allInterviews = data.interviews || [];
+    renderInterviewTable();
+  } catch(e) {
+    document.getElementById('iv-table-wrap').innerHTML = '<div class="p-8 text-center text-red-500 text-sm">Lỗi tải dữ liệu</div>';
+  }
+}
+
+function renderInterviewTable() {
+  const q = (document.getElementById('filter-search')?.value||'').toLowerCase();
+  const list = q ? allInterviews.filter(iv =>
+    (iv.candidate_name||'').toLowerCase().includes(q) ||
+    (iv.position_id||'').toLowerCase().includes(q) ||
+    (iv.candidate_email||'').toLowerCase().includes(q)
+  ) : allInterviews;
+
+  if (!list.length) {
+    document.getElementById('iv-table-wrap').innerHTML = '<div class="p-8 text-center text-outline text-sm">Không có dữ liệu</div>';
+    return;
+  }
+
+  document.getElementById('iv-table-wrap').innerHTML = `
+  <table class="w-full text-sm">
+    <thead class="bg-primary-container text-white">
+      <tr>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Ứng viên</th>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Vị trí</th>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Level</th>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Điểm TB</th>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Trạng thái</th>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Ngày nộp</th>
+        <th class="px-4 py-3 text-left font-semibold text-xs tracking-wider">Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${list.map(iv => {
+        const pos = (iv.position_id||'').replace(/^(Junior|Mid|Senior|Entry|Manager|Director)_/,'').replace(/_/g,' ');
+        const date = iv.submitted_at ? iv.submitted_at.substring(0,10) : '—';
+        const score = iv.avg_score != null ? `<span class="font-bold ${iv.avg_score>=7.5?'text-emerald-600':iv.avg_score>=5?'text-amber-600':'text-red-500'}">${iv.avg_score.toFixed(1)}</span>` : '<span class="text-gray-300">—</span>';
+        const reTag = iv.is_reapplicant ? '<span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold ml-1">Tái ứng</span>' : '';
+        return `<tr class="tr-hover border-b border-outline-variant" onclick="openModal('${iv.id}')">
+          <td class="px-4 py-3">
+            <p class="font-semibold text-on-surface">${iv.candidate_name||'—'}${reTag}</p>
+            <p class="text-outline text-xs">${iv.candidate_email||iv.candidate_id||''}</p>
+          </td>
+          <td class="px-4 py-3 text-gray-700 text-xs max-w-[180px]">
+            <span class="truncate block">${pos}</span>
+          </td>
+          <td class="px-4 py-3"><span class="level-tag">${iv.level||'—'}</span></td>
+          <td class="px-4 py-3">${score}</td>
+          <td class="px-4 py-3"><span class="status-pill s-${iv.status||'pending_review'}">${STATUS_LABEL[iv.status]||iv.status||'—'}</span></td>
+          <td class="px-4 py-3 text-outline text-xs">${date}</td>
+          <td class="px-4 py-3">
+            <button onclick="event.stopPropagation();openModal('${iv.id}')" class="text-secondary hover:underline text-xs font-semibold mr-2">Chi tiết</button>
+            <button onclick="downloadCandidateReport(event, '${iv.id}')" title="Tải báo cáo đánh giá" class="text-primary hover:text-primary-dark transition-colors" style="vertical-align: middle;">
+              <span class="material-symbols-outlined text-base">download</span>
+            </button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderSmallTable(containerId, list) {
+  document.getElementById(containerId).innerHTML = `
+  <table class="w-full text-sm">
+    <thead class="bg-surface-container-low">
+      <tr>
+        <th class="px-4 py-2.5 text-left text-xs text-outline font-semibold">Ứng viên</th>
+        <th class="px-4 py-2.5 text-left text-xs text-outline font-semibold">Vị trí</th>
+        <th class="px-4 py-2.5 text-left text-xs text-outline font-semibold">Điểm</th>
+        <th class="px-4 py-2.5 text-left text-xs text-outline font-semibold">Trạng thái</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${list.map(iv => {
+        const pos = (iv.position_id||'').replace(/^(Junior|Mid|Senior|Entry|Manager|Director)_/,'').replace(/_/g,' ');
+        const score = iv.avg_score != null ? iv.avg_score.toFixed(1) : '—';
+        return `<tr class="tr-hover border-b border-outline-variant" onclick="openModal('${iv.id}')">
+          <td class="px-4 py-2.5 font-semibold text-gray-800">${iv.candidate_name||'—'}</td>
+          <td class="px-4 py-2.5 text-on-surface-variant text-xs">${pos}</td>
+          <td class="px-4 py-2.5 font-bold ${iv.avg_score>=7.5?'text-emerald-600':iv.avg_score>=5?'text-amber-600':'text-red-500'}">${score}</td>
+          <td class="px-4 py-2.5">
+            <span class="status-pill s-${iv.status||'pending_review'}">${STATUS_LABEL[iv.status]||'—'}</span>
+            <button onclick="downloadCandidateReport(event, '${iv.id}')" title="Tải báo cáo đánh giá" class="ml-2 text-primary hover:text-primary-dark transition-colors" style="vertical-align: middle;">
+              <span class="material-symbols-outlined text-base">download</span>
+            </button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ── Applications tab ──────────────────────────────────────
+async function loadApplications() {
+  document.getElementById('app-table-wrap').innerHTML = '<div class="p-8 text-center text-outline text-sm"><span class="spin inline-block mr-2">↻</span>Đang tải...</div>';
+  try {
+    const r    = await apiFetch('/admin/applications?limit=200');
+    const data = await r.json();
+    const list = data.applications || [];
+    document.getElementById('app-count').textContent = `${list.length} hồ sơ`;
+
+    document.getElementById('app-table-wrap').innerHTML = `
+    <table class="w-full text-sm">
+      <thead class="bg-primary-container text-white">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider">Ứng viên</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider">Vị trí</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider">Điểm CV</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider">Trạng thái</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider">Ngày nộp</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider">CV</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(app => {
+          const reTag = app.is_reapplicant ? '<span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold ml-1">Tái ứng</span>' : '';
+          const date  = (app.applied_at||'').substring(0,10);
+          const score = app.cv_score != null ? `<span class="font-bold ${app.cv_score>=6.0?'text-emerald-600':app.cv_score>=5?'text-amber-600':'text-red-500'}">${app.cv_score.toFixed?.(1)||app.cv_score}</span>` : '—';
+          return `<tr class="border-b border-outline-variant hover:bg-surface-container-low cursor-pointer" onclick="openAppModal('${app.id}')">
+            <td class="px-4 py-3">
+              <p class="font-semibold text-on-surface">${app.name||'—'}${reTag}</p>
+              <p class="text-outline text-xs">${app.email||''} ${app.phone?'· '+app.phone:''}</p>
+            </td>
+            <td class="px-4 py-3 text-gray-600 text-xs">${(app.job_id||'').replace(/_/g,' ')}</td>
+            <td class="px-4 py-3">${score}</td>
+            <td class="px-4 py-3"><span class="status-pill s-${app.status||'pending_review'}">${app.status||'—'}</span></td>
+            <td class="px-4 py-3 text-outline text-xs">${date}</td>
+            <td class="px-4 py-3">
+              ${app.cv_path ? `<a href="${API_BASE}/admin/cv/${app.id}" target="_blank" class="text-secondary hover:underline text-xs font-semibold flex items-center gap-1"><span class="material-symbols-outlined text-sm">download</span>CV</a>` : '<span class="text-gray-300 text-xs">—</span>'}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  } catch(e) {
+    document.getElementById('app-table-wrap').innerHTML = '<div class="p-8 text-center text-red-500 text-sm">Lỗi tải dữ liệu</div>';
+  }
+}
+
+async function openAppModal(appId) {
+  const backdrop = document.getElementById('modal-backdrop');
+  backdrop.style.opacity = '1';
+  backdrop.style.pointerEvents = 'auto';
+  document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-outline text-sm"><span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...</div>';
+  document.getElementById('modal-candidate-name').textContent = '—';
+  document.getElementById('modal-subtitle').textContent = '—';
+  document.getElementById('modal-status-badge').innerHTML = '';
+
+  try {
+    const r = await apiFetch(`/admin/applications/${appId}`);
+    const app = await r.json();
+    
+    document.getElementById('modal-candidate-name').textContent = app.name || '—';
+    const pos = (app.job_id||'').replace(/_/g,' ');
+    const date = (app.applied_at||'').substring(0,16).replace('T',' ');
+    document.getElementById('modal-subtitle').textContent = `${pos} · ${app.level||'Junior'} · Nộp lúc ${date}`;
+    document.getElementById('modal-status-badge').innerHTML = `<span class="status-pill s-${app.status||'pending'}">${app.status||'—'}</span>`;
+
+    let bdHtml = '<p class="text-gray-500 text-sm text-center py-4">Chưa có điểm chi tiết</p>';
+    if (app.score_breakdown) {
+      const b = app.score_breakdown;
+      const g1 = b.group1 || {};
+      const g2 = b.group2 || {};
+      const r_rs = b.reasons || {};
+      const we = g1.work_experience || {};
+      const ed = g1.education || {};
+      
+      bdHtml = `
+      <div class="space-y-6">
+        <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant text-center">
+          <p class="text-sm font-semibold text-outline">TỔNG ĐIỂM CV</p>
+          <p class="text-4xl font-black ${app.cv_score>=6.0?'text-emerald-600':'text-red-500'} mt-1">${app.cv_score}/10</p>
+        </div>
+        
+        <div>
+          <h3 class="font-bold text-sm text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[18px]">summarize</span> TÓM TẮT TỪ AI</h3>
+          <p class="text-sm text-on-surface-variant bg-surface-container-low p-3 rounded-lg leading-relaxed">${b.summary || app.ai_summary || 'Không có tóm tắt.'}</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white border border-outline-variant rounded-xl p-4">
+            <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">NHÓM 1: CHUYÊN MÔN (Tối đa 7đ)</h4>
+            <ul class="space-y-3 text-sm">
+              <li class="flex flex-col">
+                <div class="flex justify-between"><span>Kinh nghiệm:</span> <span class="font-bold">${(we.years||0) + (we.relevance||0) + (we.achievements||0)}/3.5</span></div>
+                ${r_rs.work_experience ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.work_experience}</p>` : ''}
+              </li>
+              <li class="flex flex-col">
+                <div class="flex justify-between"><span>Học vấn:</span> <span class="font-bold">${(ed.degree||0) + (ed.major||0) + (ed.certs||0)}/2.5</span></div>
+                ${r_rs.education ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.education}</p>` : ''}
+              </li>
+              <li class="flex flex-col">
+                <div class="flex justify-between"><span>Kỹ năng (Hard skills):</span> <span class="font-bold">${g1.technical_skills||0}/1.0</span></div>
+                ${r_rs.technical_skills ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.technical_skills}</p>` : ''}
+              </li>
+            </ul>
+          </div>
+          <div class="bg-white border border-outline-variant rounded-xl p-4">
+            <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">NHÓM 2: KỸ NĂNG & TIỀM NĂNG (Tối đa 3đ)</h4>
+            <ul class="space-y-3 text-sm">
+              <li class="flex flex-col">
+                <div class="flex justify-between"><span>Chất lượng CV:</span> <span class="font-bold">${g2.cv_quality||0}/1.0</span></div>
+                ${r_rs.cv_quality ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.cv_quality}</p>` : ''}
+              </li>
+              <li class="flex flex-col">
+                <div class="flex justify-between"><span>Dự án nổi bật:</span> <span class="font-bold">${g2.projects||0}/1.0</span></div>
+                ${r_rs.projects ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.projects}</p>` : ''}
+              </li>
+              <li class="flex flex-col">
+                <div class="flex justify-between"><span>Soft skills/Leadership:</span> <span class="font-bold">${g2.leadership||0}/1.0</span></div>
+                ${r_rs.leadership ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.leadership}</p>` : ''}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      `;
+    }
+
+    document.getElementById('modal-body').innerHTML = bdHtml;
+  } catch(e) {
+    document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-red-500 text-sm">Lỗi tải dữ liệu</div>';
+  }
+}
+
+// ── Feedback tab ──────────────────────────────────────────
+async function loadFeedback() {
+  try {
+    const r = await apiFetch('/admin/feedback/stats');
+    const d = await r.json();
+    document.getElementById('fb-total').textContent = d.total_responses ?? '—';
+
+    // Aggregate NPS and overall across positions
+    let npsSum=0, npsC=0, ovSum=0, ovC=0;
+    (d.by_position||[]).forEach(p => {
+      if (p.avg_nps!=null) { npsSum+=p.avg_nps; npsC++; }
+      if (p.avg_ratings?.overall!=null) { ovSum+=p.avg_ratings.overall; ovC++; }
+    });
+    document.getElementById('fb-nps').textContent     = npsC ? (npsSum/npsC).toFixed(1) : '—';
+    document.getElementById('fb-overall').textContent  = ovC  ? (ovSum/ovC).toFixed(1)+'★' : '—';
+
+    const RATING_LABELS = {ui:'Giao diện',questions:'Câu hỏi',audio_quality:'Âm thanh',fairness:'Công bằng',overall:'Tổng thể'};
+
+    document.getElementById('fb-detail').innerHTML = (d.by_position||[]).length ? `
+    <table class="w-full text-sm">
+      <thead class="bg-surface-container-low"><tr>
+        <th class="px-4 py-2.5 text-left text-xs text-outline font-semibold">Vị trí</th>
+        <th class="px-4 py-2.5 text-center text-xs text-outline font-semibold">Lượt</th>
+        <th class="px-4 py-2.5 text-center text-xs text-outline font-semibold">NPS</th>
+        ${Object.values(RATING_LABELS).map(l=>`<th class="px-4 py-2.5 text-center text-xs text-outline font-semibold">${l}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${(d.by_position||[]).map(p=>`<tr class="border-b border-outline-variant">
+          <td class="px-4 py-3 font-semibold text-gray-800 text-xs">${p.position_id||'—'}</td>
+          <td class="px-4 py-3 text-center text-on-surface-variant">${p.count}</td>
+          <td class="px-4 py-3 text-center font-bold ${p.avg_nps>=8?'text-emerald-600':p.avg_nps>=5?'text-amber-600':'text-red-500'}">${p.avg_nps!=null?p.avg_nps.toFixed(1):'—'}</td>
+          ${Object.keys(RATING_LABELS).map(k=>`<td class="px-4 py-3 text-center">${p.avg_ratings?.[k]!=null?'<span class="font-bold text-amber-500">'+p.avg_ratings[k].toFixed(1)+'★</span>':'—'}</td>`).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>` : '<p class="text-outline text-sm text-center py-6">Chưa có phản hồi nào.</p>';
+  } catch(e) {
+    document.getElementById('fb-detail').innerHTML = '<p class="text-red-500 text-sm">Lỗi tải dữ liệu</p>';
+  }
+}
+
+// ── Interview detail modal ────────────────────────────────
+async function openModal(ivId) {
+  currentIvId = ivId;
+  const backdrop = document.getElementById('modal-backdrop');
+  backdrop.style.opacity = '1';
+  backdrop.style.pointerEvents = 'auto';
+  document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-outline text-sm"><span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...</div>';
+  document.getElementById('modal-candidate-name').textContent = '—';
+  document.getElementById('modal-subtitle').textContent = '—';
+  document.getElementById('modal-status-badge').innerHTML = '';
+
+  try {
+    const r = await apiFetch(`/interview/${ivId}`);
+    const iv = await r.json();
+    renderModal(iv);
+  } catch(e) {
+    document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-red-500 text-sm">Lỗi tải dữ liệu</div>';
+  }
+}
+
+function closeModal() {
+  const backdrop = document.getElementById('modal-backdrop');
+  backdrop.style.opacity = '0';
+  backdrop.style.pointerEvents = 'none';
+  currentIvId = '';
+}
+
+function renderModal(iv) {
+  const pos = (iv.position_id||'').replace(/_/g,' ');
+  const date = (iv.submitted_at||'').substring(0,16).replace('T',' ');
+  document.getElementById('modal-candidate-name').textContent = iv.candidate_name || iv.candidate_id || '—';
+  document.getElementById('modal-subtitle').textContent = `${pos} · ${iv.level||'—'} · Nộp lúc ${date}`;
+  document.getElementById('modal-status-badge').innerHTML = `<span class="status-pill s-${iv.status}">${STATUS_LABEL[iv.status]||iv.status}</span>`;
+
+  // Compute avg score
+  const scorable = (iv.answers||[]).filter(a => a.ai_level && a.ai_level !== 'định tính');
+  const scoreMap = {'nắm vững':10,'am hiểu':7.5,'có biết qua':5,'không biết':0};
+  const avgScore = scorable.length ? (scorable.reduce((s,a)=>s+(scoreMap[a.ai_level]||0),0)/scorable.length).toFixed(1) : null;
+
+  // HOD questions
+  let hodHtml = '';
+  if (iv.hod_questions) {
+    try {
+      const qs = JSON.parse(iv.hod_questions);
+      if (qs.length) {
+        hodHtml = `<div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="material-symbols-outlined text-purple-600 text-lg">psychology</span>
+            <p class="font-bold text-purple-800 text-sm">Câu hỏi gợi ý cho HOD (${qs.length})</p>
+          </div>
+          <ol class="space-y-2">
+            ${qs.map((q,i)=>`<li class="text-sm text-purple-700"><span class="font-bold">${i+1}.</span> ${q}</li>`).join('')}
+          </ol>
+        </div>`;
+      }
+    } catch {}
+  }
+
+  // Review form
+  const reviewHtml = `
+  <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <p class="font-bold text-blue-900 text-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">rate_review</span>
+        Xét duyệt kết quả
+      </p>
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-bold text-blue-900">Trạng thái:</label>
+        <select id="review-status" class="border border-blue-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none bg-white font-semibold">
+          <option value="evaluated">Đang đánh giá</option>
+          <option value="passed" ${iv.status==='passed'?'selected':''}>Đạt</option>
+          <option value="failed" ${iv.status==='failed'?'selected':''}>Không đạt</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <!-- Cột HR -->
+      <div class="bg-white p-3 rounded-lg border border-blue-100">
+        <p class="font-bold text-xs text-blue-800 mb-2 border-b border-blue-50 pb-1">Phần Đánh giá của HR</p>
+        <div class="mb-2">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Điểm HR (tuỳ chọn)</label>
+          <input type="number" id="review-hr-score" min="0" max="10" step="0.1" placeholder="0–10" value="${iv.hr_score ?? ''}"
+            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Ghi chú HR</label>
+          <textarea id="review-hr-notes" rows="3" placeholder="Nhận xét tổng thể..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none resize-none">${iv.hr_notes || ''}</textarea>
+        </div>
+      </div>
+      
+      <!-- Cột Chuyên gia -->
+      <div class="bg-white p-3 rounded-lg border border-blue-100">
+        <p class="font-bold text-xs text-purple-800 mb-2 border-b border-purple-50 pb-1">Phần Đánh giá của Chuyên gia</p>
+        <div class="mb-2">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Điểm Chuyên gia</label>
+          <input type="number" id="review-expert-score" min="0" max="10" step="0.1" placeholder="0–10" value="${iv.expert_score ?? ''}"
+            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Ghi chú Chuyên gia</label>
+          <textarea id="review-expert-notes" rows="3" placeholder="Nhận xét chuyên môn..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none">${iv.expert_notes || ''}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="submitReview()" class="flex items-center gap-1.5 px-4 py-2 bg-secondary text-white rounded-lg text-sm font-bold hover:opacity-90 transition shadow-sm">
+        <span class="material-symbols-outlined text-base">save</span> Lưu kết quả
+      </button>
+      <button onclick="downloadCandidateReport(event, '${iv.id}')" class="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
+        <span class="material-symbols-outlined text-base">print</span> Xuất Báo Cáo
+      </button>
+      <button onclick="sendResultEmail()" class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition shadow-sm">
+        <span class="material-symbols-outlined text-base">mail</span> Gửi Email
+      </button>
+      <button onclick="reEvaluate()" class="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition shadow-sm">
+        <span class="material-symbols-outlined text-base">autorenew</span> Đánh giá lại
+      </button>
+      <button onclick="showReInterviewForm()" class="flex items-center gap-1.5 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-semibold hover:bg-amber-100 transition shadow-sm">
+        <span class="material-symbols-outlined text-base">replay</span> Yêu cầu phỏng vấn lại
+      </button>
+    </div>
+    <div id="reinterview-form" class="hidden mt-3 pt-3 border-t border-blue-200">
+      <div class="grid grid-cols-2 gap-3 mb-2">
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1">Câu hỏi cần làm lại</label>
+          <div class="grid grid-cols-4 gap-2 mb-2 text-xs" id="ri-scope-checks">
+            <label><input type="checkbox" value="01"> Câu 01</label>
+            <label><input type="checkbox" value="02"> Câu 02</label>
+            <label><input type="checkbox" value="03"> Câu 03</label>
+            <label><input type="checkbox" value="04"> Câu 04</label>
+            <label><input type="checkbox" value="05"> Câu 05</label>
+            <label><input type="checkbox" value="06"> Câu 06</label>
+            <label><input type="checkbox" value="07"> Câu 07</label>
+            <label><input type="checkbox" value="08"> Câu 08</label>
+          </div>
+          <label class="text-xs text-blue-600 cursor-pointer font-semibold"><input type="checkbox" id="ri-all" onchange="toggleAllScope(this)"> Chọn tất cả</label>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant mb-1">Lý do</label>
+          <input id="ri-reason" type="text" placeholder="Câu trả lời chưa đủ rõ..."
+            class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+        </div>
+      </div>
+      <button onclick="submitReInterview()" class="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:opacity-90 transition">
+        Tạo buổi phỏng vấn lại
+      </button>
+    </div>
+    <p id="review-msg" class="text-xs mt-2 hidden font-semibold"></p>
+  </div>`;
+
+  // Answers
+  const answersHtml = (iv.answers||[]).map(a => {
+    const aiClass = AI_COLORS[a.ai_level] || (a.ai_level ? '' : 'ai-định-tính');
+    const aiLabel = a.ai_level || 'Định tính';
+    const typeClass = TYPE_COLOR[a.question_type] || 'bg-gray-100 text-gray-600';
+    const hasTranscript = a.transcript && a.transcript.trim();
+
+    return `<div class="border border-outline-variant rounded-xl overflow-hidden">
+      <div class="bg-surface-container-low px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-2">
+          <span class="w-7 h-7 bg-primary-container text-white rounded-lg flex items-center justify-center font-bold text-xs">${a.question_number}</span>
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full ${typeClass}">${a.question_type}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          ${a.ai_level ? `<span class="status-pill ${aiClass}">${aiLabel}</span>` : '<span class="status-pill ai-định-tính">Định tính</span>'}
+          ${a.audio_path ? `<a href="${API_BASE}/outputs/${a.audio_path.replace(/.*outputs\//,'')}" target="_blank" class="flex items-center gap-1 text-secondary text-xs font-semibold hover:underline"><span class="material-symbols-outlined text-sm">headphones</span>Nghe</a>` : ''}
+        </div>
+      </div>
+      <div class="p-4 space-y-2.5">
+        ${a.question_text ? `<p class="text-xs text-outline font-semibold uppercase tracking-wider">Câu hỏi</p><p class="text-sm text-gray-700 leading-relaxed">${a.question_text}</p>` : ''}
+        ${hasTranscript ? `<p class="text-xs text-outline font-semibold uppercase tracking-wider mt-2">Câu trả lời (STT)</p><p class="text-sm text-gray-800 leading-relaxed bg-blue-50 rounded-lg p-3 border border-blue-100">"${a.transcript}"</p>` : '<p class="text-xs text-gray-300 italic">Chưa có transcript</p>'}
+        ${a.ai_feedback ? `<p class="text-xs text-outline font-semibold uppercase tracking-wider mt-2">Nhận xét hệ thống</p><p class="text-sm text-gray-700 leading-relaxed">${a.ai_feedback}</p>` : ''}
+        ${a.notes ? `<p class="text-xs text-gray-300 mt-1">${a.notes}</p>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <!-- Info strip -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-surface-container-low rounded-xl p-3 text-center">
+        <p class="text-xs text-outline mb-0.5">Điểm hệ thống</p>
+        <p class="text-xl font-extrabold ${avgScore>=7.5?'text-emerald-600':avgScore>=5?'text-amber-600':'text-red-500'}">${avgScore||'—'}</p>
+        <p class="text-xs text-outline">/ 10</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-3 text-center">
+        <p class="text-xs text-outline mb-0.5">Câu trả lời</p>
+        <p class="text-xl font-extrabold text-gray-800">${iv.answers?.length||0}</p>
+        <p class="text-xs text-outline">audio files</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-3 text-center">
+        <p class="text-xs text-outline mb-0.5">Tái ứng tuyển</p>
+        <p class="text-xl font-extrabold ${iv.is_reapplicant?'text-purple-600':'text-gray-300'}">${iv.is_reapplicant?'Có':'Không'}</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-3 text-center">
+        <p class="text-xs text-outline mb-0.5">CV</p>
+        ${iv.cv_path ? `<a href="${API_BASE}/admin/cv/${iv.candidate_id}" target="_blank" class="text-secondary font-bold text-sm flex items-center justify-center gap-1 hover:underline"><span class="material-symbols-outlined text-base">download</span>Tải CV</a>` : '<p class="text-gray-300 text-sm">—</p>'}
+      </div>
+    </div>
+
+    <!-- HOD questions -->
+    ${hodHtml}
+
+    <!-- Review form -->
+    ${reviewHtml}
+
+    <!-- Answers -->
+    <div>
+      <h3 class="font-bold text-on-surface text-sm mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary">quiz</span>
+        Câu hỏi &amp; Trả lời (${(iv.answers||[]).filter(a=>!a.question_number.includes('.')).length})
+      </h3>
+      <div class="space-y-3">${answersHtml || '<p class="text-outline text-sm">Chưa có câu trả lời.</p>'}</div>
+    </div>`;
+}
+
+async function submitReview() {
+  const status = document.getElementById('review-status').value;
+  const hrNotes = document.getElementById('review-hr-notes').value.trim();
+  const hrScore = document.getElementById('review-hr-score').value;
+  const expNotes = document.getElementById('review-expert-notes').value.trim();
+  const expScore = document.getElementById('review-expert-score').value;
+  const msg = document.getElementById('review-msg');
+
+  msg.className = 'text-xs mt-2 font-semibold text-blue-600';
+  msg.textContent = 'Đang lưu...';
+  msg.classList.remove('hidden');
+
+  try {
+    const body = { status };
+    if (hrNotes) body.hr_notes = hrNotes;
+    if (hrScore) body.hr_score = parseFloat(hrScore);
+    if (expNotes) body.expert_notes = expNotes;
+    if (expScore) body.expert_score = parseFloat(expScore);
+
+    const r = await apiFetch(`/interview/${currentIvId}/review`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Lỗi server');
+
+    msg.className = 'text-xs mt-2 font-semibold text-emerald-600';
+    msg.textContent = `✓ Đã lưu thành công.`;
+
+    // Refresh list
+    if (allInterviews.length) {
+      const idx = allInterviews.findIndex(iv=>iv.id===currentIvId);
+      if (idx>=0) { allInterviews[idx].status = status; renderInterviewTable(); }
+    }
+  } catch(e) {
+    msg.className = 'text-xs mt-2 font-semibold text-red-500';
+    msg.textContent = `Lỗi: ${e.message}`;
+  }
+}
+
+async function sendResultEmail() {
+  const msg = document.getElementById('review-msg');
+  msg.className = 'text-xs mt-2 font-semibold text-blue-600';
+  msg.textContent = 'Đang gửi email...';
+  try {
+    const r = await apiFetch(`/interview/${currentIvId}/send-result-email`, { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      msg.className = 'text-xs mt-2 font-semibold text-emerald-600';
+      msg.textContent = `✓ ${d.msg}`;
+    } else {
+      msg.className = 'text-xs mt-2 font-semibold text-red-500';
+      msg.textContent = `Lỗi: ${d.detail || d.msg}`;
+    }
+  } catch(e) {
+    msg.className = 'text-xs mt-2 font-semibold text-red-500';
+    msg.textContent = `Lỗi: ${e.message}`;
+  }
+}
+
+async function reEvaluate() {
+  const msg = document.getElementById('review-msg');
+  msg.className = 'text-xs mt-2 font-semibold text-blue-600';
+  msg.textContent = 'Đang kích hoạt đánh giá lại...';
+  msg.classList.remove('hidden');
+  try {
+    const r = await apiFetch(`/interview/${currentIvId}/evaluate`, { method:'POST' });
+    const d = await r.json();
+    msg.className = 'text-xs mt-2 font-semibold text-emerald-600';
+    msg.textContent = '✓ Đang đánh giá lại, kết quả sau ~1 phút. Hãy tải lại sau.';
+  } catch(e) {
+    msg.className = 'text-xs mt-2 font-semibold text-red-500';
+    msg.textContent = `Lỗi: ${e.message}`;
+  }
+}
+
+function showReInterviewForm() {
+  const f = document.getElementById('reinterview-form');
+  f.classList.toggle('hidden');
+}
+
+function toggleAllScope(checkbox) {
+  const checks = document.querySelectorAll('#ri-scope-checks input');
+  checks.forEach(c => c.checked = checkbox.checked);
+}
+async function submitReInterview() {
+  const checks = Array.from(document.querySelectorAll('#ri-scope-checks input:checked'));
+  const scope = checks.map(c => c.value).join(',') || '01,02,03,04,05,06,07,08';
+  const reason = document.getElementById('ri-reason').value.trim();
+  const msg    = document.getElementById('review-msg');
+  msg.className = 'text-xs mt-2 font-semibold text-blue-600';
+  msg.textContent = 'Đang tạo buổi phỏng vấn lại...';
+  msg.classList.remove('hidden');
+  try {
+    const r = await apiFetch(`/interview/${currentIvId}/request-reinterview`, {
+      method: 'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({scope,reason}),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail||'Lỗi server');
+    msg.className = 'text-xs mt-2 font-semibold text-emerald-600';
+    msg.textContent = `✓ Đã tạo buổi phỏng vấn lại: ${d.new_interview_id}. Email nhắc nhở đã gửi.`;
+  } catch(e) {
+    msg.className = 'text-xs mt-2 font-semibold text-red-500';
+    msg.textContent = `Lỗi: ${e.message}`;
+  }
+}
+
+// Close modal on backdrop click
+document.getElementById('modal-backdrop').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+});
+
+// Boot
+init();
+
+
+const originalSwitchTab = switchTab;
+switchTab = function(tabId) {
+    originalSwitchTab(tabId);
+    const titles = {
+        'dashboard': 'Dashboard',
+        'interviews': 'Phỏng vấn',
+        'applications': 'Hồ sơ',
+        'feedback': 'Phản hồi'
+    };
+    const titleEl = document.getElementById('topbar-title');
+    if(titleEl) titleEl.innerText = titles[tabId] || 'Dashboard';
+};
+
+  async function downloadCandidateReport(event, ivId) {
+    event.stopPropagation();
+    try {
+      const url = `/ui/report_print.html?id=${ivId}`;
+      const newWin = window.open(url, '_blank');
+      if (!newWin) {
+        alert('Trình duyệt đã chặn popup. Hệ thống sẽ mở báo cáo ở tab hiện tại.');
+        window.location.href = url;
+      }
+    } catch(e) {
+      alert('Không thể tải báo cáo: ' + e.message);
+    }
+  }
+</script>
+</body>
+</html>
