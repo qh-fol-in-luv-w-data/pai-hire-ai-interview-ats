@@ -1132,9 +1132,10 @@ async function processAnswer(qn, isPushback = false) {
     
     statusEl.innerHTML = oldStatus;
     
-    if (data.transcript) {
+    if (data.transcript !== undefined && data.transcript !== null) {
       sttTexts[qn] = data.transcript;
-      showTranscriptUI(qn, data.transcript);
+      const displayTxt = data.transcript.trim() === "" ? "(Không nhận diện được giọng nói - Vui lòng ghi âm lại)" : data.transcript;
+      showTranscriptUI(qn, displayTxt);
     }
     
     if (data.need_pushback && data.pushback_text) {
