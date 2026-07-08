@@ -154,5 +154,30 @@ def init_db():
         );
         """)
 
-    print(f"[DB] Sẵn sàng: {DB_PATH}")
+    # Migration v3: § Feature (7) — evaluations table (3 vòng đánh giá)
+    with db() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS evaluations (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id       TEXT NOT NULL,
+            round        INTEGER NOT NULL,  -- 1=Sơ vấn, 2=Chuyên môn, 3=BOD
+            evaluator    TEXT,              -- Tên người chấm
+            data         TEXT NOT NULL,     -- JSON: { criteria: [{id, label, score, note}], summary, decision }
+            decision     TEXT,              -- 'pass' | 'fail' | 'pending'
+            created_at   TEXT NOT NULL,
+            updated_at   TEXT NOT NULL,
+            UNIQUE(app_id, round)
+        );
+        """)
+        # Migration: thêm cột evaluation_status vào cv_applications để track tiến độ 3 vòng
+        for col, typedef in [
+            ("eval_round1_status", "TEXT"),
+            ("eval_round2_status", "TEXT"),
+            ("eval_round3_status", "TEXT"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE cv_applications ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
 
+    print(f"[DB] Sẵn sàng: {DB_PATH}")

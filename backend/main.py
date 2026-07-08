@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.database import init_db
 from backend.config import BASE_DIR, FRONTEND_DIR, QUESTION_AUDIO_DIR, TEMP_PUSHBACKS_DIR
-from backend.routers import admin, feedback, interview, jobs
+from backend.routers import admin, feedback, interview, jobs, webhook
 
 app = FastAPI(title="ATS Phỏng Vấn API", version="2.0.0")
 
@@ -24,6 +24,7 @@ app.include_router(admin.router)
 app.include_router(feedback.router)
 app.include_router(interview.router)
 app.include_router(jobs.router)
+app.include_router(webhook.router)
 
 @app.on_event("startup")
 def startup():

@@ -19,9 +19,7 @@ __pycache__/
 # Output & Generated Data
 outputs/
 inputs/
-Generated_Audio/
 Generated_CVs/
-Generated_Questions/
 LatentSync/
 
 # Scratch & Test Scripts

@@ -92,14 +92,21 @@ Câu trả lời mới nhất của ứng viên (STT thô): "{transcript}"
 
 NHIỆM VỤ CỦA BẠN:
 1. Chuẩn hoá đoạn STT thô của câu trả lời mới nhất (sửa lỗi chính tả, bỏ từ thừa như "à", "ừm", giữ nguyên toàn bộ ý chính và phong cách nói của ứng viên).
-2. Đánh giá xem câu trả lời đã giải quyết triệt để vấn đề chưa.
-   - NẾU "Loại câu hỏi" KHÔNG PHẢI LÀ "Experience", hoặc câu trả lời đã đủ chi tiết, hoặc ứng viên chốt không còn ý nào bổ sung, hoặc ứng viên trả lời quá lan man: Trả về chữ "PASS" cho phần phản biện.
-   - NẾU "Loại câu hỏi" LÀ "Experience" và vẫn còn mập mờ cần đào sâu thêm: Đặt ra ĐÚNG 1 câu hỏi phản biện ngắn gọn, trực diện (dưới 30 từ).
+   - QUAN TRỌNG: Nếu đoạn STT thô có dấu hiệu là ảo giác do nhiễu tạp âm hoặc im lặng (ví dụ: "Tôi tên Nguyễn Văn A", "Cảm ơn các bạn đã theo dõi", "Subtitles by...", hoặc các câu hoàn toàn vô nghĩa không liên quan), hãy trả về chuỗi rỗng "" cho normalized_transcript.
+   - TUYỆT ĐỐI KHÔNG TỰ BỊA RA NỘI DUNG MỚI hoặc thay đổi ý nghĩa của ứng viên.
+2. Đánh giá và Phản biện có cấu trúc (Chain of Thought):
+   - Bước 1: Xác định "(1) danh mục khía cạnh cần khai thác" dựa trên câu trả lời của ứng viên so với câu hỏi gốc.
+   - Bước 2: Liệt kê "(2) danh mục câu hỏi follow up" tương ứng để làm rõ các khía cạnh ở Bước 1.
+   - Bước 3: Đánh giá và Quyết định có hỏi tiếp hay DỪNG.
+     + Nếu rơi vào 1 trong 3 trường hợp sau thì BẮT BUỘC DỪNG: (a) Ứng viên đã đáp ứng đủ khía cạnh; (b) Ứng viên trả lời lan man, vòng vo, lạc đề; (c) Ứng viên bí ý, lúng túng, không thể khai thác thêm. Khi này, trả về chữ "PASS" cho phần `pushback_question`.
+     + Nếu chưa đáp ứng đủ (đặc biệt đối với câu "Experience") VÀ ứng viên vẫn có tiềm năng trả lời tiếp: Chọn ĐÚNG 1 câu hỏi từ danh mục ở Bước 2 để đặt cho ứng viên (ngắn gọn, dưới 30 từ) vào `pushback_question`.
 
-BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block code markdown), gồm 2 field:
+BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block code markdown), gồm 4 field:
 {{
   "normalized_transcript": "<đoạn STT đã chuẩn hoá>",
-  "pushback_question": "<câu hỏi phản biện hoặc 'PASS'>"
+  "khia_canh_can_khai_thac": ["khía cạnh 1", "khía cạnh 2"],
+  "danh_muc_cau_hoi_follow_up": ["câu 1", "câu 2"],
+  "pushback_question": "<1 câu hỏi phản biện duy nhất hoặc 'PASS'>"
 }}
 """
     try:
@@ -108,13 +115,10 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
         resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=300
+            temperature=0.7,
         )
-        ai_resp_raw = resp.choices[0].message.content.strip()
-        import re
-        ai_resp_raw = re.sub(r"^```(?:json)?\s*", "", ai_resp_raw)
-        ai_resp_raw = re.sub(r"\s*```$", "", ai_resp_raw)
+        ai_resp_raw = resp.choices[0].message.content
+        ai_resp_raw = ai_resp_raw.replace('```json', '').replace('```', '').strip()
         
         try:
             ai_data = json.loads(ai_resp_raw)

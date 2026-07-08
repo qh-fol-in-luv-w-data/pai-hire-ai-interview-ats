@@ -107,6 +107,13 @@
             .no-print { display: none !important; }
             .break-inside-avoid { break-inside: avoid; }
         }
+    
+        .status-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .s-pending_review { background: #f3f4f6; color: #4b5563; }
+        .s-passed { background: #d1fae5; color: #047857; }
+        .s-failed { background: #fee2e2; color: #b91c1c; }
+        .s-pending_hr_approval_pass, .s-pending_hr_approval_fail { background: #fef3c7; color: #d97706; border: 1px dashed #d97706; }
+
     </style>
 </head>
 <body class="flex min-h-screen text-on-surface bg-background">
@@ -361,10 +368,84 @@ const API_BASE  = location.origin;
 const ADMIN_KEY = localStorage.getItem('pai_admin_key') || '';
 
 let allInterviews = [];
-let currentIvId   = '';
+
+const CRITERIA_V1 = [
+  "Phù hợp học vấn, chứng chỉ, năng lực nền tảng với vị trí",
+  "Điều kiện gia đình, thời gian, di chuyển phù hợp yêu cầu công việc",
+  "Khả năng đáp ứng yêu cầu về lịch làm việc, áp lực công việc cường độ cao",
+  "Hiểu rõ KPI công việc từng đảm nhiệm",
+  "Có thành tích cụ thể, đo lường được",
+  "Tham gia các dự án chiến lược của công ty",
+  "Đã từng làm việc trong môi trường tốc độ cao",
+  "Khả năng thích nghi với thay đổi",
+  "Mức độ sẵn sàng ứng dụng công nghệ / AI",
+  "Cách phối hợp liên phòng ban khi giải quyết vấn đề",
+  "Lý do nghỉ việc hợp lý, minh bạch",
+  "Phù hợp văn hóa và giá trị CT Group",
+  "Mục tiêu định hướng, nghề nghiệp rõ ràng",
+  "Tính cam kết và ổn định",
+  "Thu nhập kỳ vọng phù hợp năng lực và ngân sách vị trí",
+  "Ứng viên chấp nhận cấu trúc lương (70%) – KPI (30%)",
+  "Thời gian nhận việc đáp ứng nhu cầu tuyển"
+];
+
+const CRITERIA_V2 = [
+  "Hiểu và nắm bắt xu hướng ngành",
+  "Khả năng phân tích và ra quyết định chuyên môn",
+  "Kiến thức về doanh nghiệp/sản phẩm/mô hình kinh doanh",
+  "Khả năng áp dụng kiến thức vào thực tế",
+  "Mức độ cập nhật xu hướng, chuyên môn mới",
+  "Kỹ năng lắng nghe",
+  "Kỹ năng làm việc nhóm",
+  "Chủ động và chịu trách nhiệm",
+  "Chia sẻ thông tin và hỗ trợ đồng nghiệp",
+  "Quản lý xung đột trong hợp tác",
+  "Năng lực thích nghi với sự thay đổi công việc thực tế",
+  "Tư duy chủ động và năng lực phản ứng nhanh",
+  "Văn hóa tốc độ: Xử lý tình huống/công việc nhanh, hiệu quả",
+  "Tư duy logic, phân tích và giải quyết vấn đề",
+  "Tư duy cải tiến và đổi mới",
+  "Ra quyết định trong điều kiện áp lực/thiếu dữ liệu",
+  "Khả năng phân rã vấn đề phức tạp thành hành động khả thi",
+  "Quản lý công việc/quản lý thời gian",
+  "Khả năng sử dụng công nghệ, công cụ trong công việc",
+  "Kỹ năng lập kế hoạch và triển khai tạo ra sản phẩm",
+  "Tạo ra kết quả đo lường được",
+  "Kỹ năng lắng nghe và thấu hiểu",
+  "Giao tiếp rõ ràng, mạch lạc",
+  "Giao tiếp với cấp trên/đối tác/đội nhóm",
+  "Phối hợp đa phòng ban",
+  "Khả năng thuyết phục và tạo ảnh hưởng",
+  "Quản lý xung đột, bất đồng",
+  "Khả năng thích nghi với môi trường thay đổi",
+  "Tốc độ học hỏi và tiếp thu cái mới",
+  "Ứng dụng công nghệ/AI/công cụ số",
+  "Khả năng tự cải thiện bản thân",
+  "Sẵn sàng thử nghiệm và đổi mới",
+  "Chấp nhận rủi ro có kiểm soát"
+];
+
+function generateCriteriaRows(round, criteriaList, getScoreVal = null) {
+  return criteriaList.map((c, i) => {
+    const id = `${round}_${i+1}`;
+    let selectHtml = '';
+    const v = getScoreVal ? getScoreVal(id).score : 0;
+    if (round === 1) {
+      selectHtml = `<select onchange="calcTotal(this)" name="c_${id}" class="w-full text-sm px-2 py-1.5 border border-outline-variant rounded bg-surface mb-1.5 score-dropdown"><option value="0" ${v==0?'selected':''}>0 - Không đạt</option><option value="1" ${v==1?'selected':''}>1 - Đạt</option></select>`;
+    } else if (round === 2) {
+      selectHtml = `<select onchange="calcTotal(this)" name="c_${id}" class="w-full text-sm px-2 py-1.5 border border-outline-variant rounded bg-surface mb-1.5 score-dropdown"><option value="0" ${v==0?'selected':''}>0 - Không đạt</option><option value="1" ${v==1?'selected':''}>1 - Yếu</option><option value="2" ${v==2?'selected':''}>2 - TB</option><option value="3" ${v==3?'selected':''}>3 - Khá</option><option value="4" ${v==4?'selected':''}>4 - Tốt</option><option value="5" ${v==5?'selected':''}>5 - Xuất sắc</option></select>`;
+    }
+    const note = getScoreVal ? (getScoreVal(id).note || '') : '';
+    return `<div class="crit-row" data-id="${id}" data-label="${c}"><p class="text-[11px] font-medium text-on-surface mb-1 leading-tight">${i+1}. ${c}</p>${selectHtml}<input name="note_${id}" class="w-full text-sm px-2 py-1.5 border border-outline-variant rounded bg-surface placeholder-on-surface-variant" placeholder="Ghi chú..." value="${note}"/></div>`;
+  }).join('');
+}
+
+let currentIvId = '';
 
 const STATUS_LABEL = {
   pending_review: 'Chờ xem xét',
+  pending_hr_approval_pass: 'Chờ HR duyệt (Pass)',
+  pending_hr_approval_fail: 'Chờ HR duyệt (Fail)',
   evaluated:      'Hệ thống đã đánh giá',
   passed:         'Đạt',
   failed:         'Không đạt',
@@ -781,8 +862,42 @@ async function openAppModal(appId) {
       `;
     }
 
-    document.getElementById('modal-body').innerHTML = bdHtml;
+    
+    
+    
+    let hrActionHtml = '';
+    if (app.status && app.status.startsWith('pending_hr_approval')) {
+      const isPass = app.status.includes('pass');
+      hrActionHtml = `
+        <div class="mt-6 p-4 bg-tertiary-fixed border border-on-tertiary-fixed-variant rounded-xl shadow-sm">
+          <h4 class="font-bold text-on-tertiary-fixed mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-sm">admin_panel_settings</span> Phê duyệt (HR)</h4>
+          <p class="text-sm text-on-tertiary-fixed-variant mb-4">AI đề xuất: <strong>${isPass ? 'ĐẬU (Mời phỏng vấn)' : 'RỚT (Từ chối)'}</strong>. Vui lòng xác nhận.</p>
+          <div class="flex gap-2">
+            <button onclick="hrApprove('${app.id}')" class="px-4 py-2 bg-secondary text-on-secondary rounded font-medium hover:opacity-90 text-sm transition">Duyệt & Gửi Email</button>
+            <button onclick="hrReject('${app.id}')" class="px-4 py-2 bg-error text-on-error rounded font-medium hover:opacity-90 text-sm transition">Từ chối ứng viên</button>
+          </div>
+        </div>
+      `;
+    }
+    
+    const evalBtnHtml = `
+      <div class="mt-6 pt-4 border-t border-outline-variant grid grid-cols-2 gap-3">
+        <button onclick="openEvaluationModal('${app.id}', '${app.name}')" class="w-full py-2 bg-primary text-on-primary rounded font-medium text-sm flex items-center justify-center gap-2 transition hover:opacity-90">
+          <span class="material-symbols-outlined text-[16px]">assignment</span> Phiếu Đánh Giá 3 Vòng
+        </button>
+        <button onclick="loadInterviewForApp('${app.id}')" class="w-full py-2 bg-surface-container-high text-on-surface rounded font-medium border border-outline-variant text-sm flex items-center justify-center gap-2 transition hover:bg-surface-variant">
+          <span class="material-symbols-outlined text-[16px]">video_camera_front</span> Check Trạng thái Phỏng vấn
+        </button>
+      </div>
+      <div id="integrated-interview-data" class="mt-3"></div>
+    `;
+
+    document.getElementById('modal-body').innerHTML = bdHtml + hrActionHtml + evalBtnHtml;
+
+
+
   } catch(e) {
+    console.error("openModal error:", e);
     document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-red-500 text-sm">Lỗi tải dữ liệu</div>';
   }
 }
@@ -841,8 +956,26 @@ async function openModal(ivId) {
   try {
     const r = await apiFetch(`/interview/${ivId}`);
     const iv = await r.json();
-    renderModal(iv);
+    
+    let evaluations = [];
+    let appId = null;
+    const appMatch = iv.cv_path ? iv.cv_path.match(/APP-[A-F0-9]+/) : null;
+    if (appMatch) {
+      appId = appMatch[0];
+      currentIvAppId = appId;
+      try {
+        const evR = await fetch(`/admin/applications/${appId}/evaluation`, { headers: { 'X-Admin-Key': ADMIN_KEY } });
+        if (evR.ok) {
+            const evData = await evR.json();
+            evaluations = evData.evaluations || [];
+        }
+      } catch (e) {}
+    }
+    
+    renderModal(iv, evaluations, appId);
+    setTimeout(initAllCalculations, 50);
   } catch(e) {
+    console.error("openModal error:", e);
     document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-red-500 text-sm">Lỗi tải dữ liệu</div>';
   }
 }
@@ -854,7 +987,80 @@ function closeModal() {
   currentIvId = '';
 }
 
-function renderModal(iv) {
+
+
+function calcTotal(element) {
+    if (!element) return;
+    const form = element.closest('form');
+    if (!form) return;
+    
+    let total = 0;
+    const selects = form.querySelectorAll('.score-dropdown');
+    selects.forEach(s => {
+        total += parseInt(s.value) || 0;
+    });
+    
+    // Determine max score based on round
+    const isRound1 = form.id.includes('r1');
+    const isRound2 = form.id.includes('r2');
+    let max = 1;
+    if (isRound1) max = 17 * 1;
+    if (isRound2) max = 33 * 5;
+    
+    const pct = max > 0 ? ((total / max) * 100).toFixed(2) : 0;
+    
+    const sumEl = form.querySelector('.score-sum');
+    const maxEl = form.querySelector('.score-max');
+    const pctEl = form.querySelector('.score-percent');
+    
+    if (sumEl) sumEl.textContent = total;
+    if (maxEl) maxEl.textContent = max;
+    if (pctEl) pctEl.textContent = pct;
+}
+
+function initAllCalculations() {
+    ['iv-eval-form-r1', 'iv-eval-form-r2', 'eval-form-r1', 'eval-form-r2'].forEach(fid => {
+        const f = document.getElementById(fid);
+        if (f) calcTotal(f.querySelector('.score-dropdown'));
+    });
+}
+
+let currentIvAppId = null;
+
+async function saveIvEvaluation(round) {
+  if (!currentIvAppId) { alert("Không tìm thấy mã hồ sơ (APP-ID) để lưu."); return; }
+  const form = document.getElementById(`iv-eval-form-r${round}`);
+  const evaluator = form.querySelector('[name=evaluator]').value;
+  const decision = form.querySelector('[name=decision]').value;
+  const summary = form.querySelector('[name=summary]').value;
+  
+  const criteria = [];
+  form.querySelectorAll('.crit-row').forEach(row => {
+    const id = row.dataset.id;
+    const label = row.dataset.label;
+    const score = form.querySelector(`[name=c_${id}]`).value;
+    const note = form.querySelector(`[name=note_${id}]`).value;
+    criteria.push({id, label, score: parseInt(score)||0, note});
+  });
+
+  const payload = { round, evaluator, decision, data: { summary, criteria } };
+  try {
+    const r = await fetch(`/admin/applications/${currentIvAppId}/evaluation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY },
+      body: JSON.stringify(payload)
+    });
+    if(r.ok) {
+        alert(`Đã lưu Phiếu Đánh Giá Vòng ${round} thành công! Dữ liệu đã được đồng bộ.`);
+        loadEvaluations(currentIvAppId); // Sync standalone modal if open
+        loadInterviewForApp(currentIvAppId); // Refresh integrated view
+    } else {
+        alert("Lỗi khi lưu");
+    }
+  } catch(e) { alert("Lỗi mạng"); }
+}
+
+function renderModal(iv, evaluations = [], appId = null) {
   const pos = (iv.position_id||'').replace(/_/g,' ');
   const date = (iv.submitted_at||'').substring(0,16).replace('T',' ');
   document.getElementById('modal-candidate-name').textContent = iv.candidate_name || iv.candidate_id || '—';
@@ -886,59 +1092,89 @@ function renderModal(iv) {
   }
 
   // Review form
+  const r1 = evaluations.find(e => e.round === 1) || {};
+  const d1 = typeof r1.data === 'string' ? JSON.parse(r1.data) : (r1.data || {});
+  const c1 = d1.criteria || [];
+  const getC1 = (id) => c1.find(c => c.id === id) || {score:0, note:''};
+
+  const r2 = evaluations.find(e => e.round === 2) || {};
+  const d2 = typeof r2.data === 'string' ? JSON.parse(r2.data) : (r2.data || {});
+  const c2 = d2.criteria || [];
+  const getC2 = (id) => c2.find(c => c.id === id) || {score:0, note:''};
+
   const reviewHtml = `
-  <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
-    <div class="flex items-center justify-between mb-3">
-      <p class="font-bold text-blue-900 text-sm flex items-center gap-2">
-        <span class="material-symbols-outlined text-base">rate_review</span>
-        Xét duyệt kết quả
+  <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 mt-4">
+    <div class="flex items-center justify-between mb-4 border-b border-outline-variant pb-3">
+      <p class="font-bold text-on-surface text-base flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary">assignment_turned_in</span>
+        Phiếu Đánh Giá & Quyết Định
       </p>
       <div class="flex items-center gap-2">
-        <label class="text-xs font-bold text-blue-900">Trạng thái:</label>
-        <select id="review-status" class="border border-blue-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none bg-white font-semibold">
+        <label class="text-sm font-bold text-on-surface-variant">Trạng thái chung cuộc:</label>
+        <select id="review-status" class="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-secondary focus:outline-none bg-surface font-semibold">
           <option value="evaluated">Đang đánh giá</option>
           <option value="passed" ${iv.status==='passed'?'selected':''}>Đạt</option>
           <option value="failed" ${iv.status==='failed'?'selected':''}>Không đạt</option>
         </select>
+        <button onclick="submitReview()" class="ml-2 px-4 py-1.5 bg-primary text-on-primary rounded-lg text-sm font-bold hover:opacity-90 transition shadow-sm">Lưu Trạng Thái</button>
       </div>
     </div>
     
-    <div class="grid grid-cols-2 gap-4 mb-4">
-      <!-- Cột HR -->
-      <div class="bg-white p-3 rounded-lg border border-blue-100">
-        <p class="font-bold text-xs text-blue-800 mb-2 border-b border-blue-50 pb-1">Phần Đánh giá của HR</p>
-        <div class="mb-2">
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Điểm HR (tuỳ chọn)</label>
-          <input type="number" id="review-hr-score" min="0" max="10" step="0.1" placeholder="0–10" value="${iv.hr_score ?? ''}"
-            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+      
+      <!-- Vòng 1 (HR) -->
+      <div class="border border-outline-variant rounded-xl bg-surface-container-lowest shadow-sm flex flex-col overflow-hidden">
+        <div class="bg-surface-container-low border-b border-outline-variant p-3">
+          <h4 class="font-bold text-on-surface flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-secondary text-sm">looks_one</span> Vòng 1: Sơ Vấn (HR)</h4>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Ghi chú HR</label>
-          <textarea id="review-hr-notes" rows="3" placeholder="Nhận xét tổng thể..."
-            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none resize-none">${iv.hr_notes || ''}</textarea>
-        </div>
+        <form id="iv-eval-form-r1" class="p-4 space-y-4 flex-1 flex flex-col">
+          <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Người phỏng vấn</label><input name="evaluator" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface focus:border-secondary focus:outline-none transition" placeholder="Tên HR" value="${r1.evaluator||''}"/></div>
+          
+          <div class="bg-surface-container p-3 rounded-lg space-y-3 max-h-60 overflow-y-auto">
+            ${generateCriteriaRows(1, CRITERIA_V1, getC1)}
+          </div>
+          
+          <div class="flex justify-between items-center bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100 font-bold text-sm">
+            <span>Tổng điểm: <span class="score-sum">0</span> / <span class="score-max">17</span></span>
+            <span>Đạt <span class="score-percent">0</span>%</span>
+          </div>
+          <div class="mt-auto space-y-3">
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Đánh giá chung</label><textarea name="summary" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface focus:border-secondary focus:outline-none transition" rows="2" placeholder="Điểm mạnh/Yếu...">${d1.summary||''}</textarea></div>
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Kết luận V1</label><select name="decision" class="w-full text-sm px-3 py-2 border border-outline-variant rounded font-medium text-on-surface bg-surface focus:border-secondary focus:outline-none"><option value="pending" ${r1.decision==='pending'?'selected':''}>Đang chờ</option><option value="pass" ${r1.decision==='pass'?'selected':''}>Đạt (Pass)</option><option value="fail" ${r1.decision==='fail'?'selected':''}>Không đạt (Fail)</option></select></div>
+            <button type="button" onclick="saveIvEvaluation(1)" class="w-full py-2 bg-secondary text-on-secondary font-medium rounded text-sm hover:opacity-90 transition shadow-sm">Lưu Đánh Giá Vòng 1</button>
+          </div>
+        </form>
       </div>
       
-      <!-- Cột Chuyên gia -->
-      <div class="bg-white p-3 rounded-lg border border-blue-100">
-        <p class="font-bold text-xs text-purple-800 mb-2 border-b border-purple-50 pb-1">Phần Đánh giá của Chuyên gia</p>
-        <div class="mb-2">
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Điểm Chuyên gia</label>
-          <input type="number" id="review-expert-score" min="0" max="10" step="0.1" placeholder="0–10" value="${iv.expert_score ?? ''}"
-            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"/>
+      <!-- Vòng 2 (Chuyên gia) -->
+      <div class="border border-outline-variant rounded-xl bg-surface-container-lowest shadow-sm flex flex-col overflow-hidden">
+        <div class="bg-surface-container-low border-b border-outline-variant p-3">
+          <h4 class="font-bold text-on-surface flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-secondary text-sm">looks_two</span> Vòng 2: Chuyên Môn</h4>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Ghi chú Chuyên gia</label>
-          <textarea id="review-expert-notes" rows="3" placeholder="Nhận xét chuyên môn..."
-            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none">${iv.expert_notes || ''}</textarea>
-        </div>
+        <form id="iv-eval-form-r2" class="p-4 space-y-4 flex-1 flex flex-col">
+          <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Chuyên gia phỏng vấn</label><input name="evaluator" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface focus:border-secondary focus:outline-none transition" placeholder="Tên Chuyên gia" value="${r2.evaluator||''}"/></div>
+          
+          <div class="bg-surface-container p-3 rounded-lg space-y-3 max-h-60 overflow-y-auto">
+            ${generateCriteriaRows(2, CRITERIA_V2, getC2)}
+          </div>
+          
+          <div class="flex justify-between items-center bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100 font-bold text-sm mb-3">
+            <span>Tổng điểm: <span class="score-sum">0</span> / <span class="score-max">0</span></span>
+            <span>Đạt <span class="score-percent">0</span>%</span>
+          </div>
+          <div class="mt-auto pt-3 space-y-3">
+
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Đánh giá chuyên môn</label><textarea name="summary" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface focus:border-secondary focus:outline-none transition" rows="2" placeholder="Điểm mạnh/Yếu...">${d2.summary||''}</textarea></div>
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Kết luận V2</label><select name="decision" class="w-full text-sm px-3 py-2 border border-outline-variant rounded font-medium text-on-surface bg-surface focus:border-secondary focus:outline-none"><option value="pending" ${r2.decision==='pending'?'selected':''}>Đang chờ</option><option value="pass" ${r2.decision==='pass'?'selected':''}>Đạt (Pass)</option><option value="fail" ${r2.decision==='fail'?'selected':''}>Không đạt (Fail)</option></select></div>
+            <button type="button" onclick="saveIvEvaluation(2)" class="w-full py-2 bg-secondary text-on-secondary font-medium rounded text-sm hover:opacity-90 transition shadow-sm">Lưu Đánh Giá Vòng 2</button>
+          </div>
+        </form>
       </div>
+      
     </div>
 
-    <div class="flex gap-2 flex-wrap">
-      <button onclick="submitReview()" class="flex items-center gap-1.5 px-4 py-2 bg-secondary text-white rounded-lg text-sm font-bold hover:opacity-90 transition shadow-sm">
-        <span class="material-symbols-outlined text-base">save</span> Lưu kết quả
-      </button>
+    <!-- Actions -->
+    <div class="flex gap-2 flex-wrap pt-4 border-t border-outline-variant">
       <button onclick="downloadCandidateReport(event, '${iv.id}')" class="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
         <span class="material-symbols-outlined text-base">print</span> Xuất Báo Cáo
       </button>
@@ -946,13 +1182,14 @@ function renderModal(iv) {
         <span class="material-symbols-outlined text-base">mail</span> Gửi Email
       </button>
       <button onclick="reEvaluate()" class="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition shadow-sm">
-        <span class="material-symbols-outlined text-base">autorenew</span> Đánh giá lại
+        <span class="material-symbols-outlined text-base">autorenew</span> Đánh giá lại bằng AI
       </button>
       <button onclick="showReInterviewForm()" class="flex items-center gap-1.5 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-semibold hover:bg-amber-100 transition shadow-sm">
         <span class="material-symbols-outlined text-base">replay</span> Yêu cầu phỏng vấn lại
       </button>
     </div>
-    <div id="reinterview-form" class="hidden mt-3 pt-3 border-t border-blue-200">
+    
+    <div id="reinterview-form" class="hidden mt-3 pt-3 border-t border-outline-variant">
       <div class="grid grid-cols-2 gap-3 mb-2">
         <div>
           <label class="block text-xs font-bold text-on-surface-variant mb-1">Câu hỏi cần làm lại</label>
@@ -1192,6 +1429,238 @@ switchTab = function(tabId) {
       alert('Không thể tải báo cáo: ' + e.message);
     }
   }
+
+async function hrApprove(appId) {
+  if(!confirm("Bạn có chắc chắn muốn DUYỆT hồ sơ này? Hệ thống sẽ gửi email Mời Phỏng Vấn (nếu Pass) hoặc Cảm Ơn (nếu Fail).")) return;
+  try {
+    const r = await fetch(`/admin/applications/${appId}/approve`, { method: 'POST', headers: {'X-Admin-Key': ADMIN_KEY} });
+    if(r.ok) { alert("Đã duyệt & gửi email!"); openAppModal(appId); loadApplications(); }
+    else alert("Lỗi khi duyệt");
+  } catch(e) { alert("Lỗi mạng"); }
+}
+
+async function hrReject(appId) {
+  if(!confirm("Bạn có chắc chắn muốn TỪ CHỐI hồ sơ này? Hệ thống sẽ cập nhật trạng thái thành failed.")) return;
+  try {
+    const r = await fetch(`/admin/applications/${appId}/reject`, { method: 'POST', headers: {'X-Admin-Key': ADMIN_KEY} });
+    if(r.ok) { alert("Đã từ chối!"); openAppModal(appId); loadApplications(); }
+    else alert("Lỗi khi từ chối");
+  } catch(e) { alert("Lỗi mạng"); }
+}
+
+let currentEvalAppId = '';
+function openEvaluationModal(appId, appName) {
+  currentEvalAppId = appId;
+  document.getElementById('eval-modal-name').textContent = appName;
+  document.getElementById('eval-modal').classList.remove('hidden');
+  document.getElementById('eval-modal').style.opacity = '1';
+  document.getElementById('eval-modal').style.pointerEvents = 'auto';
+  loadEvaluations(appId);
+}
+
+function closeEvaluationModal() {
+  document.getElementById('eval-modal').classList.add('hidden');
+  document.getElementById('eval-modal').style.opacity = '0';
+  document.getElementById('eval-modal').style.pointerEvents = 'none';
+}
+
+
+async function loadInterviewForApp(appId) {
+  const container = document.getElementById('integrated-interview-data');
+  if(!container) return;
+  container.innerHTML = '<div class="p-3 text-center text-on-surface-variant text-sm">Đang tải dữ liệu...</div>';
+  
+  try {
+    const res = await fetch(`/admin/interviews?status=`, { headers: { 'X-Admin-Key': ADMIN_KEY } });
+    if(res.ok) {
+        const data = await res.json();
+        const interview = data.interviews.find(iv => iv.cv_path && iv.cv_path.includes(appId));
+        if(interview) {
+            container.innerHTML = `
+                <div class="mt-3 p-4 border border-outline-variant bg-surface-container rounded-xl shadow-sm">
+                    <h4 class="font-bold text-on-surface mb-2 flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-secondary text-[16px]">video_camera_front</span> Kết Quả Phỏng Vấn (AI)</h4>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-surface-container-lowest p-2 rounded border border-outline-variant">
+                            <span class="block text-[11px] text-on-surface-variant mb-0.5">Trạng thái</span>
+                            <span class="font-semibold text-sm text-on-surface">${interview.status === 'evaluated' ? 'Đã chấm điểm' : interview.status}</span>
+                        </div>
+                        <div class="bg-surface-container-lowest p-2 rounded border border-outline-variant">
+                            <span class="block text-[11px] text-on-surface-variant mb-0.5">Điểm Trung Bình</span>
+                            <span class="font-semibold text-sm text-on-surface">${interview.avg_score != null ? interview.avg_score.toFixed(1) + '/10' : 'Chưa có'}</span>
+                        </div>
+                    </div>
+                    <button onclick="openModal('${interview.id}')" class="text-sm font-medium text-secondary hover:underline">Mở Xem chi tiết phỏng vấn ↗</button>
+                </div>
+            `;
+        } else {
+            container.innerHTML = '<div class="mt-3 p-3 bg-surface-container border border-outline-variant rounded text-on-surface-variant text-sm italic">Ứng viên chưa tham gia phỏng vấn.</div>';
+        }
+    }
+  } catch(e) {
+    container.innerHTML = '<div class="p-3 text-error text-sm">Lỗi kết nối khi tải.</div>';
+  }
+}
+async function loadEvaluations(appId) {
+  // Reset forms
+  [1,2,3].forEach(r => document.getElementById(`eval-form-r${r}`).reset());
+  
+  try {
+    const res = await apiFetch(`/admin/applications/${appId}/evaluation`);
+    if(!res.ok) return;
+    const data = await res.json();
+    data.evaluations.forEach(ev => {
+      const form = document.getElementById(`eval-form-r${ev.round}`);
+      if(form) {
+        form.querySelector('[name=evaluator]').value = ev.evaluator || '';
+        form.querySelector('[name=decision]').value = ev.decision || 'pending';
+        if(ev.data && ev.data.summary) form.querySelector('[name=summary]').value = ev.data.summary;
+        // Criteria
+        if(ev.data && ev.data.criteria) {
+          ev.data.criteria.forEach(c => {
+             const sel = form.querySelector(`[name=c_${c.id}]`);
+             if(sel) sel.value = c.score;
+             const not = form.querySelector(`[name=note_${c.id}]`);
+             if(not) not.value = c.note || '';
+          });
+        }
+      }
+    });
+    setTimeout(initAllCalculations, 50);
+  } catch(e) { console.warn(e); }
+}
+
+async function saveEvaluation(round) {
+  const form = document.getElementById(`eval-form-r${round}`);
+  const evaluator = form.querySelector('[name=evaluator]').value;
+  const decision = form.querySelector('[name=decision]').value;
+  const summary = form.querySelector('[name=summary]').value;
+  
+  const criteria = [];
+  form.querySelectorAll('.crit-row').forEach(row => {
+    const id = row.dataset.id;
+    const label = row.dataset.label;
+    const score = form.querySelector(`[name=c_${id}]`).value;
+    const note = form.querySelector(`[name=note_${id}]`).value;
+    criteria.push({id, label, score: parseInt(score)||0, note});
+  });
+
+  const payload = { round, evaluator, decision, data: { summary, criteria } };
+  try {
+    const r = await fetch(`/admin/applications/${currentEvalAppId}/evaluation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY },
+      body: JSON.stringify(payload)
+    });
+    if(r.ok) alert(`Đã lưu phiếu đánh giá Vòng ${round}!`);
+    else alert("Lỗi khi lưu");
+  } catch(e) { alert("Lỗi mạng"); }
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    const c1 = document.getElementById('eval-modal-r1-container');
+    if (c1) c1.innerHTML = generateCriteriaRows(1, CRITERIA_V1, null).replace(/bg-surface/g, 'bg-surface-container-lowest');
+    const c2 = document.getElementById('eval-modal-r2-container');
+    if (c2) c2.innerHTML = generateCriteriaRows(2, CRITERIA_V2, null).replace(/bg-surface/g, 'bg-surface-container-lowest');
+});
 </script>
+
+<!-- EVALUATION MODAL -->
+<div id="eval-modal" class="fixed inset-0 z-[99999] hidden flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300" style="opacity:0; pointer-events:none;">
+  <div class="bg-surface-container-lowest w-full max-w-6xl h-[90vh] rounded-xl shadow-xl flex flex-col mx-4 overflow-hidden border border-outline-variant">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-surface-container-low shrink-0">
+      <div>
+        <h3 class="font-bold text-lg text-on-surface">Phiếu Đánh Giá 3 Vòng</h3>
+        <p class="text-sm text-on-surface-variant mt-1">Ứng viên: <span id="eval-modal-name" class="font-bold text-secondary"></span></p>
+      </div>
+      <button onclick="closeEvaluationModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-variant text-on-surface-variant transition">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="flex-1 overflow-y-auto p-6 bg-surface">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+        
+        <!-- Vòng 1 -->
+        <div class="border border-outline-variant rounded-xl bg-surface-container-lowest shadow-sm flex flex-col overflow-hidden">
+          <div class="bg-surface-container-low border-b border-outline-variant p-3">
+            <h4 class="font-bold text-on-surface flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-secondary text-sm">looks_one</span> Vòng 1: Sơ Vấn (HR)</h4>
+          </div>
+          <form id="eval-form-r1" class="p-4 space-y-4 flex-1 flex flex-col">
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Người phỏng vấn</label><input name="evaluator" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface-container-lowest focus:border-secondary focus:outline-none transition" placeholder="Tên HR" /></div>
+            
+            <div class="bg-surface-container p-3 rounded-lg max-h-60 overflow-y-auto space-y-3" id="eval-modal-r1-container">
+            </div>
+            
+            <div class="flex justify-between items-center bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100 font-bold text-sm mb-3">
+            <span>Tổng điểm: <span class="score-sum">0</span> / <span class="score-max">0</span></span>
+            <span>Đạt <span class="score-percent">0</span>%</span>
+          </div>
+          <div class="mt-auto pt-3 space-y-3">
+
+              <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Đánh giá chung</label><textarea name="summary" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface-container-lowest focus:border-secondary focus:outline-none transition" rows="2" placeholder="Điểm mạnh/Yếu..."></textarea></div>
+              <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Kết luận V1</label><select name="decision" class="w-full text-sm px-3 py-2 border border-outline-variant rounded font-medium text-on-surface bg-surface-container-lowest focus:border-secondary focus:outline-none"><option value="pending">Đang chờ</option><option value="pass">Đạt (Pass)</option><option value="fail">Không đạt (Fail)</option></select></div>
+              <button type="button" onclick="saveEvaluation(1)" class="w-full py-2 bg-secondary text-on-secondary font-medium rounded text-sm hover:opacity-90 transition">Lưu Vòng 1</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Vòng 2 -->
+        <div class="border border-outline-variant rounded-xl bg-surface-container-lowest shadow-sm flex flex-col overflow-hidden">
+          <div class="bg-surface-container-low border-b border-outline-variant p-3">
+            <h4 class="font-bold text-on-surface flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-secondary text-sm">looks_two</span> Vòng 2: Chuyên Môn</h4>
+          </div>
+          <form id="eval-form-r2" class="p-4 space-y-4 flex-1 flex flex-col">
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Chuyên gia phỏng vấn</label><input name="evaluator" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface-container-lowest focus:border-secondary focus:outline-none transition" placeholder="Tên Chuyên gia" /></div>
+            
+            <div class="bg-surface-container p-3 rounded-lg max-h-60 overflow-y-auto space-y-3" id="eval-modal-r2-container">
+            </div>
+            
+            <div class="flex justify-between items-center bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100 font-bold text-sm mb-3">
+            <span>Tổng điểm: <span class="score-sum">0</span> / <span class="score-max">0</span></span>
+            <span>Đạt <span class="score-percent">0</span>%</span>
+          </div>
+          <div class="mt-auto pt-3 space-y-3">
+
+              <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Đánh giá chuyên môn</label><textarea name="summary" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface-container-lowest focus:border-secondary focus:outline-none transition" rows="2" placeholder="Điểm mạnh/Yếu..."></textarea></div>
+              <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Kết luận V2</label><select name="decision" class="w-full text-sm px-3 py-2 border border-outline-variant rounded font-medium text-on-surface bg-surface-container-lowest focus:border-secondary focus:outline-none"><option value="pending">Đang chờ</option><option value="pass">Đạt (Pass)</option><option value="fail">Không đạt (Fail)</option></select></div>
+              <button type="button" onclick="saveEvaluation(2)" class="w-full py-2 bg-secondary text-on-secondary font-medium rounded text-sm hover:opacity-90 transition">Lưu Vòng 2</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Vòng 3 -->
+        <div class="border border-outline-variant rounded-xl bg-surface-container-lowest shadow-sm flex flex-col overflow-hidden">
+          <div class="bg-surface-container-low border-b border-outline-variant p-3">
+            <h4 class="font-bold text-on-surface flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-secondary text-sm">looks_3</span> Vòng 3: Hội đồng (BOD)</h4>
+          </div>
+          <form id="eval-form-r3" class="p-4 space-y-4 flex-1 flex flex-col">
+            <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Thành viên Hội đồng</label><input name="evaluator" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface-container-lowest focus:border-secondary focus:outline-none transition" placeholder="Tên BOD" /></div>
+            
+            <div class="bg-surface-container p-3 rounded-lg max-h-60 overflow-y-auto space-y-3" id="eval-modal-r3-container">
+              <div class="crit-row" data-id="3_1" data-label="Đánh giá BOD"><p class="text-[11px] font-medium text-on-surface mb-1">1. Tham chiếu kết quả vòng 1 và vòng 2</p><textarea name="note_3_1" rows="5" class="w-full text-sm px-2 py-1.5 border border-outline-variant rounded bg-surface placeholder-on-surface-variant" placeholder="Ghi chú BOD..."></textarea><input type="hidden" name="c_3_1" value="0"/></div>
+            </div>
+            
+            <div class="mt-auto pt-3 space-y-3">
+              <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Kế hoạch sử dụng</label><textarea name="summary" class="w-full text-sm px-3 py-2 border border-outline-variant rounded bg-surface-container-lowest focus:border-secondary focus:outline-none transition" rows="2" placeholder="Nhận xét tổng quan..."></textarea></div>
+              <div><label class="text-xs font-semibold text-on-surface-variant block mb-1">Chốt Chung Cuộc</label><select name="decision" class="w-full text-sm px-3 py-2 border border-outline-variant rounded font-bold text-on-surface bg-surface-container-lowest focus:border-secondary focus:outline-none"><option value="pending">Đang chờ</option><option value="pass">Quyết định: TUYỂN DỤNG</option><option value="fail">Quyết định: TỪ CHỐI</option></select></div>
+              <button type="button" onclick="saveEvaluation(3)" class="w-full py-2 bg-primary text-on-primary font-medium rounded text-sm hover:opacity-90 transition">Lưu Vòng 3 (Chốt)</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+
+  </div>
+</div>
+
 </body>
 </html>

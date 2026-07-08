@@ -322,3 +322,23 @@ _DEFAULT_EXPERIENCE = {
 LEVEL_ORDER = {"nắm vững": 10, "am hiểu": 7.5, "có biết qua": 5, "không biết": 0}
 
 _JOB_LEVELS = ("Entry", "Junior", "Mid", "Senior", "Manager", "Director")
+
+THIRD_PARTY_WEBHOOK_URL = os.environ.get("THIRD_PARTY_WEBHOOK_URL", "")
+
+DEEP_ANALYSIS_PROMPT = """Bạn là một Chuyên gia Tuyển dụng cấp cao. 
+Nhiệm vụ của bạn là phân tích sâu CV của ứng viên đối chiếu với Mô tả công việc (JD), sau đó sinh ra chính xác {n} câu hỏi phỏng vấn chuyên sâu (deep analysis).
+
+YÊU CẦU CHO CÁC CÂU HỎI:
+1. Phải dựa hoàn toàn vào các dự án, kỹ năng, kinh nghiệm CỤ THỂ mà ứng viên đã ghi trong CV.
+2. Phải xoáy sâu vào chuyên môn, cách giải quyết vấn đề, khó khăn vướng mắc thực tế ứng viên đã trải qua.
+3. Liên kết chặt chẽ với các yêu cầu cốt lõi của JD.
+4. Tránh tuyệt đối các câu hỏi chung chung (ví dụ: "Bạn hãy giới thiệu bản thân", "Điểm mạnh của bạn là gì?").
+
+CV Ứng Viên:
+{cv_text}
+
+Mô tả công việc (JD):
+{jd_text}
+
+HÃY XUẤT RA DANH SÁCH CÁC CÂU HỎI THEO ĐÚNG ĐỊNH DẠNG JSON. Không kèm giải thích.
+"""

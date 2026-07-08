@@ -27,7 +27,8 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
         if job_title.startswith(lv + "_"):
             base_pos = job_title[len(lv)+1:]
             break
-    interview_link = f"{INTERVIEW_URL}?ref={app_id}&pos={base_pos}&lv={level}"
+    import urllib.parse
+    interview_link = f"{INTERVIEW_URL}?ref={urllib.parse.quote(app_id)}&pos={urllib.parse.quote(base_pos)}&lv={urllib.parse.quote(level)}"
     job_display    = job_title.replace("_", " ")
     today          = time.strftime("%d/%m/%Y")
 
@@ -54,7 +55,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
 
   <!-- Hero -->
   <tr><td style="padding:40px 40px 0;">
-    <p style="margin:0 0 6px;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Thư mời phỏng vấn</p>
+    <p style="margin:0 0 6px;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Kết quả sàng lọc hồ sơ</p>
     <h1 style="margin:0 0 20px;color:#111827;font-size:24px;font-weight:700;line-height:1.3;">
       Kính gửi {name},
     </h1>
@@ -63,8 +64,8 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
       <strong style="color:#111827;">{job_display}</strong> tại PAI HR.
     </p>
     <p style="margin:16px 0 0;color:#374151;font-size:15px;line-height:1.75;">
-      Sau khi xem xét hồ sơ của bạn, chúng tôi rất vui mừng thông báo rằng bạn đã
-      <strong style="color:#0051d5;">đáp ứng các tiêu chí tuyển dụng</strong> của vị trí này
+      Sau khi xem xét hồ sơ của bạn, chúng tôi vui mừng thông báo rằng bạn đã
+      <strong style="color:#0051d5;">đã vượt qua vòng sàng lọc hồ sơ</strong>
       và được mời tham gia vòng phỏng vấn tiếp theo.
     </p>
   </td></tr>
@@ -162,7 +163,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
     )
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"]  = f"Mời phỏng vấn vị trí {job_display} tại PAI HR"
+    msg["Subject"]  = f"Đã vượt qua vòng sàng lọc hồ sơ — Mời phỏng vấn {job_display} · PAI HR"
     msg["From"]     = f"PAI HR <{SMTP_USER}>"
     msg["To"]       = to_email
     msg["Reply-To"] = SMTP_USER

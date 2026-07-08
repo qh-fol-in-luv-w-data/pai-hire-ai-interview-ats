@@ -63,32 +63,30 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
         # Làm tròn bội số 0.25
         total  = round(round(sub * 4) / 4, 2)
         result["total_score"] = total
-        status = "passed" if total >= PASS_SCORE else "failed"
+        ai_verdict = "passed" if total >= PASS_SCORE else "failed"
+        # § Feature (6): Không gửi email tự động — chờ HR xác nhận
+        # status = pending_hr_approval (pass/fail sẽ lưu vào ai_verdict để HR biết gợi ý)
+        pending_status = f"pending_hr_approval_{ai_verdict}"
 
         with db() as conn:
             conn.execute(
                 "UPDATE cv_applications SET cv_score=?, score_breakdown=?, ai_summary=?, status=? WHERE id=?",
-                (total, json.dumps(result, ensure_ascii=False), result.get("summary", ""), status, app_id),
+                (total, json.dumps(result, ensure_ascii=False), result.get("summary", ""), pending_status, app_id),
             )
             row = conn.execute(
                 "SELECT name, email, job_id FROM cv_applications WHERE id=?", (app_id,)
             ).fetchone()
 
-        print(f"[CV Score] {app_id} → {total}/10 ({status})")
+        print(f"[CV Score] {app_id} → {total}/10 (AI gợi ý: {ai_verdict}) — Chờ HR duyệt")
 
-        if row:
-            if status == "passed":
-                # Gen prep + TTS trước, sau đó mới gửi email
-                # Ứng viên mở link là có audio sẵn ngay, không cần loading
-                print(f"[CV Score] Đang gen prep cho {app_id}...")
-                try:
-                    await _create_prep(row["job_id"], app_id, level=level)
-                    print(f"[CV Score] Prep xong, gửi email cho {row['email']}")
-                except Exception as e:
-                    print(f"[CV Score] Prep error (vẫn gửi email): {e}")
-                send_pass_email(row["name"], row["email"], row["job_id"], app_id, level=level)
-            else:
-                send_fail_email(row["name"], row["email"], row["job_id"], app_id)
+        if row and ai_verdict == "passed":
+            # Gen prep sẵn trong background để khi HR approve là gửi link ngay
+            print(f"[CV Score] Pre-gen prep cho {app_id} (AI gợi ý Pass)...")
+            try:
+                await _create_prep(row["job_id"], app_id, level=level)
+                print(f"[CV Score] Prep đã gen xong, sẵn sàng khi HR duyệt")
+            except Exception as e:
+                print(f"[CV Score] Prep error (không ảnh hưởng đến luồng): {e}")
 
     except Exception as e:
         print(f"[CV Score Error] {app_id}: {e}")
@@ -331,3 +329,56 @@ Trả về CHỈ JSON theo định dạng (mỗi phần viết thành 1 đoạn 
         print(f"[Eval] Lỗi tổng: {e}")
 
 
+
+async def generate_deep_questions(cv_text: str, jd_text: str, n_questions: int = 5) -> list:
+    """Sử dụng GPT-4o để sinh n câu hỏi deep analysis xoáy sâu vào CV."""
+    from openai import AsyncOpenAI
+    from backend.config import OPENAI_API_KEY, DEEP_ANALYSIS_PROMPT
+    
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY chưa được cấu hình.")
+        
+    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    prompt = DEEP_ANALYSIS_PROMPT.format(n=n_questions, cv_text=cv_text[:5000], jd_text=jd_text[:4000])
+    
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "return_deep_questions",
+                "description": "Trả về danh sách các câu hỏi phỏng vấn xoáy sâu.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "questions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "question_text": {"type": "string", "description": "Nội dung câu hỏi phỏng vấn."},
+                                    "rationale": {"type": "string", "description": "Lý do hỏi câu này dựa trên CV và JD."}
+                                },
+                                "required": ["question_text", "rationale"]
+                            }
+                        }
+                    },
+                    "required": ["questions"]
+                }
+            }
+        }
+    ]
+    
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        tools=tools,
+        tool_choice={"type": "function", "function": {"name": "return_deep_questions"}}
+    )
+    
+    tool_call = resp.choices[0].message.tool_calls[0]
+    result_json = tool_call.function.arguments
+    import json
+    parsed = json.loads(result_json)
+    
+    return parsed.get("questions", [])

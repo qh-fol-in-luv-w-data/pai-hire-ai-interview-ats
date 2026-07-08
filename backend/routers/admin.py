@@ -164,6 +164,53 @@ def admin_get_application(app_id: str, x_admin_key: str = Header(None)):
     return data
 
 
+@router.post("/admin/applications/{app_id}/approve")
+def admin_approve_application(app_id: str, x_admin_key: str = Header(None)):
+    """§ Feature (6): HR duyệt CV → cập nhật status=passed → gửi Email Pass với link phỏng vấn."""
+    require_admin(x_admin_key)
+    from backend.services.email_service import send_pass_email
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM cv_applications WHERE id = ?", (app_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Không tìm thấy đơn ứng tuyển")
+        if not row["status"].startswith("pending_hr_approval"):
+            raise HTTPException(400, f"Hồ sơ đang ở trạng thái '{row['status']}', không cần duyệt lại")
+
+        level = dict(row).get("level", "Junior") or "Junior"
+        conn.execute(
+            "UPDATE cv_applications SET status='passed' WHERE id=?", (app_id,)
+        )
+
+    # Gửi email Pass
+    send_pass_email(row["name"], row["email"], row["job_id"], app_id, level=level)
+    print(f"[HR Approve] {app_id} → passed → Email sent to {row['email']}")
+    return {"ok": True, "app_id": app_id, "status": "passed", "msg": f"Đã duyệt và gửi email mời phỏng vấn tới {row['email']}"}
+
+
+@router.post("/admin/applications/{app_id}/reject")
+def admin_reject_application(app_id: str, x_admin_key: str = Header(None)):
+    """§ Feature (6): HR từ chối CV → cập nhật status=failed → gửi Email Fail."""
+    require_admin(x_admin_key)
+    from backend.services.email_service import send_fail_email
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM cv_applications WHERE id = ?", (app_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Không tìm thấy đơn ứng tuyển")
+
+        conn.execute(
+            "UPDATE cv_applications SET status='failed' WHERE id=?", (app_id,)
+        )
+
+    # Gửi email Fail
+    send_fail_email(row["name"], row["email"], row["job_id"], app_id)
+    print(f"[HR Reject] {app_id} → failed → Email sent to {row['email']}")
+    return {"ok": True, "app_id": app_id, "status": "failed", "msg": f"Đã từ chối và gửi email kết quả tới {row['email']}"}
+
+
 @router.get("/admin/stats")
 def admin_stats(x_admin_key: str = Header(None)):
     require_admin(x_admin_key)
@@ -174,10 +221,96 @@ def admin_stats(x_admin_key: str = Header(None)):
                 SUM(CASE WHEN status='passed'  THEN 1 ELSE 0 END) AS passed,
                 SUM(CASE WHEN status='failed'  THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,
+                SUM(CASE WHEN status LIKE 'pending_hr_approval%' THEN 1 ELSE 0 END) AS pending_approval,
                 ROUND(AVG(CASE WHEN cv_score IS NOT NULL THEN cv_score END), 2) AS avg_score
             FROM cv_applications
         """).fetchone()
     return dict(row)
+
+
+# ─────────────────────────────────────────────────────────────
+# § Feature (7): Evaluation API — Phiếu Đánh Giá 3 Vòng
+# ─────────────────────────────────────────────────────────────
+
+@router.post("/admin/applications/{app_id}/evaluation")
+async def save_evaluation(app_id: str, request: Request, x_admin_key: str = Header(None)):
+    """Lưu hoặc cập nhật phiếu đánh giá 1 vòng cho ứng viên.
+    Body JSON: { round: 1|2|3, evaluator: str, data: {...}, decision: 'pass'|'fail'|'pending' }
+    """
+    require_admin(x_admin_key)
+    body = await request.json()
+    round_num  = body.get("round")
+    evaluator  = body.get("evaluator", "HR")
+    data_json  = json.dumps(body.get("data", {}), ensure_ascii=False)
+    decision   = body.get("decision", "pending")
+    now        = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    if round_num not in (1, 2, 3):
+        raise HTTPException(400, "round phải là 1, 2 hoặc 3")
+
+    # Calculate score on 10-scale
+    criteria = body.get("data", {}).get("criteria", [])
+    total_score = sum(c.get("score", 0) for c in criteria)
+    if round_num == 1:
+        max_score = len(criteria) * 1 if criteria else 1
+    elif round_num == 2:
+        max_score = len(criteria) * 5 if criteria else 1
+    else:
+        max_score = len(criteria) * 5 if criteria else 1
+    
+    scaled_score = round((total_score / max_score) * 10.0, 1) if criteria else None
+    summary_note = body.get("data", {}).get("summary", "")
+
+    status_col = f"eval_round{round_num}_status"
+    with db() as conn:
+        # Upsert evaluation
+        conn.execute("""
+            INSERT INTO evaluations (app_id, round, evaluator, data, decision, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(app_id, round) DO UPDATE SET
+                evaluator  = excluded.evaluator,
+                data       = excluded.data,
+                decision   = excluded.decision,
+                updated_at = excluded.updated_at
+        """, (app_id, round_num, evaluator, data_json, decision, now, now))
+        # Cập nhật trạng thái vào cv_applications
+        conn.execute(
+            f"UPDATE cv_applications SET {status_col}=? WHERE id=?",
+            (decision, app_id)
+        )
+        # Đồng bộ sang bảng interviews (Kết quả xét duyệt)
+        if round_num == 1:
+            conn.execute(
+                "UPDATE interviews SET hr_score=?, hr_notes=? WHERE cv_path LIKE ?",
+                (scaled_score, summary_note, f"%{app_id}.pdf")
+            )
+        elif round_num == 2:
+            conn.execute(
+                "UPDATE interviews SET expert_score=?, expert_notes=? WHERE cv_path LIKE ?",
+                (scaled_score, summary_note, f"%{app_id}.pdf")
+            )
+
+    return {"ok": True, "app_id": app_id, "round": round_num, "decision": decision}
+
+
+@router.get("/admin/applications/{app_id}/evaluation")
+def get_evaluations(app_id: str, x_admin_key: str = Header(None)):
+    """Lấy toàn bộ phiếu đánh giá 3 vòng của một ứng viên."""
+    require_admin(x_admin_key)
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM evaluations WHERE app_id=? ORDER BY round", (app_id,)
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["data"] = json.loads(d["data"])
+        except Exception:
+            pass
+        result.append(d)
+    return {"app_id": app_id, "evaluations": result}
+
 
 
 @router.get("/admin/feedback/stats")
