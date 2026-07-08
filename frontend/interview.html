@@ -1110,13 +1110,18 @@ async function processAnswer(qn, isPushback = false) {
     if (isPushback && sttTexts[mainQn]) {
       historyArray.push({role: 'user', content: sttTexts[mainQn]});
     }
-    const pushbacks = Object.keys(answers).filter(k => k.startsWith(mainQn + '_')).sort();
+    const pushbacks = Object.keys(pushbackTexts)
+      .filter(k => k.startsWith(mainQn + '_'))
+      .sort((a, b) => parseInt(a.split('_').pop()) - parseInt(b.split('_').pop()));
+    
+    const currentIndex = isPushback ? parseInt(qn.split('_').pop()) : 0;
     for (const pb of pushbacks) {
-      if (pb >= qn) break; // Only include history BEFORE the current question
+      const pbIndex = parseInt(pb.split('_').pop());
+      if (pbIndex > currentIndex) break;
       if (pushbackTexts[pb]) {
         historyArray.push({role: 'assistant', content: pushbackTexts[pb]});
       }
-      if (sttTexts[pb]) {
+      if (pbIndex < currentIndex && sttTexts[pb]) {
         historyArray.push({role: 'user', content: sttTexts[pb]});
       }
     }
