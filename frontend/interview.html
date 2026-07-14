@@ -1680,6 +1680,16 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// Bắt lỗi mất focus (khi dùng 2 màn hình và click chuột sang màn hình kia)
+window.addEventListener('blur', () => {
+  const step2 = document.getElementById('step-2');
+  if (step2 && !step2.classList.contains('hidden')) {
+    tabSwitchCount++;
+    logIncident('window_blur', `Candidate lost window focus (${tabSwitchCount} times)`);
+    showCheatOverlay();
+  }
+});
+
 document.addEventListener('fullscreenchange', checkFullscreen);
 document.addEventListener('webkitfullscreenchange', checkFullscreen);
 
