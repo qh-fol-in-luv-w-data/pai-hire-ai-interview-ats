@@ -740,10 +740,28 @@ function checkCanStart() {
   }
 }
 
-function startInterview() {
+async function startInterview() {
   if (!cvUploaded || !selectedPosition) { checkCanStart(); return; }
   document.getElementById('start-hint').classList.add('hidden');
   if (!consentAudio) { showConsentModal(); return; }
+
+  const btn = document.getElementById('btn-start');
+  const oldHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-base">sync</span> Đang cấp quyền Mic...';
+  btn.disabled = true;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch(e) {
+    alert('Vui lòng cấp quyền Microphone trên trình duyệt để bắt đầu phỏng vấn.');
+    btn.innerHTML = oldHtml;
+    btn.disabled = false;
+    return;
+  }
+
+  btn.innerHTML = oldHtml;
+  btn.disabled = false;
   _doStartInterview();
 }
 
