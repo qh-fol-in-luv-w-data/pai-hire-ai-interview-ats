@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile,
 from fastapi.responses import HTMLResponse, JSONResponse
 from backend.database import db
 from backend.services.ai_service import _tts
-from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTION_META, CATEGORY_LABELS, BASE_DIR, LEVEL_ORDER
+from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, BASE_DIR, LEVEL_ORDER
 
 from backend.services.prep_service import _create_prep, _prep_from_row
 from backend.services.ai_service import _do_evaluate_interview
@@ -36,6 +36,63 @@ async def create_interview_prep(
             return _prep_from_row(existing)
 
     return await _create_prep(position_id, app_ref, level=level)
+
+
+@router.get("/interview/questions")
+def get_questions():
+    res = []
+    for k, v in QUESTIONS_BANK.items():
+        res.append({
+            "n": k,
+            "type": v["type"],
+            "label": v["label"],
+            "is_dynamic": v["is_dynamic"],
+            "group": v["group"],
+            "text": v["text"]
+        })
+    return {"questions": res}
+
+
+from pydantic import BaseModel
+
+class AudioGenRequest(BaseModel):
+    q_num: str
+    app_ref: str = None
+    position_id: str = None
+
+@router.post("/interview/generate_audio")
+async def generate_audio_for_dynamic_q(req: AudioGenRequest):
+    q_data = QUESTIONS_BANK.get(req.q_num)
+    if not q_data:
+        raise HTTPException(404, "Question not found")
+        
+    text_template = q_data["text"]
+    
+    if not q_data["is_dynamic"]:
+        # If it's static, just return the static path
+        return {"audio_url": f"/audio/q{req.q_num}.mp3", "text": text_template}
+        
+    # If dynamic, we ideally need to call LLM to fill in the variables using CV/JD.
+    # For now, to unblock the flow, we will do a basic string replacement or simple LLM call.
+    # We will use a generic replacement until we plug in the real CV text.
+    import re
+    filled_text = re.sub(r'\[(.*?)\]', r'\1', text_template)
+    filled_text = filled_text.replace("số năm", "nhiều")
+    
+    req_id = uuid.uuid4().hex[:8]
+    out_audio_name = f"dyn_{req.q_num}_{req_id}.mp3"
+    out_audio_path = TEMP_PUSHBACKS_DIR / out_audio_name
+    
+    try:
+        await _tts(filled_text, out_audio_path)
+    except Exception as e:
+        print(f"[Generate Audio] TTS error: {e}")
+        raise HTTPException(500, "Lỗi tạo audio")
+        
+    return {
+        "audio_url": f"/temp_pushbacks/{out_audio_name}",
+        "text": filled_text
+    }
 
 
 @router.post("/interview/evaluate-step")
@@ -67,6 +124,10 @@ async def evaluate_step(
         print(f"[Eval] STT error: {e}")
 
     if not transcript:
+        return {"need_pushback": False, "transcript": transcript}
+
+    # Theo yêu cầu: Chỉ follow-up các câu hỏi chuyên môn (Technical) và nghề nghiệp (Experience)
+    if question_type not in ["Technical", "Experience"]:
         return {"need_pushback": False, "transcript": transcript}
 
     # 3. Parse History
@@ -118,6 +179,7 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
             temperature=0.7,
         )
         ai_resp_raw = resp.choices[0].message.content
+        print(f"\n=== LLM RAW RESPONSE ===\n{ai_resp_raw}\n=======================")
         ai_resp_raw = ai_resp_raw.replace('```json', '').replace('```', '').strip()
         
         try:
@@ -132,6 +194,11 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
         return {"need_pushback": False, "transcript": transcript}
 
     transcript = norm_transcript
+
+    # Nếu sau khi chuẩn hoá (loại bỏ ảo giác STT) mà transcript rỗng, thì bỏ qua không hỏi xoáy
+    # để tránh vòng lặp hỏi lại khi ứng viên im lặng
+    if not transcript.strip():
+        return {"need_pushback": False, "transcript": transcript}
 
     if ai_resp.upper() == "PASS" or "PASS" in ai_resp.upper():
         return {"need_pushback": False, "transcript": transcript}
@@ -221,7 +288,7 @@ async def submit_interview(
                 qn = qn_raw
                 question_number = qn
 
-            q_type = QUESTION_META.get(qn, "General")
+            q_type = QUESTIONS_BANK.get(qn, {}).get("type", "General")
 
             audio_name = f"{key}.webm"
             audio_path = session_dir / audio_name

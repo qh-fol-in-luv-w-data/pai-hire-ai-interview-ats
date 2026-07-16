@@ -33,7 +33,7 @@ def _detect_local_ip() -> str:
     except Exception:
         return "localhost"
 
-_default_interview_url = f"https://{_detect_local_ip()}:8080/interview"
+_default_interview_url = f"http://{_detect_local_ip()}:8080/interview"
 INTERVIEW_URL   = os.environ.get("INTERVIEW_URL", _default_interview_url)
 
 from fastapi import Header, HTTPException
@@ -97,11 +97,47 @@ CATEGORY_LABELS = {
     "Tài_Chính_&_Kế_Toán_(Finance_&_Accounting)":          "Tài Chính & Kế Toán",
 }
 
-QUESTION_META = {
-    "01": "General",    "02": "General",
-    "03": "Technical",  "04": "Technical",
-    "05": "Soft Skill", "06": "Soft Skill",
-    "07": "Experience", "08": "Experience",
+QUESTIONS_BANK = {
+    "01": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_A", "is_dynamic": False, "text": "Theo anh/chị, đâu là 03 kỹ năng chuyên môn quan trọng nhất để làm tốt vị trí này? Vì sao?" },
+    "02": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị tự đánh giá mức độ thành thạo của bản thân với từng kỹ năng bắt buộc trong JD như thế nào (theo thang cơ bản/thành thạo/chuyên sâu)?" },
+    "03": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_B", "is_dynamic": True, "text": "JD của vị trí yêu cầu kỹ năng [kỹ năng chính trong JD]. Anh/chị hãy chia sẻ một tình huống thực tế đã sử dụng kỹ năng này và kết quả đạt được." },
+    "04": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_B", "is_dynamic": True, "text": "Trong CV, anh/chị có đề cập kỹ năng [kỹ năng trong CV]. Anh/chị mô tả cụ thể mức độ và tần suất sử dụng kỹ năng này trong công việc gần đây nhất." },
+    "05": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_C", "is_dynamic": True, "text": "Nếu không có sẵn công cụ/tài nguyên quen thuộc, anh/chị sẽ vận dụng kỹ năng [kỹ năng JD] như thế nào để vẫn hoàn thành công việc đúng chất lượng?" },
+    "06": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_C", "is_dynamic": False, "text": "Anh/chị có thể nêu một chỉ số hoặc kết quả cụ thể để chứng minh mức độ thành thạo kỹ năng vừa chia sẻ không?" },
+    "07": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_D", "is_dynamic": False, "text": "Đưa 1 bài tập/tình huống chuyên môn thực tế đang xảy ra tại phòng ban, yêu cầu ứng viên nêu hướng xử lý ngắn gọn để xác nhận mức độ thành thạo kỹ năng thực tế." },
+    "08": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị hãy giới thiệu ngắn gọn về quá trình làm việc, vai trò và trách nhiệm chính qua từng vị trí đã đảm nhận." },
+    "09": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_B", "is_dynamic": True, "text": "Dựa trên CV, anh/chị có kinh nghiệm [số năm] năm ở vị trí [chức danh]. Anh/chị mô tả cụ thể quy mô công việc, số lượng dự án/nhân sự phụ trách và mức độ tương đồng với vị trí đang ứng tuyển." },
+    "10": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_B", "is_dynamic": False, "text": "Nếu được nhận vào vị trí này, trong 2 tuần đầu tiên anh/chị sẽ ưu tiên tìm hiểu và triển khai những việc gì để bắt nhịp công việc dựa trên kinh nghiệm đã có?" },
+    "11": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_C", "is_dynamic": True, "text": "Trong quá trình thực hiện [công việc/dự án trong CV], đâu là khó khăn lớn nhất về mặt kinh nghiệm/năng lực và anh/chị đã xử lý như thế nào?" },
+    "12": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_C", "is_dynamic": True, "text": "Một số kinh nghiệm của anh/chị đang nghiêng về [mảng A], trong khi vị trí này yêu cầu nhiều về [mảng B]. Anh/chị đánh giá khoảng cách này như thế nào và sẽ bù đắp ra sao?" },
+    "13": { "type": "General", "label": "Tiêu chí 03", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị hãy chia sẻ về chuyên ngành đào tạo và các chứng chỉ nghề nghiệp liên quan trực tiếp đến vị trí đang ứng tuyển." },
+    "14": { "type": "General", "label": "Tiêu chí 03", "group": "Nhóm_B", "is_dynamic": True, "text": "CV thể hiện anh/chị tốt nghiệp [chuyên ngành/trường]. Anh/chị đã áp dụng kiến thức được đào tạo vào công việc thực tế như thế nào?" },
+    "15": { "type": "General", "label": "Tiêu chí 03", "group": "Nhóm_C", "is_dynamic": False, "text": "Nếu chuyên ngành đào tạo của anh/chị không hoàn toàn trùng khớp với yêu cầu JD, anh/chị đã bổ sung kiến thức/chứng chỉ liên quan bằng cách nào để đáp ứng công việc?" },
+    "16": { "type": "Experience", "label": "Tiêu chí 04", "group": "Nhóm_A", "is_dynamic": True, "text": "Anh/chị đã có kinh nghiệm làm việc trong ngành [ngành nghề theo JD] chưa? Nếu chưa, anh/chị đánh giá ngành mình từng làm có điểm gì tương đồng với ngành này?" },
+    "17": { "type": "Experience", "label": "Tiêu chí 04", "group": "Nhóm_B", "is_dynamic": True, "text": "CV cho thấy anh/chị chủ yếu làm việc trong lĩnh vực [ngành trong CV], trong khi vị trí này thuộc lĩnh vực [ngành JD]. Anh/chị dự kiến sẽ thích nghi với sự khác biệt này như thế nào?" },
+    "18": { "type": "Experience", "label": "Tiêu chí 04", "group": "Nhóm_C", "is_dynamic": True, "text": "Nếu gặp một vấn đề đặc thù của ngành [ngành JD] mà anh/chị chưa từng xử lý trước đây, anh/chị sẽ tiếp cận và tìm hiểu theo phương pháp nào?" },
+    "19": { "type": "General", "label": "Tiêu chí 05", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị mong muốn phát triển năng lực gì trong 6 -12 tháng tới nếu gia nhập CT Group? Anh/chị sẽ đo lường sự tiến bộ đó như thế nào?" },
+    "20": { "type": "General", "label": "Tiêu chí 05", "group": "Nhóm_A", "is_dynamic": True, "text": "Dựa trên CV, anh/chị đã trải qua các vị trí [liệt kê chức danh theo thời gian]. Anh/chị mô tả sự thay đổi về trách nhiệm và quy mô công việc qua từng giai đoạn này." },
+    "21": { "type": "General", "label": "Tiêu chí 05", "group": "Nhóm_A", "is_dynamic": True, "text": "Điều gì đã thúc đẩy anh/chị chuyển từ vị trí [vị trí trước] sang [vị trí sau]? Đây có phải là một bước phát triển theo đúng định hướng anh/chị đặt ra không?" },
+    "22": { "type": "General", "label": "Tiêu chí 05", "group": "Nhóm_C", "is_dynamic": True, "text": "Trong CV có giai đoạn [khoảng thời gian ít thay đổi chức danh/vai trò]. Anh/chị có thể chia sẻ rõ hơn lý do và những gì đã tích lũy được trong giai đoạn đó không?" },
+    "23": { "type": "Experience", "label": "Tiêu chí 06", "group": "Nhóm_A", "is_dynamic": False, "text": "Hãy chia sẻ một thành tích hoặc dự án/công việc mà anh/chị tự đánh giá là nổi bật nhất trong thời gian gần đây. Vai trò cụ thể của anh/chị trong kết quả đó là gì?" },
+    "24": { "type": "Experience", "label": "Tiêu chí 06", "group": "Nhóm_B", "is_dynamic": True, "text": "Kết quả [thành tích/chỉ số trong CV] được đo lường như thế nào? Anh/chị trực tiếp đóng góp phần nào trong kết quả này?" },
+    "25": { "type": "Experience", "label": "Tiêu chí 06", "group": "Nhóm_B", "is_dynamic": False, "text": "Hãy chia sẻ một kết quả cụ thể mà anh/chị đạt được vượt hơn yêu cầu ban đầu, được đo lường bằng chỉ số, dữ liệu hoặc phản hồi cụ thể." },
+    "26": { "type": "Experience", "label": "Tiêu chí 06", "group": "Nhóm_C", "is_dynamic": True, "text": "Anh/chị vừa đề cập thành tích [thành tích]. Anh/chị có thể nêu một chỉ số cụ thể (số liệu, %, mốc thời gian) để chứng minh kết quả này không?" },
+    "27": { "type": "Experience", "label": "Tiêu chí 06", "group": "Nhóm_C", "is_dynamic": False, "text": "Trong thành tích đó, phần việc nào do anh/chị trực tiếp phụ trách, phần nào do đội nhóm hỗ trợ?" },
+    "28": { "type": "Experience", "label": "Tiêu chí 06", "group": "Nhóm_D", "is_dynamic": True, "text": "AI đang ghi nhận thành tích [thành tích ứng viên nêu] nhưng chưa đủ minh chứng định lượng. Đề nghị HOD hỏi thêm để xác nhận mức độ đóng góp thực tế và độ tin cậy của số liệu." },
+    "29": { "type": "Soft Skill", "label": "Tiêu chí 07", "group": "Nhóm_A", "is_dynamic": False, "text": "Trong môi trường làm việc tốc độ cao, nhiều yêu cầu thay đổi nhanh, anh/chị thường quản lý công việc, deadline và áp lực như thế nào?" },
+    "30": { "type": "Soft Skill", "label": "Tiêu chí 07", "group": "Nhóm_B", "is_dynamic": True, "text": "CV có đề cập anh/chị từng [dẫn dắt đội nhóm/đào tạo nhân sự/thuyết trình]. Anh/chị hãy chia sẻ một tình huống cụ thể thể hiện kỹ năng này và kết quả đạt được." },
+    "31": { "type": "Soft Skill", "label": "Tiêu chí 07", "group": "Nhóm_B", "is_dynamic": False, "text": "Hãy chia sẻ một tình huống anh/chị từng phải xử lý mâu thuẫn hoặc bất đồng trong nhóm làm việc. Anh/chị đã tiếp cận và giải quyết như thế nào?" },
+    "32": { "type": "General", "label": "Tiêu chí 08", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị hãy giới thiệu ngắn gọn về bản thân bằng ngoại ngữ theo yêu cầu của vị trí (ví dụ: tiếng Anh) trong khoảng 1 phút." },
+    "33": { "type": "General", "label": "Tiêu chí 08", "group": "Nhóm_B", "is_dynamic": True, "text": "CV thể hiện anh/chị có chứng chỉ [chứng chỉ ngoại ngữ trong CV]. Anh/chị sử dụng ngoại ngữ này trong công việc hàng ngày ở mức độ nào (đọc hiểu tài liệu, giao tiếp, thuyết trình, đàm phán)?" },
+    "34": { "type": "General", "label": "Tiêu chí 08", "group": "Nhóm_C", "is_dynamic": False, "text": "Nếu phải trao đổi trực tiếp bằng ngoại ngữ với đối tác/khách hàng nước ngoài trong một tình huống phát sinh gấp, anh/chị sẽ chuẩn bị và xử lý như thế nào?" },
+    "35": { "type": "General", "label": "Tiêu chí 09", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị hình dung mình sẽ gắn bó với vị trí này trong bao lâu? Những yếu tố nào có thể khiến anh/chị cân nhắc rời đi sớm?" },
+    "36": { "type": "General", "label": "Tiêu chí 09", "group": "Nhóm_B", "is_dynamic": True, "text": "Trong CV có giai đoạn [khoảng thời gian/chuyển việc nhanh/khoảng trống nghề nghiệp]. Anh/chị có thể chia sẻ rõ hơn về lý do thay đổi và bài học rút ra không?" },
+    "37": { "type": "General", "label": "Tiêu chí 09", "group": "Nhóm_C", "is_dynamic": False, "text": "Mức lương kỳ vọng/thời gian nhận việc/địa điểm làm việc của anh/chị hiện có điểm nào cần trao đổi thêm để phù hợp với yêu cầu vị trí không?" },
+    "38": { "type": "General", "label": "Tiêu chí 09", "group": "Nhóm_D", "is_dynamic": True, "text": "AI đang cảnh báo rủi ro [điểm rủi ro về mức độ ổn định]. Đề nghị HOD/chuyên gia hỏi thêm để xác nhận rủi ro này có đáng kể hay không trước khi ra quyết định." },
+    "39": { "type": "General", "label": "Tiêu chí 10", "group": "Nhóm_A", "is_dynamic": False, "text": "Có thông tin nào trong CV, hồ sơ ứng tuyển hoặc câu trả lời trước đó mà anh/chị muốn bổ sung/làm rõ thêm không?" },
+    "40": { "type": "General", "label": "Tiêu chí 10", "group": "Nhóm_D", "is_dynamic": False, "text": "Trong 3 năng lực quan trọng nhất của vị trí này, anh/chị đánh giá ứng viên đang mạnh/yếu ở đâu? Có ví dụ nào trong buổi phỏng vấn thể hiện điều đó? (HOD đề xuất Hire/Hold/Reject kèm lý do ngắn gọn)." },
 }
 
 
@@ -124,19 +160,21 @@ Trả về JSON: {{"questions": ["câu 1", "câu 2", ...]}}"""
 
 INTRO_TEMPLATE = (
     "Xin chào! Chào mừng bạn đến với buổi phỏng vấn vị trí {title}. "
-    "Buổi phỏng vấn hôm nay gồm 8 câu hỏi, chia làm bốn phần: "
-    "Phần một — Giao tiếp chung, gồm 2 câu. "
-    "Phần hai — Kỹ thuật chuyên môn, gồm 2 câu. "
-    "Phần ba — Kỹ năng mềm, gồm 2 câu. "
-    "Phần bốn — Kinh nghiệm thực tế từ CV của bạn, gồm 2 câu. "
+    "Buổi phỏng vấn hôm nay gồm 40 câu hỏi, kiểm tra toàn diện 10 tiêu chí theo khung năng lực AI. "
+    "Hệ thống sẽ hỏi bạn về các kinh nghiệm thực tế, chuyên môn, thành tích nổi bật cũng như cách bạn xử lý khó khăn. "
     "Với mỗi câu, hãy nhấn nút nghe để nghe câu hỏi, sau đó nhấn ghi âm để trả lời. "
-    "Không có giới hạn thời gian — hãy trả lời tự nhiên và đầy đủ nhất có thể. "
+    "Không có giới hạn thời gian — hãy trả lời tự nhiên, nêu ví dụ hoặc số liệu thực tế càng cụ thể càng tốt. "
     "Chúc bạn phỏng vấn thành công!"
 )
 
 
-SCORE_PROMPT = """Bạn là chuyên gia HR cấp cao, chấm điểm nghiêm khắc. Nhiệm vụ: đánh giá CV theo JD, cho điểm CHÍNH XÁC theo rubric dưới đây.
-QUAN TRỌNG: total_score = tổng cộng các sub-score thực tế, KHÔNG được tự ước lượng riêng.
+SCORE_PROMPT = """Bạn là chuyên gia AI (PAI Engine) đóng vai trò Chuyên gia Tuyển dụng cấp cao.
+Nhiệm vụ của bạn là đánh giá CV của ứng viên so với Mô tả công việc (JD), cho điểm CHÍNH XÁC theo 10 tiêu chí dưới đây (Tổng tối đa 10 điểm).
+
+QUY TẮC CHẤM ĐIỂM (CỰC KỲ QUAN TRỌNG):
+1. Bạn là giám khảo KHẮT KHE nhưng PHẢI CÔNG BẰNG. CHỈ CHO ĐIỂM TỐI ĐA NẾU THẬT SỰ XUẤT SẮC VÀ CÓ MINH CHỨNG.
+2. KHÔNG ĐƯỢC TRỪ ĐIỂM VÔ LÝ: Nếu ứng viên lọt vào một khung điểm (VD: 0.9 - 1.0đ) và KHÔNG CÓ BẤT KỲ ĐIỂM YẾU/THIẾU SÓT NÀO, BẮT BUỘC phải cho ĐIỂM TỐI ĐA CỦA KHUNG ĐÓ (tức là 1.0đ, không được cho 0.9đ).
+3. Nếu bạn cho điểm KHÔNG PHẢI LÀ ĐIỂM TỐI ĐA của tiêu chí (VD: cho 0.9 thay vì 1.0, hoặc 1.8 thay vì 2.0), trong phần `reasons` BẮT BUỘC phải có câu "Điểm trừ: [lý do tại sao không được điểm tuyệt đối]". NẾU KHÔNG TÌM ĐƯỢC LÝ DO TRỪ, HÃY SỬA LẠI THÀNH ĐIỂM TỐI ĐA.
 
 === JOB DESCRIPTION ===
 {jd}
@@ -144,102 +182,109 @@ QUAN TRỌNG: total_score = tổng cộng các sub-score thực tế, KHÔNG đ�
 === CV ỨNG VIÊN ===
 {cv}
 
-=== RUBRIC CHẤM (10đ) ===
+=== KHUNG ĐÁNH GIÁ VÀ THAM CHIẾU (RUBRIC 10 TIÊU CHÍ) ===
 
-NHÓM 1 – YẾU TỐ CỨNG (7đ):
+1. Mức độ phù hợp về kỹ năng chuyên môn (Tối đa 2.0đ):
+   - Đánh giá mức độ đáp ứng các kỹ năng bắt buộc, ưu tiên và bổ sung theo JD. Đánh giá theo ngữ nghĩa.
+   - 1.8-2.0đ: Đáp ứng ≥95% kỹ năng bắt buộc. (Mặc định 2.0, chỉ trừ còn 1.8-1.9 nếu có sạn nhỏ).
+   - 1.5-1.75đ: Đáp ứng 80–94%.
+   - 1.2-1.4đ: Đáp ứng 60–79%.
+   - 0.5-1.1đ: Thiếu rất nhiều kỹ năng quan trọng.
+   - 0.0đ: HOÀN TOÀN KHÔNG CÓ KỸ NĂNG LIÊN QUAN (trái ngành 100%).
 
-1.1 Kinh Nghiệm Làm Việc (3.5đ):
-  a) Số năm kinh nghiệm (2đ):
-     - Đọc JD xác định số năm yêu cầu Y.
-     - CV >= Y năm → 2đ
-     - CV >= Y*0.6 → 1đ
-     - CV >= Y*0.3 → 0.5đ
-     - CV < Y*0.3 → 0đ
-     - Nếu JD ghi "fresher" hoặc "không yêu cầu KN": có internship/thực tập ≥ 3 tháng → 2đ; chỉ có project trường → 1đ; không có gì → 0.5đ
-  b) Tính liên quan ngành (1đ):
-     - Đúng ngành/vai trò → 1đ
-     - Liên quan gần (cùng domain) → 0.5đ
-     - Liên quan xa → 0.25đ
-     - Không liên quan → 0đ
-  c) Thành tích cụ thể (0.5đ):
-     - Có số liệu/kết quả rõ ràng (%, doanh số, giải thưởng) → 0.5đ
-     - Chỉ mô tả công việc chung chung → 0đ
+2. Mức độ phù hợp về kinh nghiệm làm việc (Tối đa 2.0đ):
+   - Đánh giá số năm kinh nghiệm, vai trò, trách nhiệm so với mức yêu cầu của JD.
+   - 1.8-2.0đ: Kinh nghiệm rất phù hợp (đạt hoặc vượt mốc JD). (Mặc định 2.0, chỉ trừ còn 1.8-1.9 nếu có sạn nhỏ).
+   - 1.5-1.75đ: Phù hợp phần lớn.
+   - 1.2-1.4đ: Có kinh nghiệm liên quan.
+   - 0.5-1.1đ: Thiếu đáng kể.
+   - 0.0đ: TRÁI NGÀNH HOÀN TOÀN, không có chút kinh nghiệm nào dính líu tới JD.
 
-1.2 Học Vấn & Chứng Chỉ (2.5đ):
-  a) Bằng cấp (1đ):
-     - Đúng yêu cầu JD → 1đ
-     - Thấp hơn 1 bậc nhưng bù bằng kinh nghiệm → 0.5đ
-     - Không đáp ứng → 0đ
-  b) Chuyên ngành (1đ):
-     - Đúng ngành JD yêu cầu → 1đ
-     - Ngành liên quan → 0.5đ
-     - Ngành khác hoàn toàn → 0đ
-  c) Chứng chỉ chuyên môn (0.5đ):
-     - Có đủ chứng chỉ JD yêu cầu → 0.5đ
-     - Có một phần → 0.25đ
-     - Không có chứng chỉ liên quan → 0đ
+3. Trình độ học vấn và chứng chỉ (Tối đa 1.0đ):
+   - Đánh giá bằng cấp, chuyên ngành, chứng chỉ nghề nghiệp liên quan đến vị trí so với JD.
+   - 1.0đ: Vượt yêu cầu.
+   - 0.8-0.9đ: Đáp ứng đầy đủ. (Mặc định 0.9, trừ còn 0.8 nếu có sạn).
+   - 0.6-0.7đ: Đáp ứng một phần (ví dụ bằng cấp liên quan nhưng không đúng chuyên ngành).
+   - 0.1-0.5đ: Không đáp ứng đủ.
+   - 0.0đ: Không có bằng cấp hoặc bằng cấp không liên quan một chút nào.
 
-1.3 Kỹ Năng Chuyên Môn (1đ):
-  - So sánh kỹ năng CV với danh sách kỹ năng JD yêu cầu:
-  - Đáp ứng >= 90% → 1đ
-  - Đáp ứng 70–89% → 0.75đ
-  - Đáp ứng 50–69% → 0.5đ
-  - Đáp ứng 30–49% → 0.25đ
-  - Đáp ứng < 30% → 0đ
-  - NẾU thiếu kỹ năng bắt buộc (must-have) trong JD → tối đa 0.25đ
+4. Mức độ phù hợp về lĩnh vực/ngành nghề (Tối đa 1.0đ):
+   - Đánh giá kinh nghiệm làm việc trong cùng lĩnh vực hoặc có mức tương đồng cao.
+   - 0.9-1.0đ: Cùng ngành. (Mặc định 1.0, trừ còn 0.9 nếu ngành hơi khác biệt nhẹ).
+   - 0.75-0.85đ: Ngành tương tự.
+   - 0.6-0.7đ: Có thể chuyển đổi.
+   - 0.0-0.5đ: KHÁC BIỆT HOÀN TOÀN (VD: JD IT nhưng CV là Nhân sự -> BẮT BUỘC 0.0).
 
-NHÓM 2 – YẾU TỐ MỀM (3đ):
+5. Lộ trình phát triển nghề nghiệp (Tối đa 1.0đ):
+   - Đánh giá sự phát triển về chức danh, trách nhiệm hoặc chiều sâu chuyên môn.
+   - 0.9-1.0đ: Phát triển rõ ràng. (Mặc định 1.0, trừ còn 0.9 nếu thăng tiến chậm).
+   - 0.75-0.85đ: Phát triển ổn định.
+   - 0.6-0.7đ: Ít thay đổi.
+   - 0.0-0.5đ: Không phát triển, hoặc trái ngành hoàn toàn nên lộ trình vô nghĩa.
 
-2.1 Chất lượng CV (1đ):
-  - 0.75–1đ: Bố cục rõ ràng, mô tả súc tích có số liệu, không lỗi chính tả, format nhất quán
-  - 0.5đ: Đủ thông tin nhưng thiếu số liệu hoặc mô tả chung
-  - 0.25đ: Thiếu nhiều mục, khó đọc
-  - 0đ: Quá sơ sài hoặc lộn xộn
-  - Mặc định chỉ cho 0.5đ nếu không có lý do rõ để cho cao hơn
+6. Thành tích và tác động đến doanh nghiệp (Tối đa 1.0đ):
+   - Đánh giá các kết quả mang lại giá trị, ưu tiên các thành tích có số liệu định lượng.
+   - 0.9-1.0đ: Thành tích nổi bật. (Mặc định 1.0, trừ còn 0.9 nếu impact hẹp).
+   - 0.75-0.85đ: Có thành tích rõ ràng.
+   - 0.6-0.7đ: Có thành tích nhưng thiếu minh chứng định lượng.
+   - 0.0-0.5đ: Chỉ mô tả công việc hoặc thành tích trái ngành không áp dụng được.
 
-2.2 Dự án & Portfolio (1đ):
-  - 1đ: Có dự án thực tế (không phải bài tập) với kết quả đo lường được, link demo/GitHub
-  - 0.75đ: Có dự án thực tế nhưng thiếu kết quả cụ thể
-  - 0.5đ: Chỉ có project trường/khóa học có mô tả rõ
-  - 0.25đ: Liệt kê project nhưng không có chi tiết
-  - 0đ: Không có project nào
-  - Mặc định 0.25đ nếu không rõ
+7. Minh chứng về kỹ năng mềm (Tối đa 0.5đ):
+   - Đánh giá kỹ năng mềm (lãnh đạo, làm việc nhóm, giao tiếp) qua minh chứng trong CV dựa trên level của JD.
+   - 0.45-0.5đ: Có nhiều minh chứng. (Mặc định 0.5, trừ còn 0.45 nếu thiếu cụ thể).
+   - 0.35-0.4đ: Có minh chứng rõ ràng.
+   - 0.1-0.3đ: Chỉ liệt kê kỹ năng.
+   - 0.0đ: Không thể hiện.
 
-2.3 Kỹ Năng Mềm & Leadership (1đ):
-  - 1đ: Có vai trò leadership rõ ràng (team lead, trưởng nhóm) + minh chứng cụ thể
-  - 0.75đ: Có kinh nghiệm dẫn nhóm nhỏ hoặc mentor
-  - 0.5đ: Tham gia nhóm có đóng góp được ghi nhận
-  - 0.25đ: Chỉ đề cập kỹ năng mềm chung (teamwork, communication) không có minh chứng
-  - 0đ: Không đề cập
-  - Mặc định 0.25đ nếu không rõ ràng
+8. Khả năng ngoại ngữ và trình bày CV (Tối đa 0.5đ):
+   - Đánh giá ngoại ngữ (so với JD) và tính chuyên nghiệp của bố cục CV.
+   - 0.45-0.5đ: Chuyên nghiệp (vượt/đạt yêu cầu ngoại ngữ của JD, format xuất sắc). (Mặc định 0.5).
+   - 0.35-0.4đ: Đạt yêu cầu.
+   - 0.1-0.3đ: Có lỗi nhỏ.
+   - 0.0đ: Khó đọc hoặc sai nhiều lỗi.
 
-=== CÁCH TÍNH TỔNG ===
-total_score = (years + relevance + achievements) + (degree + major + certs) + technical_skills + cv_quality + projects + leadership
-Làm tròn đến bội số 0.25 gần nhất.
+9. Mức độ ổn định và rủi ro nghề nghiệp (Tối đa 0.5đ):
+   - Đánh giá mức độ ổn định trong quá trình làm việc.
+   - 0.45-0.5đ: Rất ổn định. (Mặc định 0.5).
+   - 0.35-0.4đ: Có rủi ro nhỏ.
+   - 0.1-0.3đ: Có dấu hiệu cần xác minh.
+   - 0.0đ: Rủi ro quá cao.
 
-Chỉ trả về JSON thuần (không markdown, không giải thích):
+10. Đánh giá tổng thể bằng AI (Tối đa 0.5đ):
+   - Phân tích toàn bộ JD và CV để đánh giá mức độ phù hợp.
+   - 0.45-0.5đ: Rất phù hợp, đáp ứng ≥95% làm ngay. (Mặc định 0.5).
+   - 0.35-0.4đ: Phù hợp, thiếu 1 số kỹ năng nhưng đào tạo được.
+   - 0.1-0.3đ: Tiềm năng, cần đào tạo lâu.
+   - 0.0đ: HOÀN TOÀN TRÁI NGÀNH, KHÔNG THỂ NHẬN. BỘ HỒ SƠ NÀY CHỈ XỨNG ĐÁNG DƯỚI 2/10 ĐIỂM.
+
+=== HƯỚNG DẪN OUTPUT JSON ===
+Chỉ trả về JSON thuần (KHÔNG markdown ```json, KHÔNG văn bản thừa):
 {{
-  "total_score": <tổng các sub-score, làm tròn 0.25>,
-  "group1": {{
-    "work_experience": {{"years": <0|0.5|1|2>, "relevance": <0|0.25|0.5|1>, "achievements": <0|0.5>}},
-    "education": {{"degree": <0|0.5|1>, "major": <0|0.5|1>, "certs": <0|0.25|0.5>}},
-    "technical_skills": <0|0.25|0.5|0.75|1>
-  }},
-  "group2": {{
-    "cv_quality": <0|0.25|0.5|0.75|1>,
-    "projects": <0|0.25|0.5|0.75|1>,
-    "leadership": <0|0.25|0.5|0.75|1>
+  "criteria_scores": {{
+    "c1_technical_skills": <điểm từ 0 đến 2.0>,
+    "c2_experience": <điểm từ 0 đến 2.0>,
+    "c3_education": <điểm từ 0 đến 1.0>,
+    "c4_industry": <điểm từ 0 đến 1.0>,
+    "c5_career_path": <điểm từ 0 đến 1.0>,
+    "c6_achievements": <điểm từ 0 đến 1.0>,
+    "c7_soft_skills": <điểm từ 0 đến 0.5>,
+    "c8_language_cv": <điểm từ 0 đến 0.5>,
+    "c9_stability": <điểm từ 0 đến 0.5>,
+    "c10_ai_overall": <điểm từ 0 đến 0.5>
   }},
   "reasons": {{
-    "work_experience": "<Lý do chấm điểm Kinh nghiệm (khoảng 20-30 từ, phân tích rõ năm KN và thành tích)>",
-    "education": "<Lý do chấm điểm Học vấn (khoảng 15-20 từ, chỉ rõ bằng cấp, chuyên ngành)>",
-    "technical_skills": "<Lý do chấm điểm Kỹ năng chuyên môn (nêu rõ đáp ứng bao nhiêu % JD)>",
-    "cv_quality": "<Lý do chấm điểm Chất lượng CV (nêu cụ thể bố cục, lỗi nếu có)>",
-    "projects": "<Lý do chấm điểm Dự án (nêu bật dự án có tốt không, kết quả đo lường)>",
-    "leadership": "<Lý do chấm điểm Kỹ năng mềm/Leadership (nêu rõ minh chứng)>"
+    "c1_technical_skills": "<Liệt kê kỹ năng ứng viên có. NẾU điểm < 2.0, BẮT BUỘC thêm 'Điểm trừ: [thiếu kỹ năng gì theo JD / lý do trừ điểm]'>",
+    "c2_experience": "<Nêu số năm kinh nghiệm. NẾU điểm < 2.0, BẮT BUỘC thêm 'Điểm trừ: [thiếu sót gì so với JD / lý do trừ]'>",
+    "c3_education": "<Trích dẫn bằng cấp. NẾU điểm < 1.0, BẮT BUỘC thêm 'Điểm trừ: [chưa đạt yêu cầu vượt trội / lý do trừ]'>",
+    "c4_industry": "<Nêu ngành nghề đã làm. NẾU điểm < 1.0, BẮT BUỘC thêm 'Điểm trừ: [chênh lệch ngành nghề thế nào]'>",
+    "c5_career_path": "<Nêu minh chứng thăng tiến. NẾU điểm < 1.0, BẮT BUỘC thêm 'Điểm trừ: [lý do trừ, vd thăng tiến chậm]'>",
+    "c6_achievements": "<Nêu số liệu thành tích. NẾU điểm < 1.0, BẮT BUỘC thêm 'Điểm trừ: [thiếu mức độ thành tích theo yêu cầu]'>",
+    "c7_soft_skills": "<Trích dẫn hành động. NẾU điểm < 0.5, BẮT BUỘC thêm 'Điểm trừ: [thiếu minh chứng cho kỹ năng mềm nào]'>",
+    "c8_language_cv": "<Nhận xét CV & ngoại ngữ. NẾU điểm < 0.5, BẮT BUỘC thêm 'Điểm trừ: [lỗi form / ngoại ngữ kém]'>",
+    "c9_stability": "<Nêu trung bình năm/công ty. NẾU điểm < 0.5, BẮT BUỘC thêm 'Điểm trừ: [rủi ro nhảy việc]'>",
+    "c10_ai_overall": "<Kết luận tổng quát lý do điểm tổng. Chỉ ra Điểm mạnh nhất và Điểm rủi ro nhất.>"
   }},
-  "summary": "<80-100 từ tiếng Việt: điểm mạnh cụ thể và điểm yếu cụ thể>",
-  "pass": <true nếu total_score >= 6>
+  "summary": "<Tóm tắt 80-100 từ tiếng Việt: 2 điểm mạnh nổi trội và 2 điểm yếu/điểm rủi ro cần làm rõ trong phỏng vấn>"
 }}"""
 
 EVAL_PROMPT = """Bạn là chuyên gia đánh giá phỏng vấn tuyển dụng.
@@ -341,4 +386,66 @@ Mô tả công việc (JD):
 {jd_text}
 
 HÃY XUẤT RA DANH SÁCH CÁC CÂU HỎI THEO ĐÚNG ĐỊNH DẠNG JSON. Không kèm giải thích.
+"""
+
+CV_EVAL_ROUND_1_PROMPT = """Bạn là hệ thống AI PAI Engine đóng vai trò Chuyên gia Tuyển dụng.
+Nhiệm vụ của bạn là kiểm tra xem CV của ứng viên có đủ thông tin để đánh giá theo Tiêu chí (Criteria) và JD hay không.
+Nếu thông tin trong CV bị thiếu, không rõ ràng so với các yêu cầu quan trọng, hãy đặt câu hỏi để yêu cầu ứng viên bổ sung.
+Nếu thông tin đã đầy đủ, hãy tiến hành chấm điểm (thang điểm 10).
+
+=== MÔ TẢ CÔNG VIỆC (JD) ===
+{jd_text}
+
+=== TIÊU CHÍ ĐÁNH GIÁ (CRITERIA) ===
+{criteria_text}
+
+=== CV ỨNG VIÊN ===
+{cv_text}
+
+CHỈ TRẢ VỀ KẾT QUẢ ĐỊNH DẠNG JSON THEO 1 TRONG 2 TRƯỜNG HỢP SAU:
+
+Trường hợp 1: Thiếu thông tin (Cần hỏi thêm)
+{{
+  "status": "NEED_INFO",
+  "questions": [
+    "Câu hỏi 1 để làm rõ...",
+    "Câu hỏi 2 để làm rõ..."
+  ]
+}}
+
+Trường hợp 2: Đủ thông tin (Hoàn thành đánh giá)
+{{
+  "status": "COMPLETED",
+  "result": "PASS", // hoặc "FAIL"
+  "score": 8.5, // Điểm từ 0 đến 10
+  "rationale": "Lý do chi tiết cho điểm số và quyết định dựa trên tiêu chí..."
+}}
+"""
+
+CV_EVAL_ROUND_2_PROMPT = """Bạn là hệ thống AI PAI Engine đóng vai trò Chuyên gia Tuyển dụng.
+Đây là vòng đánh giá CUỐI CÙNG. Bạn phải đưa ra quyết định đánh giá dựa trên CV, JD, Tiêu chí và các CÂU TRẢ LỜI bổ sung của ứng viên.
+
+=== MÔ TẢ CÔNG VIỆC (JD) ===
+{jd_text}
+
+=== TIÊU CHÍ ĐÁNH GIÁ (CRITERIA) ===
+{criteria_text}
+
+=== CV ỨNG VIÊN ===
+{cv_text}
+
+=== CÂU TRẢ LỜI BỔ SUNG CỦA ỨNG VIÊN ===
+{answers_text}
+
+YÊU CẦU:
+Dựa vào tất cả thông tin trên, hãy chấm điểm ứng viên (thang điểm 10) và đưa ra quyết định (PASS/FAIL).
+Bạn KHÔNG được yêu cầu thêm thông tin. Đây là bước bắt buộc phải ra kết quả.
+
+CHỈ TRẢ VỀ KẾT QUẢ ĐỊNH DẠNG JSON SAU:
+{{
+  "status": "COMPLETED",
+  "result": "PASS", // hoặc "FAIL"
+  "score": 8.5, // Điểm từ 0 đến 10
+  "rationale": "Lý do chi tiết cho điểm số và quyết định dựa trên CV và các câu trả lời bổ sung..."
+}}
 """

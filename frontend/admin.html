@@ -804,11 +804,8 @@ async function openAppModal(appId) {
     let bdHtml = '<p class="text-gray-500 text-sm text-center py-4">Chưa có điểm chi tiết</p>';
     if (app.score_breakdown) {
       const b = app.score_breakdown;
-      const g1 = b.group1 || {};
-      const g2 = b.group2 || {};
+      const c = b.criteria_scores || {};
       const r_rs = b.reasons || {};
-      const we = g1.work_experience || {};
-      const ed = g1.education || {};
       
       bdHtml = `
       <div class="space-y-6">
@@ -822,41 +819,50 @@ async function openAppModal(appId) {
           <p class="text-sm text-on-surface-variant bg-surface-container-low p-3 rounded-lg leading-relaxed">${b.summary || app.ai_summary || 'Không có tóm tắt.'}</p>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="bg-white border border-outline-variant rounded-xl p-4">
-            <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">NHÓM 1: CHUYÊN MÔN (Tối đa 7đ)</h4>
-            <ul class="space-y-3 text-sm">
-              <li class="flex flex-col">
-                <div class="flex justify-between"><span>Kinh nghiệm:</span> <span class="font-bold">${(we.years||0) + (we.relevance||0) + (we.achievements||0)}/3.5</span></div>
-                ${r_rs.work_experience ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.work_experience}</p>` : ''}
-              </li>
-              <li class="flex flex-col">
-                <div class="flex justify-between"><span>Học vấn:</span> <span class="font-bold">${(ed.degree||0) + (ed.major||0) + (ed.certs||0)}/2.5</span></div>
-                ${r_rs.education ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.education}</p>` : ''}
-              </li>
-              <li class="flex flex-col">
-                <div class="flex justify-between"><span>Kỹ năng (Hard skills):</span> <span class="font-bold">${g1.technical_skills||0}/1.0</span></div>
-                ${r_rs.technical_skills ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.technical_skills}</p>` : ''}
-              </li>
-            </ul>
-          </div>
-          <div class="bg-white border border-outline-variant rounded-xl p-4">
-            <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">NHÓM 2: KỸ NĂNG & TIỀM NĂNG (Tối đa 3đ)</h4>
-            <ul class="space-y-3 text-sm">
-              <li class="flex flex-col">
-                <div class="flex justify-between"><span>Chất lượng CV:</span> <span class="font-bold">${g2.cv_quality||0}/1.0</span></div>
-                ${r_rs.cv_quality ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.cv_quality}</p>` : ''}
-              </li>
-              <li class="flex flex-col">
-                <div class="flex justify-between"><span>Dự án nổi bật:</span> <span class="font-bold">${g2.projects||0}/1.0</span></div>
-                ${r_rs.projects ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.projects}</p>` : ''}
-              </li>
-              <li class="flex flex-col">
-                <div class="flex justify-between"><span>Soft skills/Leadership:</span> <span class="font-bold">${g2.leadership||0}/1.0</span></div>
-                ${r_rs.leadership ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.leadership}</p>` : ''}
-              </li>
-            </ul>
-          </div>
+        <div class="bg-white border border-outline-variant rounded-xl p-4">
+          <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">CHI TIẾT 10 TIÊU CHÍ (Theo Khung đánh giá)</h4>
+          <ul class="space-y-3 text-sm">
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>1. Kỹ năng chuyên môn:</span> <span class="font-bold text-primary">${c.c1_technical_skills||0}/2.0</span></div>
+              ${r_rs.c1_technical_skills ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c1_technical_skills}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>2. Kinh nghiệm làm việc:</span> <span class="font-bold text-primary">${c.c2_experience||0}/2.0</span></div>
+              ${r_rs.c2_experience ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c2_experience}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>3. Học vấn & Chứng chỉ:</span> <span class="font-bold text-primary">${c.c3_education||0}/1.0</span></div>
+              ${r_rs.c3_education ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c3_education}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>4. Phù hợp ngành nghề:</span> <span class="font-bold text-primary">${c.c4_industry||0}/1.0</span></div>
+              ${r_rs.c4_industry ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c4_industry}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>5. Lộ trình phát triển:</span> <span class="font-bold text-primary">${c.c5_career_path||0}/1.0</span></div>
+              ${r_rs.c5_career_path ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c5_career_path}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>6. Thành tích nổi bật:</span> <span class="font-bold text-primary">${c.c6_achievements||0}/1.0</span></div>
+              ${r_rs.c6_achievements ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c6_achievements}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>7. Kỹ năng mềm/Lãnh đạo:</span> <span class="font-bold text-primary">${c.c7_soft_skills||0}/0.5</span></div>
+              ${r_rs.c7_soft_skills ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c7_soft_skills}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>8. Ngoại ngữ & Form CV:</span> <span class="font-bold text-primary">${c.c8_language_cv||0}/0.5</span></div>
+              ${r_rs.c8_language_cv ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c8_language_cv}</p>` : ''}
+            </li>
+            <li class="flex flex-col border-b border-gray-100 pb-2">
+              <div class="flex justify-between"><span>9. Mức độ ổn định:</span> <span class="font-bold text-primary">${c.c9_stability||0}/0.5</span></div>
+              ${r_rs.c9_stability ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c9_stability}</p>` : ''}
+            </li>
+            <li class="flex flex-col">
+              <div class="flex justify-between"><span>10. Điểm cộng AI:</span> <span class="font-bold text-primary">${c.c10_ai_overall||0}/0.5</span></div>
+              ${r_rs.c10_ai_overall ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c10_ai_overall}</p>` : ''}
+            </li>
+          </ul>
         </div>
       </div>
       `;

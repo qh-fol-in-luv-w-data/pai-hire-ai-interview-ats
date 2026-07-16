@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, Header, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from backend.database import db
-from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTION_META, CATEGORY_LABELS, _JOB_LEVELS, INTERVIEW_URL
+from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, _JOB_LEVELS, INTERVIEW_URL
 
 from backend.services.email_service import send_interview_result, send_reinterview_email
 router = APIRouter()

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>PAI HR — Phỏng vấn</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://meet.ctpai.vn/external_api.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
 <style>
@@ -101,6 +102,9 @@
 </div>
 
 <main class="max-w-3xl mx-auto px-4 py-8">
+
+<!-- ── JITSI MEET CONTAINER ────────────────────────────────── -->
+<div id="jitsi-container" class="hidden fixed bottom-6 right-6 w-[360px] h-[240px] z-[9999] bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700 pointer-events-auto transition-transform hover:scale-105"></div>
 
 <!-- ── STEP 1: Setup ─────────────────────────────────────── -->
 <div id="step-1">
@@ -410,6 +414,7 @@ let surveyNPS     = null;
 let currentInterviewId = '';
 let sttTexts = {};
 let pushbackTexts = {};
+let jitsiApi = null;
 
 // ── Toast ──────────────────────────────────────────────────
 let _toastTimer = null;
@@ -487,20 +492,21 @@ const JD_META = {
   '_default':            { title:'Junior Position',           tags:['Junior','Full-time'],                        desc:'Vị trí tuyển dụng cấp độ Junior.' },
 };
 
-let QUESTION_TYPES = [
-  { n:'01', type:'General',    label:'Giới thiệu' },
-  { n:'02', type:'General',    label:'Định hướng' },
-  { n:'03', type:'Technical',  label:'Kỹ thuật' },
-  { n:'04', type:'Technical',  label:'Kỹ thuật' },
-  { n:'05', type:'Soft Skill', label:'Kỹ năng mềm' },
-  { n:'06', type:'Soft Skill', label:'Kỹ năng mềm' },
-  { n:'07', type:'Experience', label:'Kinh nghiệm' },
-  { n:'08', type:'Experience', label:'Kinh nghiệm' },
-];
-if (SCOPE) {
-  const allowed = SCOPE.split(',').map(s => s.trim());
-  QUESTION_TYPES = QUESTION_TYPES.filter(q => allowed.includes(q.n));
-}
+let QUESTION_TYPES = [];
+let ALL_QUESTIONS_META = {};
+fetch(`${API_BASE}/interview/questions`)
+  .then(r => r.json())
+  .then(data => {
+    QUESTION_TYPES = data.questions;
+    data.questions.forEach(q => {
+      ALL_QUESTIONS_META[q.n] = q;
+    });
+    if (typeof SCOPE !== 'undefined' && SCOPE) {
+      const allowed = SCOPE.split(',').map(s => s.trim());
+      QUESTION_TYPES = QUESTION_TYPES.filter(q => allowed.includes(q.n));
+    }
+  }).catch(err => console.error("Error fetching questions:", err));
+
 const TYPE_COLOR = {
   'General':    'bg-purple-100 text-purple-700',
   'Technical':  'bg-blue-100 text-blue-700',
@@ -766,6 +772,54 @@ async function startInterview() {
 }
 
 function _doStartInterview() {
+  enterFullscreen();
+  
+  // Show and initialize Jitsi API
+  const jitsiContainer = document.getElementById('jitsi-container');
+  if (jitsiContainer && !jitsiApi) {
+    jitsiContainer.classList.remove('hidden');
+    const domain = 'meet.ctpai.vn';
+    const appId = REF || String(Date.now());
+    const options = {
+      roomName: 'PAI_HR_Interview_' + appId,
+      width: '100%',
+      height: '100%',
+      parentNode: jitsiContainer,
+      configOverwrite: { 
+        startWithAudioMuted: false, 
+        startWithVideoMuted: false,
+        prejoinPageEnabled: false, 
+        disableDeepLinking: true 
+      },
+      interfaceConfigOverwrite: {
+        SHOW_CHROME_EXTENSION_BANNER: false
+      }
+    };
+    
+    try {
+      jitsiApi = new JitsiMeetExternalAPI(domain, options);
+      jitsiApi.addEventListener('videoConferenceJoined', () => {
+        try {
+          // Thêm một chút delay để server Jibri ổn định room trước khi nhận lệnh
+          setTimeout(() => {
+            jitsiApi.executeCommand('startRecording', { mode: 'file' });
+          }, 2000);
+          setTimeout(() => {
+            jitsiApi.executeCommand('toggleShareScreen');
+          }, 4000); 
+        } catch(e) {}
+      });
+      // Bắt sự kiện record failed để ẩn cảnh báo hoặc báo cho ứng viên
+      jitsiApi.addEventListener('recordingStatusChanged', (e) => {
+        if (e.error) {
+          console.warn("Jitsi recording error:", e.error);
+        }
+      });
+    } catch(err) {
+      console.warn("Jitsi Meet API init failed", err);
+    }
+  }
+
   const meta = JD_META[selectedPosition] || JD_META['_default'];
   prepInterview().then(() => {
     document.getElementById('step-1').classList.add('hidden');
@@ -785,7 +839,7 @@ function _doStartInterview() {
     restoreSavedAnswers();
     startSectionTimer(QUESTION_TYPES[0].n);
   });
-}
+};
 
 function renderQuestionDots() {
   document.getElementById('q-dots').innerHTML = QUESTION_TYPES.map((q, i) => {
@@ -1437,6 +1491,14 @@ async function submitInterview() {
     document.getElementById('step-2').classList.add('hidden');
     document.getElementById('step-3').classList.remove('hidden');
     document.getElementById('step-badge').textContent = '';
+    
+    // Dispose Jitsi when done
+    if (jitsiApi) {
+      jitsiApi.dispose();
+      jitsiApi = null;
+      document.getElementById('jitsi-container').classList.add('hidden');
+    }
+
     initSurvey();
   } catch(err) {
     btn.disabled = false;
@@ -1680,34 +1742,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Bắt lỗi mất focus (khi dùng 2 màn hình và click chuột sang màn hình kia)
-window.addEventListener('blur', () => {
-  const step2 = document.getElementById('step-2');
-  if (step2 && !step2.classList.contains('hidden')) {
-    tabSwitchCount++;
-    logIncident('window_blur', `Candidate lost window focus (${tabSwitchCount} times)`);
-    showCheatOverlay();
-  }
-});
-
-document.addEventListener('fullscreenchange', checkFullscreen);
-document.addEventListener('webkitfullscreenchange', checkFullscreen);
-
-function checkFullscreen() {
-  const step2 = document.getElementById('step-2');
-  if (step2 && !step2.classList.contains('hidden')) {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-       showCheatOverlay();
-    }
-  }
-}
-
-// Hook vào _doStartInterview để bật fullscreen
-const originalDoStart = _doStartInterview;
-_doStartInterview = function() {
-  enterFullscreen();
-  originalDoStart();
-};
+// (Đã loại bỏ window.blur và fullscreenchange vì gây xung đột với popup hệ thống của Jitsi)
 
 // Hook vào submitInterview để thoát fullscreen
 const originalSubmit = submitInterview;

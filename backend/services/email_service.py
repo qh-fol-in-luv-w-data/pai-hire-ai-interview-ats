@@ -29,6 +29,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
             break
     import urllib.parse
     interview_link = f"{INTERVIEW_URL}?ref={urllib.parse.quote(app_id)}&pos={urllib.parse.quote(base_pos)}&lv={urllib.parse.quote(level)}"
+    meet_link      = f"https://meet.ctpai.vn/PAI_HR_Interview_{app_id}"
     job_display    = job_title.replace("_", " ")
     today          = time.strftime("%d/%m/%Y")
 
@@ -104,7 +105,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
   <tr><td style="padding:32px 40px;">
     <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.75;">
       Bạn có thể thực hiện buổi phỏng vấn bất cứ lúc nào, theo đường link bên dưới.
-      Hệ thống sẽ ghi lại câu trả lời của bạn để đội ngũ tuyển dụng đánh giá.
+      Hệ thống sẽ <strong style="color:#dc2626;">tự động bật camera, ghi hình và share màn hình</strong> của bạn để đội tuyển dụng đánh giá.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;">
       <tr><td align="center">
@@ -158,7 +159,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
         f"Kính gửi {name},\n\n"
         f"Chúc mừng! Bạn đã được mời tham gia phỏng vấn vị trí {job_display} tại PAI HR.\n\n"
         f"Link phỏng vấn: {interview_link}\n\n"
-        f"Thời lượng: 10–15 phút. Link có hiệu lực trong 7 ngày.\n\n"
+        f"Hệ thống sẽ tự động record camera và màn hình của bạn. Thời lượng: 10–15 phút. Link có hiệu lực trong 7 ngày.\n\n"
         f"Trân trọng,\nĐội Tuyển Dụng PAI HR"
     )
 
@@ -280,10 +281,14 @@ def send_fail_email(name: str, to_email: str, job_title: str, app_id: str):
 
 def send_interview_reminder(name: str, to_email: str, job_title: str, interview_link: str):
     """§27 — Email nhắc nhở T-24h trước phỏng vấn: xác nhận lịch + hướng dẫn kỹ thuật."""
+    import re
     if not SMTP_USER or not SMTP_PASS:
         return
     job_display = job_title.replace("_", " ")
     today       = time.strftime("%d/%m/%Y")
+    ref_match   = re.search(r"ref=([^&]+)", interview_link)
+    app_id      = ref_match.group(1) if ref_match else str(int(time.time()))
+    meet_link   = f"https://meet.ctpai.vn/PAI_HR_Interview_{app_id}"
 
     html = f"""<!DOCTYPE html>
 <html lang="vi"><head><meta charset="UTF-8"/></head>
@@ -351,8 +356,8 @@ def send_interview_reminder(name: str, to_email: str, job_title: str, interview_
     plain = (
         f"Kính gửi {name},\n\n"
         f"Nhắc nhở: bạn có buổi phỏng vấn trực tuyến vị trí {job_display}.\n"
-        f"Link: {interview_link}\n\n"
-        f"Chuẩn bị: Chrome/Edge, cho phép microphone, nơi yên tĩnh, 10–15 phút.\n\n"
+        f"Link phỏng vấn: {interview_link}\n\n"
+        f"Hệ thống sẽ tự động record camera và màn hình. Thời lượng 10–15 phút.\n\n"
         f"Trân trọng, Đội Tuyển Dụng PAI HR"
     )
     msg = MIMEMultipart("alternative")
@@ -368,11 +373,15 @@ def send_interview_reminder(name: str, to_email: str, job_title: str, interview_
 def send_reinterview_email(name: str, to_email: str, job_title: str,
                            interview_link: str, reason: str = "", scope: str = "07,08"):
     """Email thông báo ứng viên được mời phỏng vấn lại (re-interview) với link mới."""
+    import re
     if not SMTP_USER or not SMTP_PASS:
         print(f"[Email] SMTP chưa cấu hình — bỏ qua re-interview mail cho {to_email}")
         return
     job_display = job_title.replace("_", " ")
     today       = time.strftime("%d/%m/%Y")
+    ref_match   = re.search(r"ref=([^&]+)", interview_link)
+    app_id      = ref_match.group(1) if ref_match else str(int(time.time()))
+    meet_link   = f"https://meet.ctpai.vn/PAI_HR_ReInterview_{app_id}"
     scope_label = f"câu {scope}" if scope else "toàn bộ câu hỏi"
     reason_row  = f"""
       <tr><td style="padding:10px 16px;background:#fefce8;border:1px solid #fef08a;border-radius:8px;margin-top:8px;">
@@ -470,7 +479,7 @@ def send_reinterview_email(name: str, to_email: str, job_title: str,
         f"Phạm vi: {scope_label}.\n"
         + (f"Lý do: {reason}\n" if reason.strip() else "")
         + f"\nLink phỏng vấn: {interview_link}\n\n"
-        f"Lưu ý: dùng Chrome/Edge, cho phép microphone, nơi yên tĩnh.\n\n"
+        f"Hệ thống sẽ tự động record camera và màn hình. Lưu ý: dùng Chrome/Edge, nơi yên tĩnh.\n\n"
         f"Trân trọng, Đội Tuyển Dụng PAI HR"
     )
     msg = MIMEMultipart("alternative")

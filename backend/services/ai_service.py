@@ -35,7 +35,7 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=800,
+            max_tokens=1500,
         )
         raw = resp.choices[0].message.content.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -44,24 +44,21 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
         result = json.loads(raw)
 
         # Tính lại tổng từ sub-scores — không tin AI tự tính
-        g1 = result.get("group1", {})
-        g2 = result.get("group2", {})
-        we = g1.get("work_experience", {})
-        ed = g1.get("education", {})
+        c = result.get("criteria_scores", {})
         sub = (
-            float(we.get("years", 0))
-            + float(we.get("relevance", 0))
-            + float(we.get("achievements", 0))
-            + float(ed.get("degree", 0))
-            + float(ed.get("major", 0))
-            + float(ed.get("certs", 0))
-            + float(g1.get("technical_skills", 0))
-            + float(g2.get("cv_quality", 0))
-            + float(g2.get("projects", 0))
-            + float(g2.get("leadership", 0))
+            float(c.get("c1_technical_skills", 0))
+            + float(c.get("c2_experience", 0))
+            + float(c.get("c3_education", 0))
+            + float(c.get("c4_industry", 0))
+            + float(c.get("c5_career_path", 0))
+            + float(c.get("c6_achievements", 0))
+            + float(c.get("c7_soft_skills", 0))
+            + float(c.get("c8_language_cv", 0))
+            + float(c.get("c9_stability", 0))
+            + float(c.get("c10_ai_overall", 0))
         )
-        # Làm tròn bội số 0.25
-        total  = round(round(sub * 4) / 4, 2)
+        # Làm tròn 2 chữ số thập phân
+        total = round(sub, 2)
         result["total_score"] = total
         ai_verdict = "passed" if total >= PASS_SCORE else "failed"
         # § Feature (6): Không gửi email tự động — chờ HR xác nhận
@@ -382,3 +379,58 @@ async def generate_deep_questions(cv_text: str, jd_text: str, n_questions: int =
     parsed = json.loads(result_json)
     
     return parsed.get("questions", [])
+
+async def evaluate_cv_round_1(cv_text: str, jd_text: str, criteria_text: str) -> dict:
+    """Đánh giá vòng 1: Kiểm tra xem CV có đủ thông tin không. Nếu thiếu trả về câu hỏi bổ sung."""
+    from openai import AsyncOpenAI
+    from backend.config import OPENAI_API_KEY, CV_EVAL_ROUND_1_PROMPT
+    
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY chưa được cấu hình.")
+        
+    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    prompt = CV_EVAL_ROUND_1_PROMPT.format(
+        cv_text=cv_text[:5000], 
+        jd_text=jd_text[:4000],
+        criteria_text=criteria_text[:2000]
+    )
+    
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        max_tokens=1000,
+        response_format={ "type": "json_object" }
+    )
+    
+    import json
+    raw = resp.choices[0].message.content.strip()
+    return json.loads(raw)
+
+async def evaluate_cv_round_2(cv_text: str, jd_text: str, criteria_text: str, answers_text: str) -> dict:
+    """Đánh giá vòng 2: Chấm điểm dựa trên CV + câu trả lời bổ sung. Trả về kết quả cuối cùng."""
+    from openai import AsyncOpenAI
+    from backend.config import OPENAI_API_KEY, CV_EVAL_ROUND_2_PROMPT
+    
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY chưa được cấu hình.")
+        
+    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    prompt = CV_EVAL_ROUND_2_PROMPT.format(
+        cv_text=cv_text[:5000], 
+        jd_text=jd_text[:4000],
+        criteria_text=criteria_text[:2000],
+        answers_text=answers_text[:3000]
+    )
+    
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        max_tokens=1000,
+        response_format={ "type": "json_object" }
+    )
+    
+    import json
+    raw = resp.choices[0].message.content.strip()
+    return json.loads(raw)

@@ -4,7 +4,7 @@ import re
 import json
 from backend.database import db
 from backend.services.document_service import extract_cv_text, get_all_jobs
-from backend.config import CV_QUESTIONS_PROMPT, QUESTION_AUDIO_DIR, OPENAI_API_KEY, BASE_DIR, INTRO_TEMPLATE, _GEN_AUDIO_NAMES, QUESTION_META, _DEFAULT_EXPERIENCE
+from backend.config import CV_QUESTIONS_PROMPT, QUESTION_AUDIO_DIR, OPENAI_API_KEY, BASE_DIR, INTRO_TEMPLATE, _GEN_AUDIO_NAMES, QUESTIONS_BANK, _DEFAULT_EXPERIENCE
 from backend.services.ai_service import _tts
 from backend.config import CV_QUESTIONS_PROMPT,  _parse_q0306, _find_position_files
 
@@ -124,7 +124,7 @@ async def _create_prep(position_id: str, app_ref: str,
         n: {
             "text":      q_texts[n],
             "audio_url": f"/audio/{audio_map[n]}",
-            "type":      QUESTION_META[n],
+            "type":      QUESTIONS_BANK.get(n, {}).get("type", "General"),
         }
         for n in q_texts
     }
@@ -165,7 +165,7 @@ def _prep_from_row(row) -> dict:
             n: {
                 "text":      q_texts[n],
                 "audio_url": f"/audio/{audio_map[n]}",
-                "type":      QUESTION_META[n],
+                "type":      QUESTIONS_BANK.get(n, {}).get("type", "General"),
             }
             for n in q_texts if q_texts[n]
         },
