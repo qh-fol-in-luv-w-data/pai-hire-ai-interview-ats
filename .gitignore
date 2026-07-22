@@ -1,6 +1,7 @@
 # Secrets & Env
 .env
 .env.*
+!.env.example
 *.pem
 key.pem
 cert.pem
@@ -12,6 +13,7 @@ ats_phongvan.db-journal
 
 # Dependencies
 node_modules/
+.venv/
 __pycache__/
 *.pyc
 *.pyo

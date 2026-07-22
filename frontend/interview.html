@@ -4,8 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>PAI HR — Phỏng vấn</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://meet.ctpai.vn/external_api.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=typography"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
 <style>
@@ -48,7 +47,11 @@
     <p class="font-bold text-sm leading-none">PAI HR</p>
     <p class="text-white/50 text-xs">Phỏng vấn trực tuyến</p>
   </div>
-  <div class="ml-auto">
+  <div class="ml-auto flex items-center gap-3">
+    <div id="tab-switch-indicator" class="hidden items-center gap-2 px-3 py-1.5 bg-red-600/20 border border-red-500/40 rounded-xl">
+      <span class="material-symbols-outlined text-red-400 text-base">tab_close</span>
+      <span class="text-red-300 text-xs font-semibold">Out tab: <span id="tab-switch-badge" class="font-black text-red-400">0</span> lần</span>
+    </div>
     <span id="step-badge" class="hidden px-3 py-1 bg-[#0051d5]/30 text-[#93c5fd] rounded-full text-xs font-bold">BƯỚC 1 / 3</span>
   </div>
 </header>
@@ -103,8 +106,12 @@
 
 <main class="max-w-3xl mx-auto px-4 py-8">
 
-<!-- ── JITSI MEET CONTAINER ────────────────────────────────── -->
-<div id="jitsi-container" class="hidden fixed bottom-6 right-6 w-[360px] h-[240px] z-[9999] bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700 pointer-events-auto transition-transform hover:scale-105"></div>
+<!-- ── WEBCAM CONTAINER ────────────────────────────────── -->
+<!-- Thêm pointer-events-auto cho iframe để user có thể tương tác với iframe nếu cần (nhưng mặc định chặn để ko ảnh hưởng) -->
+<div id="webcam-container" class="hidden fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[100px] h-[140px] sm:w-[360px] sm:h-[240px] z-[9999] bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700 transition-transform hover:scale-105 pointer-events-auto">
+  <video id="webcam-video" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1] pointer-events-none"></video>
+  <iframe id="proctoring-iframe" allow="camera; microphone" class="hidden w-full h-full border-0 object-cover pointer-events-none" style="pointer-events: none;"></iframe>
+</div>
 
 <!-- ── STEP 1: Setup ─────────────────────────────────────── -->
 <div id="step-1">
@@ -398,23 +405,94 @@
 <script>
 const API_BASE = location.origin;
 const _params  = new URLSearchParams(location.search);
-const REF      = _params.get('ref') || '';
-const URL_POS  = (_params.get('pos') || '').replace(/^Junior_/, '');
-const IV_ID_PARAM = _params.get('iv') || '';
-const REIV     = _params.get('reiv') || '';
-const SCOPE    = _params.get('scope') || '';
+const SLOT     = _params.get('slot') || '';
 
 let PREP_ID = '';
 let PREP_QUESTIONS = {};
 let INTRO_AUDIO_URL = '';
-let selectedLevel = 'Junior';
+
+let REF = _params.get('ref') || '';
+const URL_POS  = (_params.get('pos') || '').replace(/^Junior_/, '');
+const IV_ID_PARAM = _params.get('iv') || '';
+let REIV = _params.get('reiv') || '';
+let SCOPE = _params.get('scope') || '';
+
+let selectedLevel = _params.get('lv') || 'Junior';
 let consentAudio  = false;
 let surveyRatings = {};
 let surveyNPS     = null;
+
+let webcamStream = null;
 let currentInterviewId = '';
 let sttTexts = {};
 let pushbackTexts = {};
-let jitsiApi = null;
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
+// ── Validate slot token nếu vào link từ lịch hẹn ───────────
+if (SLOT) {
+  (async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/slot/${SLOT}/validate`);
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        const detail = err.detail || {};
+        const reason = detail.reason || 'invalid';
+        const msg = detail.message || 'Link phỏng vấn không hợp lệ hoặc đã hết hạn.';
+        // Hiện màn hình thông báo, ẩn toàn bộ nội dung
+        document.body.innerHTML = `
+          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;
+               background:linear-gradient(135deg,#0f172a,#1e293b);font-family:'Inter',sans-serif;padding:24px;">
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:20px;
+                 max-width:480px;width:100%;padding:40px;text-align:center;">
+              <div style="font-size:52px;margin-bottom:16px;">${reason === 'not_started' ? '⏰' : '🔒'}</div>
+              <h2 style="color:#f87171;font-size:22px;font-weight:800;margin:0 0 12px;">${
+                reason === 'not_started' ? 'Chưa đến giờ phỏng vấn' :
+                reason === 'expired'     ? 'Khung giờ đã kết thúc'  : 'Link không hợp lệ'
+              }</h2>
+              <p style="color:#94a3b8;font-size:14px;line-height:1.7;margin:0 0 24px;">${escapeHtml(msg)}</p>
+              <p style="color:#64748b;font-size:12px;">Vui lòng liên hệ HR để được hỗ trợ.</p>
+            </div>
+          </div>`;
+        return;
+      }
+      // Slot hợp lệ — lấy thông tin để pre-fill
+      const slotData = await r.json();
+      console.log('[Slot] Hợp lệ:', slotData);
+      // Nếu URL chưa có app_ref, gán từ slot
+      if (!REF && slotData.app_id) {
+        REF = slotData.app_id;
+        window._slotAppId = slotData.app_id;
+        window._slotPositionId = slotData.position_id;
+        window._slotLevel = slotData.level;
+        
+        // AUTO-START UI cho Slot (giống logic URL_POS)
+        selectedPosition = slotData.position_id;
+        selectedLevel = slotData.level;
+        cvUploaded = true;
+        
+        selectLevel(selectedLevel);
+        const lb = document.getElementById('level-buttons');
+        if (lb) lb.closest('.mt-4').style.display = 'none';
+        
+        const step1 = document.getElementById('step-1');
+        if (step1) step1.classList.add('hidden');
+        
+        showConsentModal();
+      }
+    } catch(e) {
+      console.warn('[Slot] Không thể validate:', e);
+    }
+  })();
+}
 
 // ── Toast ──────────────────────────────────────────────────
 let _toastTimer = null;
@@ -456,16 +534,36 @@ function showConsentModal() {
   modal.style.opacity = '1';
   modal.style.pointerEvents = 'auto';
 }
-function acceptConsent() {
+async function acceptConsent() {
   const audioBox = document.getElementById('consent-audio');
   if (!audioBox.checked) {
     document.getElementById('consent-error').classList.remove('hidden');
     return;
   }
+
+  // Request mic permission upfront before starting
+  const btn = document.querySelector('#consent-modal button');
+  const origText = btn.textContent;
+  btn.textContent = '🎤 Đang xin quyền mic...';
+  btn.disabled = true;
+  requestingPermission = true;  // tắt đếm tab switch trong khi xin quyền
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch (err) {
+    const errMsg = err.message || err.name || "Unknown error";
+    console.warn(`Không thể truy cập Mic/Cam (${errMsg}). Bỏ qua kiểm tra để test.`);
+    showToast(`Bỏ qua lỗi truy cập Mic/Cam (${errMsg}) để tiếp tục test.`, 'warning');
+    // Không return ở đây nữa để cho phép user vào test UI
+  }
+  requestingPermission = false;
+
   consentAudio = true;
   const modal = document.getElementById('consent-modal');
   modal.style.opacity = '0';
   modal.style.pointerEvents = 'none';
+  btn.textContent = origText;
+  btn.disabled = false;
   _doStartInterview();
 }
 
@@ -520,6 +618,7 @@ let currentQuestionIndex = 0;
 let answers = {}, mediaRecorder = null, mediaStream = null;
 let recordingChunks = [], activeRecordingQ = null, recIntervals = {};
 let pushbackHistory = {};
+let followUpLimit = 5;
 
 // ── IndexedDB Auto-save ────────────────────────────────────
 const DB_NAME = 'PAI_HR_Interview';
@@ -753,70 +852,68 @@ async function startInterview() {
 
   const btn = document.getElementById('btn-start');
   const oldHtml = btn.innerHTML;
-  btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-base">sync</span> Đang cấp quyền Mic...';
+  btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-base">sync</span> Đang chuẩn bị phỏng vấn...';
   btn.disabled = true;
 
+  requestingPermission = true;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach(t => t.stop());
   } catch(e) {
+    requestingPermission = false;
     alert('Vui lòng cấp quyền Microphone trên trình duyệt để bắt đầu phỏng vấn.');
     btn.innerHTML = oldHtml;
     btn.disabled = false;
     return;
   }
+  requestingPermission = false;
+
+  // Lấy proctoring session URL
+  let proctoringUrl = null;
+  if (REF) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/v1/proctoring/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app_id: REF })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        proctoringUrl = data.embed_url;
+      }
+    } catch(err) {
+      console.warn("Failed to get proctoring session", err);
+    }
+  }
 
   btn.innerHTML = oldHtml;
   btn.disabled = false;
-  _doStartInterview();
+  _doStartInterview(proctoringUrl);
 }
 
-function _doStartInterview() {
+function _doStartInterview(proctoringUrl) {
   enterFullscreen();
   
-  // Show and initialize Jitsi API
-  const jitsiContainer = document.getElementById('jitsi-container');
-  if (jitsiContainer && !jitsiApi) {
-    jitsiContainer.classList.remove('hidden');
-    const domain = 'meet.ctpai.vn';
-    const appId = REF || String(Date.now());
-    const options = {
-      roomName: 'PAI_HR_Interview_' + appId,
-      width: '100%',
-      height: '100%',
-      parentNode: jitsiContainer,
-      configOverwrite: { 
-        startWithAudioMuted: false, 
-        startWithVideoMuted: false,
-        prejoinPageEnabled: false, 
-        disableDeepLinking: true 
-      },
-      interfaceConfigOverwrite: {
-        SHOW_CHROME_EXTENSION_BANNER: false
-      }
-    };
-    
-    try {
-      jitsiApi = new JitsiMeetExternalAPI(domain, options);
-      jitsiApi.addEventListener('videoConferenceJoined', () => {
-        try {
-          // Thêm một chút delay để server Jibri ổn định room trước khi nhận lệnh
-          setTimeout(() => {
-            jitsiApi.executeCommand('startRecording', { mode: 'file' });
-          }, 2000);
-          setTimeout(() => {
-            jitsiApi.executeCommand('toggleShareScreen');
-          }, 4000); 
-        } catch(e) {}
-      });
-      // Bắt sự kiện record failed để ẩn cảnh báo hoặc báo cho ứng viên
-      jitsiApi.addEventListener('recordingStatusChanged', (e) => {
-        if (e.error) {
-          console.warn("Jitsi recording error:", e.error);
-        }
-      });
-    } catch(err) {
-      console.warn("Jitsi Meet API init failed", err);
+  // Show and initialize Webcam
+  const webcamContainer = document.getElementById('webcam-container');
+  const webcamVideo = document.getElementById('webcam-video');
+  const proctoringIframe = document.getElementById('proctoring-iframe');
+  
+  if (webcamContainer && !webcamStream) {
+    webcamContainer.classList.remove('hidden');
+    if (proctoringUrl) {
+      webcamVideo.classList.add('hidden');
+      proctoringIframe.classList.remove('hidden');
+      proctoringIframe.src = proctoringUrl;
+    } else {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(stream => {
+          webcamStream = stream;
+          webcamVideo.srcObject = stream;
+        })
+        .catch(err => {
+          console.warn("Webcam access denied or failed", err);
+        });
     }
   }
 
@@ -917,25 +1014,29 @@ function renderQuestionCards() {
           </div>
         </div>
 
-        <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button id="rec-btn-${q.n}" onclick="toggleRecord('${q.n}')"
-            class="flex items-center gap-2 px-5 py-2.5 bg-gray-800 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95">
+            class="flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-800 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95 w-full sm:w-auto">
             <span class="material-symbols-outlined" style="font-size:16px;">mic</span>
             Bắt đầu trả lời
           </button>
-          <div id="rec-wave-${q.n}" class="hidden items-end gap-0.5 h-6">
-            ${Array.from({length:5},()=>`<div class="bar w-1.5 bg-red-500 rounded-full h-3"></div>`).join('')}
+          
+          <div class="flex items-center justify-center gap-2">
+            <div id="rec-wave-${q.n}" class="hidden items-end gap-0.5 h-6">
+              ${Array.from({length:5},()=>`<div class="bar w-1.5 bg-red-500 rounded-full h-3"></div>`).join('')}
+            </div>
+            <div id="rec-dot-${q.n}" class="hidden items-center gap-1.5">
+              <div class="w-2 h-2 bg-red-500 rounded-full rec-dot"></div>
+              <span class="text-red-500 text-xs font-bold" id="rec-timer-${q.n}">0:00</span>
+            </div>
           </div>
-          <div id="rec-dot-${q.n}" class="hidden items-center gap-1.5">
-            <div class="w-2 h-2 bg-red-500 rounded-full rec-dot"></div>
-            <span class="text-red-500 text-xs font-bold" id="rec-timer-${q.n}">0:00</span>
-          </div>
-          <div class="flex items-center gap-2 ml-auto">
+
+          <div class="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
             ${idx > 0 ? `
-            <button onclick="prevQuestion()" class="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-200 transition active:scale-95">
+            <button onclick="prevQuestion()" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-200 transition active:scale-95">
               <span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span> Quay lại
             </button>` : ''}
-            <button id="next-btn-${q.n}" onclick="nextQuestion()" class="hidden flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95">
+            <button id="next-btn-${q.n}" onclick="nextQuestion()" class="hidden flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition active:scale-95">
               ${idx === QUESTION_TYPES.length - 1 ? 'Nộp bài thi' : 'Câu tiếp theo'} <span class="material-symbols-outlined" style="font-size:16px;">arrow_forward</span>
             </button>
           </div>
@@ -1071,12 +1172,15 @@ async function toggleRecord(qn) {
 }
 
 async function startRecord(qn) {
+  requestingPermission = true;
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
+    requestingPermission = false;
     alert('Cần cấp quyền microphone để ghi âm.');
     return;
   }
+  requestingPermission = false;
   recordingChunks = [];
   mediaRecorder = new MediaRecorder(mediaStream);
   mediaRecorder.ondataavailable = e => { if (e.data.size>0) recordingChunks.push(e.data); };
@@ -1198,6 +1302,7 @@ async function processAnswer(qn, isPushback = false) {
       }
     }
     form.append('history', JSON.stringify(historyArray));
+    form.append('follow_up_limit', followUpLimit);
     
     const res = await fetch(`${API_BASE}/interview/evaluate-step`, { method: 'POST', body: form });
     const data = await res.json();
@@ -1264,12 +1369,23 @@ function showTranscriptUI(qn, text) {
     </div>
   `;
   
-  // Insert before pushback if exists, or append
-  const pbContainer = document.getElementById('pb-container-' + mainQn + '_1');
-  if (pbContainer && !qn.includes('_')) {
-    pbContainer.insertAdjacentHTML('beforebegin', sttHtml);
+  // Insert STT box correctly
+  const pbContainer = document.getElementById('pb-container-' + qn);
+  if (isPushbackAnswer) {
+    // If it's a pushback answer, append it inside its own pushback container
+    if (pbContainer) {
+      pbContainer.insertAdjacentHTML('beforeend', sttHtml);
+    } else {
+      cardContent.insertAdjacentHTML('beforeend', sttHtml);
+    }
   } else {
-    cardContent.insertAdjacentHTML('beforeend', sttHtml);
+    // If it's the main answer, insert before the first pushback (if any) or at the end
+    const firstPbContainer = document.getElementById('pb-container-' + mainQn + '_1');
+    if (firstPbContainer) {
+      firstPbContainer.insertAdjacentHTML('beforebegin', sttHtml);
+    } else {
+      cardContent.insertAdjacentHTML('beforeend', sttHtml);
+    }
   }
 }
 
@@ -1421,6 +1537,21 @@ async function prepInterview() {
     PREP_ID         = data.prep_id || '';
     PREP_QUESTIONS  = data.questions || {};
     INTRO_AUDIO_URL = data.intro_audio || '';
+    if (data.follow_up_limit !== undefined) followUpLimit = data.follow_up_limit;
+
+    // Filter QUESTION_TYPES based on PREP_QUESTIONS
+    if (PREP_QUESTIONS && Object.keys(PREP_QUESTIONS).length > 0) {
+      const allowed = Object.keys(PREP_QUESTIONS);
+      QUESTION_TYPES = QUESTION_TYPES.filter(q => allowed.includes(q.n));
+      // Overwrite text and audio
+      QUESTION_TYPES.forEach(q => {
+        if (PREP_QUESTIONS[q.n]) {
+          q.text = PREP_QUESTIONS[q.n].text;
+          q.audio_url = PREP_QUESTIONS[q.n].audio_url;
+          if (PREP_QUESTIONS[q.n].type) q.type = PREP_QUESTIONS[q.n].type;
+        }
+      });
+    }
   } catch(e) {
     const isTimeout = e.name === 'AbortError';
     console.warn('Prep failed:', e);
@@ -1475,6 +1606,19 @@ async function submitInterview() {
     }
   });
 
+  // Append generated pushback texts to save in database
+  form.append('pushback_texts', JSON.stringify(pushbackTexts));
+
+  // Append tab switch count
+  form.append('tab_switches', tabSwitchCount);
+
+  // Append time spent per question (seconds)
+  const timeSpentJson = {};
+  Object.entries(sectionTimers).forEach(([qn, s]) => {
+    timeSpentJson[qn] = s.elapsed || 0;
+  });
+  form.append('time_spent', JSON.stringify(timeSpentJson));
+
   try {
     const controller = new AbortController();
     const timeout    = setTimeout(() => controller.abort(), 120000);
@@ -1492,12 +1636,13 @@ async function submitInterview() {
     document.getElementById('step-3').classList.remove('hidden');
     document.getElementById('step-badge').textContent = '';
     
-    // Dispose Jitsi when done
-    if (jitsiApi) {
-      jitsiApi.dispose();
-      jitsiApi = null;
-      document.getElementById('jitsi-container').classList.add('hidden');
+    // Dispose Webcam when done
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+      webcamStream = null;
+      document.getElementById('webcam-container').classList.add('hidden');
     }
+
 
     initSurvey();
   } catch(err) {
@@ -1688,7 +1833,11 @@ document.body.insertAdjacentHTML('beforeend', `
 <div id="anti-cheat-overlay" class="hidden fixed inset-0 z-[9999] flex-col items-center justify-center bg-gray-900/95 text-white p-6 text-center backdrop-blur-sm">
   <span class="material-symbols-outlined text-red-500 text-6xl mb-4" style="font-variation-settings:'FILL' 1;">warning</span>
   <h2 class="text-3xl font-bold text-red-500 mb-2">CẢNH BÁO VI PHẠM</h2>
-  <p class="text-gray-200 text-base mb-6 max-w-lg leading-relaxed">Bạn không được phép chuyển tab hoặc thoát chế độ toàn màn hình trong lúc làm bài phỏng vấn. Hệ thống đã ghi nhận hành vi này của bạn.</p>
+  <p class="text-gray-200 text-base mb-4 max-w-lg leading-relaxed">Bạn không được phép chuyển tab hoặc thoát chế độ toàn màn hình trong lúc làm bài phỏng vấn. Hệ thống đã ghi nhận hành vi này của bạn.</p>
+  <div class="mb-6 px-6 py-3 bg-red-900/60 border border-red-500/50 rounded-xl flex items-center gap-3">
+    <span class="material-symbols-outlined text-red-400 text-2xl">tab_close</span>
+    <p class="text-red-200 text-sm">Số lần rời khỏi trang: <span id="overlay-tab-count" class="font-black text-red-400 text-xl">0</span> lần</p>
+  </div>
   <button onclick="resumeTest()" class="px-8 py-3.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition active:scale-95 shadow-lg">Tôi đã hiểu, Quay lại làm bài</button>
 </div>
 `);
@@ -1731,12 +1880,26 @@ window.resumeTest = function() {
 };
 
 let tabSwitchCount = 0;
+let requestingPermission = false;  // flag để bỏ qua visibilitychange khi trình duyệt popup xin quyền
 document.addEventListener('visibilitychange', () => {
+  if (requestingPermission) return;  // bỏ qua nếu đang xin quyền mic/camera
   const step2 = document.getElementById('step-2');
   if (step2 && !step2.classList.contains('hidden')) {
     if (document.hidden) {
       tabSwitchCount++;
       logIncident('tab_switch', `Candidate switched tab (${tabSwitchCount} times)`);
+      // Update count in overlay before showing
+      const countEl = document.getElementById('overlay-tab-count');
+      if (countEl) countEl.textContent = tabSwitchCount;
+      // Update count in header badge
+      const badgeEl = document.getElementById('tab-switch-badge');
+      if (badgeEl) badgeEl.textContent = tabSwitchCount;
+      // Show header indicator on first out-tab
+      const indicator = document.getElementById('tab-switch-indicator');
+      if (indicator) {
+        indicator.classList.remove('hidden');
+        indicator.classList.add('flex');
+      }
       showCheatOverlay();
     }
   }

@@ -16,6 +16,14 @@ from backend.services.ai_service import _do_evaluate_interview
 from backend.services.ai_service import _tts
 from backend.config import OPENAI_API_KEY, ELEVENLABS_API_KEY
 from backend.services.email_service import send_pass_email, send_fail_email, send_interview_reminder
+from backend.security import (
+    ALLOWED_AUDIO_EXTENSIONS,
+    ALLOWED_CV_EXTENSIONS,
+    MAX_AUDIO_UPLOAD_BYTES,
+    MAX_CV_UPLOAD_BYTES,
+    read_upload_limited,
+    signed_temp_file_url,
+)
 router = APIRouter()
 
 @router.post("/interview/prep")
@@ -90,7 +98,7 @@ async def generate_audio_for_dynamic_q(req: AudioGenRequest):
         raise HTTPException(500, "Lỗi tạo audio")
         
     return {
-        "audio_url": f"/temp_pushbacks/{out_audio_name}",
+        "audio_url": signed_temp_file_url(out_audio_name),
         "text": filled_text
     }
 
@@ -101,11 +109,18 @@ async def evaluate_step(
     question_text: str = Form(...),
     question_type: str = Form(...),
     history: str = Form("[]"),
+    follow_up_limit: int = Form(5),
 ):
     # 1. Save temp audio
     req_id = uuid.uuid4().hex[:8]
-    in_audio_path = TEMP_PUSHBACKS_DIR / f"{req_id}_in.webm"
-    in_audio_path.write_bytes(await audio.read())
+    audio_bytes, audio_ext = await read_upload_limited(
+        audio,
+        allowed_extensions=ALLOWED_AUDIO_EXTENSIONS,
+        max_bytes=MAX_AUDIO_UPLOAD_BYTES,
+        field_name="Audio",
+    )
+    in_audio_path = TEMP_PUSHBACKS_DIR / f"{req_id}_in{audio_ext}"
+    in_audio_path.write_bytes(audio_bytes)
 
     # 2. STT via ElevenLabs
     transcript = ""
@@ -136,6 +151,12 @@ async def evaluate_step(
         hist_data = json.loads(history)
     except:
         hist_data = []
+        
+    # Tính số lượng câu hỏi follow-up đã hỏi
+    # Số lần AI đã hỏi (trừ câu gốc đầu tiên ra)
+    follow_up_count = sum(1 for h in hist_data if h.get("role") == "assistant") - 1
+    if follow_up_count >= follow_up_limit:
+        return {"need_pushback": False, "transcript": transcript}
 
     history_text = ""
     for h in hist_data:
@@ -143,7 +164,7 @@ async def evaluate_step(
         history_text += f"{role}: {h.get('content')}\n"
 
     # 4. LLM GPT-4o cho Chuẩn hoá và Phản biện
-    prompt = f"""Bạn là một chuyên gia phỏng vấn nhân sự.
+    prompt = f"""Bạn là một chuyên gia phỏng vấn nhân sự nghiêm khắc và kiên nhẫn.
 Loại câu hỏi: {question_type}
 Câu hỏi ban đầu: "{question_text}"
 
@@ -155,12 +176,17 @@ NHIỆM VỤ CỦA BẠN:
 1. Chuẩn hoá đoạn STT thô của câu trả lời mới nhất (sửa lỗi chính tả, bỏ từ thừa như "à", "ừm", giữ nguyên toàn bộ ý chính và phong cách nói của ứng viên).
    - QUAN TRỌNG: Nếu đoạn STT thô có dấu hiệu là ảo giác do nhiễu tạp âm hoặc im lặng (ví dụ: "Tôi tên Nguyễn Văn A", "Cảm ơn các bạn đã theo dõi", "Subtitles by...", hoặc các câu hoàn toàn vô nghĩa không liên quan), hãy trả về chuỗi rỗng "" cho normalized_transcript.
    - TUYỆT ĐỐI KHÔNG TỰ BỊA RA NỘI DUNG MỚI hoặc thay đổi ý nghĩa của ứng viên.
-2. Đánh giá và Phản biện có cấu trúc (Chain of Thought):
-   - Bước 1: Xác định "(1) danh mục khía cạnh cần khai thác" dựa trên câu trả lời của ứng viên so với câu hỏi gốc.
-   - Bước 2: Liệt kê "(2) danh mục câu hỏi follow up" tương ứng để làm rõ các khía cạnh ở Bước 1.
-   - Bước 3: Đánh giá và Quyết định có hỏi tiếp hay DỪNG.
-     + Nếu rơi vào 1 trong 3 trường hợp sau thì BẮT BUỘC DỪNG: (a) Ứng viên đã đáp ứng đủ khía cạnh; (b) Ứng viên trả lời lan man, vòng vo, lạc đề; (c) Ứng viên bí ý, lúng túng, không thể khai thác thêm. Khi này, trả về chữ "PASS" cho phần `pushback_question`.
-     + Nếu chưa đáp ứng đủ (đặc biệt đối với câu "Experience") VÀ ứng viên vẫn có tiềm năng trả lời tiếp: Chọn ĐÚNG 1 câu hỏi từ danh mục ở Bước 2 để đặt cho ứng viên (ngắn gọn, dưới 30 từ) vào `pushback_question`.
+
+2. Đánh giá câu trả lời và Quyết định follow-up:
+   - Nếu câu trả lời QUÁ NGẮN (dưới 3 câu) hoặc CHUNG CHUNG (không có ví dụ/số liệu/tình huống cụ thể): BẮT BUỘC đặt câu hỏi follow-up để yêu cầu ứng viên cụ thể hơn.
+   - Nếu ứng viên chỉ nói "không biết", "chưa có kinh nghiệm", "không nhớ": Hỏi thêm về những trải nghiệm TƯƠNG TỰ hoặc cách họ sẽ XỬ LÝ tình huống giả định.
+   - Nếu câu trả lời đã đầy đủ: Trả về "PASS" cho pushback_question.
+   - Chỉ DỪNG (PASS) khi: ứng viên đã trả lời cực kỳ đầy đủ VÀ chi tiết, hoặc đã hỏi follow-up quá 3 lần liên tiếp về cùng 1 câu.
+
+3. Câu hỏi follow-up phải:
+   - Ngắn gọn (dưới 25 từ), trực tiếp, không có câu mở đầu xã giao.
+   - Yêu cầu ứng viên CHO VÍ DỤ CỤ THỂ, CON SỐ, hoặc TÌNH HUỐNG thực tế.
+   - Bắt đầu bằng: "Cụ thể hơn...", "Bạn có thể kể ví dụ...", "Kết quả cụ thể là gì?", "Bạn đã làm gì khi...?" v.v.
 
 BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block code markdown), gồm 4 field:
 {{
@@ -177,10 +203,10 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
+            response_format={"type": "json_object"}
         )
         ai_resp_raw = resp.choices[0].message.content
         print(f"\n=== LLM RAW RESPONSE ===\n{ai_resp_raw}\n=======================")
-        ai_resp_raw = ai_resp_raw.replace('```json', '').replace('```', '').strip()
         
         try:
             ai_data = json.loads(ai_resp_raw)
@@ -200,7 +226,7 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
     if not transcript.strip():
         return {"need_pushback": False, "transcript": transcript}
 
-    if ai_resp.upper() == "PASS" or "PASS" in ai_resp.upper():
+    if ai_resp.strip().upper() == "PASS":
         return {"need_pushback": False, "transcript": transcript}
 
     # 5. TTS for pushback
@@ -215,7 +241,7 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
     return {
         "need_pushback": True,
         "pushback_text": ai_resp,
-        "pushback_audio": f"/temp_pushbacks/{out_audio_name}",
+        "pushback_audio": signed_temp_file_url(out_audio_name),
         "transcript": transcript
     }
 
@@ -233,6 +259,19 @@ async def submit_interview(
     level        = form.get("level", "Junior")
     reiv         = form.get("reiv")
     cv_file      = form.get("cv_file")
+    tab_switches = int(form.get("tab_switches", 0) or 0)
+    time_spent_raw = form.get("time_spent", "{}")
+    try:
+        time_spent = json.loads(time_spent_raw)
+    except:
+        time_spent = {}
+
+    pushback_texts_raw = form.get("pushback_texts", "{}")
+    try:
+        pushback_texts = json.loads(pushback_texts_raw)
+    except:
+        pushback_texts = {}
+
     
     if not position_id:
         raise HTTPException(400, "Thiếu position_id")
@@ -250,10 +289,15 @@ async def submit_interview(
     c_name = f"Unknown_{candidate_id[-4:]}"
     c_email = None
     if isinstance(cv_file, UploadFile) and hasattr(cv_file, "filename") and cv_file.filename:
-        cv_ext      = Path(cv_file.filename).suffix or ".pdf"
+        cv_bytes, cv_ext = await read_upload_limited(
+            cv_file,
+            allowed_extensions=ALLOWED_CV_EXTENSIONS,
+            max_bytes=MAX_CV_UPLOAD_BYTES,
+            field_name="CV",
+        )
         cv_filename = f"cv{cv_ext}"
         cv_path     = session_dir / cv_filename
-        cv_path.write_bytes(await cv_file.read())
+        cv_path.write_bytes(cv_bytes)
     elif app_ref:
         # Dùng CV từ application đã nộp
         with db() as conn:
@@ -290,17 +334,27 @@ async def submit_interview(
 
             q_type = QUESTIONS_BANK.get(qn, {}).get("type", "General")
 
-            audio_name = f"{key}.webm"
+            audio_bytes, audio_ext = await read_upload_limited(
+                upload,
+                allowed_extensions=ALLOWED_AUDIO_EXTENSIONS,
+                max_bytes=MAX_AUDIO_UPLOAD_BYTES,
+                field_name="Audio",
+            )
+            audio_name = f"{key}{audio_ext}"
             audio_path = session_dir / audio_name
-            audio_path.write_bytes(await upload.read())
+            audio_path.write_bytes(audio_bytes)
             
+            q_text = pushback_texts.get(key.replace("answer_", ""), None)
+
             answer_rows.append({
                 "interview_id":    interview_id,
                 "question_number": question_number,
                 "question_type":   q_type,
+                "question_text":   q_text,
                 "audio_path":      str(audio_path.relative_to(BASE_DIR)),
                 "created_at":      now,
             })
+
 
     # ── Re-interview: lưu thêm vào interview GỐC, không tạo mới ──
     if reiv:
@@ -315,9 +369,10 @@ async def submit_interview(
             reiv_rows = [{**r, "interview_id": reiv} for r in answer_rows]
             conn.executemany("""
                 INSERT INTO answers
-                    (interview_id, question_number, question_type, audio_path, created_at)
-                VALUES (:interview_id, :question_number, :question_type, :audio_path, :created_at)
+                    (interview_id, question_number, question_type, question_text, audio_path, created_at)
+                VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at)
             """, reiv_rows)
+
 
             # Cập nhật interview gốc
             conn.execute(
@@ -341,18 +396,19 @@ async def submit_interview(
 
         conn.execute("""
             INSERT INTO interviews
-                (id, candidate_id, position_id, cv_filename, cv_path, prep_id, level, submitted_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, candidate_id, position_id, cv_filename, cv_path, prep_id, level, submitted_at, tab_switches, status, reinterview_scope)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             interview_id, candidate_id, position_id,
-            cv_filename, str(cv_path.relative_to(BASE_DIR)), prep_id, level, now,
+            cv_filename, str(cv_path.relative_to(BASE_DIR)), prep_id, level, now, tab_switches, "submitted", '[]'
         ))
+
 
         conn.executemany("""
             INSERT INTO answers
-                (interview_id, question_number, question_type, audio_path, created_at)
-            VALUES (:interview_id, :question_number, :question_type, :audio_path, :created_at)
-        """, answer_rows)
+                (interview_id, question_number, question_type, question_text, audio_path, created_at, time_spent)
+            VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at, :time_spent)
+        """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in answer_rows])
 
     print(f"[✓] {interview_id} | candidate={candidate_id} | position={position_id}")
     background.add_task(_do_evaluate_interview, interview_id, position_id, answer_rows)
@@ -366,7 +422,8 @@ async def submit_interview(
 
 
 @router.get("/interview/{interview_id}")
-def get_interview(interview_id: str):
+def get_interview(interview_id: str, x_admin_key: str = Header(None)):
+    require_admin(x_admin_key)
     with db() as conn:
         row = conn.execute("""
             SELECT i.*, c.name as candidate_name
@@ -389,7 +446,8 @@ def get_interview(interview_id: str):
 
 
 @router.get("/candidate/{candidate_id}/interviews")
-def get_candidate_interviews(candidate_id: str):
+def get_candidate_interviews(candidate_id: str, x_admin_key: str = Header(None)):
+    require_admin(x_admin_key)
     with db() as conn:
         candidate = conn.execute(
             "SELECT * FROM candidates WHERE id = ?", (candidate_id,)
@@ -415,7 +473,8 @@ def get_candidate_interviews(candidate_id: str):
 
 
 @router.get("/interviews")
-def list_interviews(status: str = None, position_id: str = None, limit: int = 50):
+def list_interviews(status: str = None, position_id: str = None, limit: int = 50, x_admin_key: str = Header(None)):
+    require_admin(x_admin_key)
     where, params = [], []
     if status:
         where.append("i.status = ?");      params.append(status)
@@ -511,5 +570,3 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
         "groups":         groups,
         "answers":        rows,
     }
-
-

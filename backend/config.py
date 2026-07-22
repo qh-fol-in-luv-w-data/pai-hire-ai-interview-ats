@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from hmac import compare_digest
 
 load_dotenv()
 import socket
@@ -14,7 +15,7 @@ DB_PATH         = BASE_DIR / "ats_phongvan.db"
 OUTPUT_DIR      = BASE_DIR / "outputs" / "interviews"
 CV_UPLOAD_DIR   = BASE_DIR / "outputs" / "cv_applications"
 JDS_DIR         = BASE_DIR / "JDs_Detailed"
-ADMIN_KEY       = os.environ.get("ADMIN_KEY", "admin@2024")
+ADMIN_KEY       = os.environ.get("ADMIN_KEY", "")
 OPENAI_API_KEY      = os.environ.get("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY  = os.environ.get("ELEVENLABS_API_KEY", "")
 PASS_SCORE      = 6.0
@@ -22,6 +23,8 @@ SMTP_HOST       = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT       = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER       = os.environ.get("SMTP_USER", "")
 SMTP_PASS       = os.environ.get("SMTP_PASS", "")
+IMAP_HOST       = os.environ.get("IMAP_HOST", "imap.gmail.com")
+IMAP_PORT       = int(os.environ.get("IMAP_PORT", "993"))
 def _detect_local_ip() -> str:
     import socket
     try:
@@ -33,12 +36,28 @@ def _detect_local_ip() -> str:
     except Exception:
         return "localhost"
 
-_default_interview_url = f"http://{_detect_local_ip()}:8080/interview"
+_server_port = int(os.environ.get("PORT", "8080"))
+_default_interview_url = f"http://{_detect_local_ip()}:{_server_port}/interview"
 INTERVIEW_URL   = os.environ.get("INTERVIEW_URL", _default_interview_url)
+
+PROCTORING_API_URL = os.environ.get("PROCTORING_API_URL", "http://127.0.0.1:8003/api/v1")
+PROCTORING_API_KEY = os.environ.get("PROCTORING_API_KEY", "")
+PROCTORING_WEBHOOK_SECRET = os.environ.get("PROCTORING_WEBHOOK_SECRET", "")
+PUBLIC_WEBHOOK_DOMAIN = os.environ.get("PUBLIC_WEBHOOK_DOMAIN", f"http://{_detect_local_ip()}:{_server_port}")
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "ALLOWED_ORIGINS",
+        f"http://localhost:{_server_port},http://127.0.0.1:{_server_port},{PUBLIC_WEBHOOK_DOMAIN}",
+    ).split(",")
+    if origin.strip()
+]
 
 from fastapi import Header, HTTPException
 def require_admin(x_admin_key: str = Header(None)):
-    if not x_admin_key or x_admin_key != ADMIN_KEY:
+    if not ADMIN_KEY:
+        raise HTTPException(500, "ADMIN_KEY chưa được cấu hình")
+    if not x_admin_key or not compare_digest(x_admin_key, ADMIN_KEY):
         raise HTTPException(401, "Unauthorized — sai admin key")
 
 FRONTEND_DIR   = BASE_DIR / "frontend"
@@ -140,6 +159,12 @@ QUESTIONS_BANK = {
     "40": { "type": "General", "label": "Tiêu chí 10", "group": "Nhóm_D", "is_dynamic": False, "text": "Trong 3 năng lực quan trọng nhất của vị trí này, anh/chị đánh giá ứng viên đang mạnh/yếu ở đâu? Có ví dụ nào trong buổi phỏng vấn thể hiện điều đó? (HOD đề xuất Hire/Hold/Reject kèm lý do ngắn gọn)." },
 }
 
+# Cấu hình số lượng câu hỏi tối đa cho từng phần (Theo bộ khung câu hỏi AI Interview)
+INTERVIEW_QUESTION_LIMITS = {
+    "PART_1_DEFAULT": 11,       # Phần 1: Nhóm câu hỏi mặc định cho tất cả ứng viên
+    "PART_2_GENERATED": 7,      # Phần 2: Nhóm câu hỏi AI tạo dựa trên CV, JD (5-7 câu)
+    "PART_3_FOLLOW_UP": 5       # Phần 3: Nhóm câu hỏi AI đào sâu (3-5 câu)
+}
 
 # ─────────────────────────────────────────────────────────────
 # Prompts
@@ -334,7 +359,7 @@ CV_QUESTIONS_PROMPT = """Bạn là HR Interviewer đang chuẩn bị phỏng v�
 CV của ứng viên:
 {cv_text}
 
-Tạo đúng 2 câu hỏi phỏng vấn về kinh nghiệm thực tế dựa trực tiếp vào thông tin có trong CV trên.
+Tạo đúng {num_gen} câu hỏi phỏng vấn về kinh nghiệm thực tế dựa trực tiếp vào thông tin có trong CV trên.
 Yêu cầu:
 - Điều chỉnh độ khó/chiều sâu phù hợp với cấp bậc {level} (Entry=cơ bản, Mid=dự án thực tế, Senior/Manager=lãnh đạo/chiến lược)
 - Hỏi cụ thể về dự án, công nghệ, hoặc kinh nghiệm thực sự đề cập trong CV (không hỏi chung chung)
@@ -343,7 +368,7 @@ Yêu cầu:
 - Viết bằng tiếng Việt, ngắn gọn (1-2 câu mỗi câu hỏi)
 
 Trả về JSON (không markdown):
-{{"q05": "câu hỏi thứ nhất", "q06": "câu hỏi thứ hai"}}"""
+{json_format}"""
 
 HOD_QUESTIONS_PROMPT = """Bạn là chuyên gia tuyển dụng cấp cao. Dựa trên kết quả phỏng vấn bên dưới, hãy gợi ý 3-5 câu hỏi sâu hơn để trưởng bộ phận (HOD) khai thác thêm trong vòng phỏng vấn tiếp theo.
 
@@ -371,7 +396,7 @@ _JOB_LEVELS = ("Entry", "Junior", "Mid", "Senior", "Manager", "Director")
 THIRD_PARTY_WEBHOOK_URL = os.environ.get("THIRD_PARTY_WEBHOOK_URL", "")
 
 DEEP_ANALYSIS_PROMPT = """Bạn là một Chuyên gia Tuyển dụng cấp cao. 
-Nhiệm vụ của bạn là phân tích sâu CV của ứng viên đối chiếu với Mô tả công việc (JD), sau đó sinh ra chính xác {n} câu hỏi phỏng vấn chuyên sâu (deep analysis).
+Nhiệm vụ của bạn là phân tích sâu CV của ứng viên đối chiếu với Mô tả công việc (JD), sau đó sinh ra những câu hỏi phỏng vấn chuyên sâu (deep analysis). Số lượng câu hỏi tùy thuộc vào số lượng những điểm đáng chú ý, nghi vấn hoặc thành tích nổi bật trong CV (cứ có điểm nào đáng hỏi thì sinh câu hỏi, không bị giới hạn số lượng).
 
 YÊU CẦU CHO CÁC CÂU HỎI:
 1. Phải dựa hoàn toàn vào các dự án, kỹ năng, kinh nghiệm CỤ THỂ mà ứng viên đã ghi trong CV.
@@ -386,6 +411,34 @@ Mô tả công việc (JD):
 {jd_text}
 
 HÃY XUẤT RA DANH SÁCH CÁC CÂU HỎI THEO ĐÚNG ĐỊNH DẠNG JSON. Không kèm giải thích.
+"""
+
+EVALUATE_REPLY_PROMPT = """Bạn là Chuyên gia Tuyển dụng cấp cao. 
+Nhiệm vụ của bạn là đánh giá câu trả lời của ứng viên cho các câu hỏi chuyên sâu (Deep Analysis) đã được gửi qua email.
+
+YÊU CẦU:
+1. Đối chiếu câu trả lời của ứng viên với CV của họ và yêu cầu của JD.
+2. Đánh giá tính chân thực, mức độ hiểu biết chuyên môn, và khả năng giải quyết vấn đề.
+3. Chỉ ra những điểm mạnh (red flags nếu có) từ câu trả lời.
+4. Đưa ra kết luận: Câu trả lời có đáp ứng được kỳ vọng để mời phỏng vấn chính thức hay không.
+
+Câu hỏi Deep Analysis đã gửi:
+{deep_questions}
+
+Câu trả lời của Ứng viên (qua Email):
+{candidate_reply}
+
+CV Ứng Viên:
+{cv_text}
+
+Mô tả công việc (JD):
+{jd_text}
+
+HÃY XUẤT RA KẾT QUẢ ĐÁNH GIÁ DƯỚI DẠNG JSON với các trường:
+- "evaluation": Đánh giá chi tiết (string).
+- "red_flags": Các điểm đáng ngờ hoặc yếu kém (array of strings).
+- "strengths": Các điểm mạnh thể hiện qua câu trả lời (array of strings).
+- "recommendation": "Phê duyệt" hoặc "Từ chối" (string).
 """
 
 CV_EVAL_ROUND_1_PROMPT = """Bạn là hệ thống AI PAI Engine đóng vai trò Chuyên gia Tuyển dụng.

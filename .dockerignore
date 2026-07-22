@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Secrets & local runtime state
+.env
+.env.*
+*.pem
+*.key
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.sql
+*.sql.gz
+*.tar
+*.tar.gz
+site_config*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual envs
+venv/
+.venv/
+env/
+
+# Generated files (mount qua volume thay vì bake vào image)
+Generated_Audio/
+Generated_CVs/
+Generated_Questions/
+inputs/
+outputs/
+LatentSync/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large files
+*.pdf
+*.mp4
+*.mp3
+*.wav
+*.pt
+*.onnx
