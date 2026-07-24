@@ -27,7 +27,6 @@ from pydantic import BaseModel
 
 from backend.database import db
 from backend.config import (
-    ADMIN_KEY,
     BASE_DIR,
     CV_UPLOAD_DIR,
     INTERVIEW_URL,
@@ -58,15 +57,15 @@ def parse_slot_datetime(value: str) -> datetime:
 # Auth — Bearer token lưu trong settings (key='api_token')
 # Admin set qua POST /admin/settings {"api_token": "..."}
 # Gọi API: Authorization: Bearer <token>
-# Fallback: env API_TOKEN hoặc ADMIN_KEY nếu chưa set
+# Fallback: env API_TOKEN nếu chưa set
 # ─────────────────────────────────────────────────────────────
 def _get_valid_token() -> str:
-    """Lấy token hợp lệ từ settings DB, env, hoặc fallback ADMIN_KEY."""
+    """Lấy token hợp lệ từ settings DB hoặc env API_TOKEN."""
     with db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='api_token'").fetchone()
         if row and row["value"]:
             return row["value"]
-    token = os.environ.get("API_TOKEN", ADMIN_KEY)
+    token = os.environ.get("API_TOKEN", "")
     if not token:
         raise HTTPException(500, "API_TOKEN chưa được cấu hình")
     return token

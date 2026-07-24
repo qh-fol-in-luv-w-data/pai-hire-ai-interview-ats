@@ -450,6 +450,7 @@ let proctoringAlertTimer = null;
 let proctoringAlertStates = {};
 let proctoringWs = null;
 let proctoringFrameTimer = null;
+let proctoringAlertsToken = '';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -667,9 +668,9 @@ function showProctoringWarning(alert) {
 }
 
 async function pollProctoringAlerts() {
-  if (!REF) return;
+  if (!REF || !proctoringAlertsToken) return;
   try {
-    const res = await fetch(`${API_BASE}/api/v1/proctoring/alerts?app_id=${encodeURIComponent(REF)}&last_id=${proctoringLastAlertId}`);
+    const res = await fetch(`${API_BASE}/api/v1/proctoring/alerts?app_id=${encodeURIComponent(REF)}&last_id=${proctoringLastAlertId}&token=${encodeURIComponent(proctoringAlertsToken)}`);
     if (!res.ok) return;
     const data = await res.json();
     const alerts = data.alerts || [];
@@ -705,6 +706,7 @@ function startProctoringAlertPolling() {
 }
 
 function stopProctoringAlertPolling() {
+  proctoringAlertsToken = '';
   if (proctoringPollTimer) {
     clearInterval(proctoringPollTimer);
     proctoringPollTimer = null;
@@ -1142,6 +1144,7 @@ async function startInterview() {
       if (resp.ok) {
         const data = await resp.json();
         proctoringUrl = data.embed_url;
+        proctoringAlertsToken = data.alerts_token || '';
         if (!proctoringUrl && data.mode === 'local_webcam') {
           proctoringError = data.reason || 'Không khởi tạo được AI proctoring.';
           console.warn("AI proctoring unavailable; using local webcam preview.", data.reason || '');

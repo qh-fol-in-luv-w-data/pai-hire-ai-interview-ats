@@ -409,7 +409,12 @@
 <script>
 
 const API_BASE  = location.origin;
-const ADMIN_KEY = localStorage.getItem('pai_admin_key') || '';
+const LEGACY_ADMIN_KEY = localStorage.getItem('pai_admin_key') || '';
+if (LEGACY_ADMIN_KEY) {
+  sessionStorage.setItem('pai_admin_key', LEGACY_ADMIN_KEY);
+  localStorage.removeItem('pai_admin_key');
+}
+const ADMIN_KEY = sessionStorage.getItem('pai_admin_key') || '';
 
 let allInterviews = [];
 
@@ -522,10 +527,12 @@ function doLogin() {
   if (!inputEl) return;
   const key = inputEl.value.trim();
   if (!key) return;
-  localStorage.setItem('pai_admin_key', key);
+  localStorage.removeItem('pai_admin_key');
+  sessionStorage.setItem('pai_admin_key', key);
   location.reload();
 }
 function logout() {
+  sessionStorage.removeItem('pai_admin_key');
   localStorage.removeItem('pai_admin_key');
   location.reload();
 }

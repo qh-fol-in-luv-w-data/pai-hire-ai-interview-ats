@@ -17,6 +17,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()",
+    )
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: blob:; "
+        "media-src 'self' blob:; "
+        "connect-src 'self' https://service.ctpai.vn wss://service.ctpai.vn; "
+        "frame-src 'self' https://service.ctpai.vn; "
+        "frame-ancestors 'self'; "
+        "base-uri 'self'; "
+        "object-src 'none'",
+    )
+    return response
+
 app.mount("/audio", StaticFiles(directory=str(QUESTION_AUDIO_DIR)), name="audio")
 app.mount("/ui", StaticFiles(directory=str(FRONTEND_DIR)), name="ui")
 

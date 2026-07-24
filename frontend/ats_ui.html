@@ -1134,7 +1134,8 @@
       const r = await fetch(`${API_BASE2}/admin/stats`, { headers: { 'X-Admin-Key': key } });
       if (!r.ok) throw new Error();
       screeningKey = key;
-      localStorage.setItem('screeningKey', key);
+      localStorage.removeItem('screeningKey');
+      sessionStorage.setItem('screeningKey', key);
       document.getElementById('recruit-gate-error').classList.add('hidden');
       document.getElementById('recruit-gate').classList.add('hidden');
       document.getElementById('recruit-main').classList.remove('hidden');
@@ -1706,12 +1707,23 @@
   // ════════════════════════════════════════════════════════
   // LOGIN / LOGOUT
   // ════════════════════════════════════════════════════════
-  let screeningKey = localStorage.getItem('screeningKey') || '';
-  let currentRole  = localStorage.getItem('userRole') || '';  // 'admin' | 'guest' | ''
+  const legacyScreeningKey = localStorage.getItem('screeningKey') || '';
+  const legacyUserRole = localStorage.getItem('userRole') || '';
+  if (legacyScreeningKey) {
+    sessionStorage.setItem('screeningKey', legacyScreeningKey);
+    localStorage.removeItem('screeningKey');
+  }
+  if (legacyUserRole) {
+    sessionStorage.setItem('userRole', legacyUserRole);
+    localStorage.removeItem('userRole');
+  }
+  let screeningKey = sessionStorage.getItem('screeningKey') || '';
+  let currentRole  = sessionStorage.getItem('userRole') || '';  // 'admin' | 'guest' | ''
 
   function enterApp(role) {
     currentRole = role;
-    localStorage.setItem('userRole', role);
+    localStorage.removeItem('userRole');
+    sessionStorage.setItem('userRole', role);
     document.getElementById('login-page').classList.add('hidden');
     document.getElementById('app-shell').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('flex');
@@ -1738,7 +1750,8 @@
       const r = await fetch(`${API_BASE2}/admin/stats`, { headers: { 'X-Admin-Key': key } });
       if (!r.ok) throw new Error();
       screeningKey = key;
-      localStorage.setItem('screeningKey', key);
+      localStorage.removeItem('screeningKey');
+      sessionStorage.setItem('screeningKey', key);
       document.getElementById('login-error').classList.add('hidden');
       enterApp('admin');
     } catch {
@@ -1749,6 +1762,7 @@
 
   function doGuestLogin() {
     screeningKey = '';
+    sessionStorage.removeItem('screeningKey');
     localStorage.removeItem('screeningKey');
     enterApp('guest');
   }
@@ -1756,6 +1770,8 @@
   function doLogout() {
     screeningKey = '';
     currentRole = '';
+    sessionStorage.removeItem('screeningKey');
+    sessionStorage.removeItem('userRole');
     localStorage.removeItem('screeningKey');
     localStorage.removeItem('userRole');
     document.getElementById('login-key-input').value = '';
@@ -1801,7 +1817,8 @@
       const r = await fetch(`${API_BASE2}/admin/stats`, { headers: { 'X-Admin-Key': key } });
       if (!r.ok) throw new Error();
       screeningKey = key;
-      localStorage.setItem('screeningKey', key);
+      localStorage.removeItem('screeningKey');
+      sessionStorage.setItem('screeningKey', key);
       document.getElementById('gate-error').classList.add('hidden');
       showScreeningDash();
     } catch {
@@ -1810,7 +1827,7 @@
   }
 
   function logoutScreening() {
-    screeningKey = ''; localStorage.removeItem('screeningKey');
+    screeningKey = ''; sessionStorage.removeItem('screeningKey'); localStorage.removeItem('screeningKey');
     document.getElementById('screening-dash').classList.add('hidden');
     document.getElementById('screening-gate').classList.remove('hidden');
     document.getElementById('gate-key-input').value = '';

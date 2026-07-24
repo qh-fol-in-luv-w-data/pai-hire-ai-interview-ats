@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
+import ipaddress
 import httpx
 import logging
+import socket
 
-from backend.config import THIRD_PARTY_WEBHOOK_URL, require_admin
+from backend.config import THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS, THIRD_PARTY_WEBHOOK_URL, require_admin
 from backend.services.ai_service import generate_deep_questions
 
 router = APIRouter(tags=["webhook"])
@@ -16,8 +18,39 @@ class DeepAnalysisRequest(BaseModel):
     webhook_url: str = Field(None, description="URL bên thứ 3 để bắn kết quả qua. Nếu trống sẽ dùng config mặc định.")
     n_questions: int = Field(5, description="Số câu hỏi muốn sinh")
 
+
+def _is_public_ip(host: str) -> bool:
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        raise HTTPException(400, "Không resolve được webhook_url")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return False
+    return True
+
+
+def validate_webhook_url(target_url: str) -> str:
+    parsed = urlparse(target_url)
+    if parsed.scheme != "https" or not parsed.netloc or not parsed.hostname:
+        raise HTTPException(400, "webhook_url phải là HTTPS hợp lệ")
+    hostname = parsed.hostname.lower()
+    if THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS and hostname not in THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS:
+        raise HTTPException(400, "webhook_url không nằm trong allowlist")
+    if not _is_public_ip(hostname):
+        raise HTTPException(400, "webhook_url trỏ tới IP nội bộ/không an toàn")
+    return target_url
+
 async def process_and_send_webhook(req: DeepAnalysisRequest):
-    target_url = req.webhook_url or THIRD_PARTY_WEBHOOK_URL
+    target_url = validate_webhook_url(req.webhook_url or THIRD_PARTY_WEBHOOK_URL)
     if not target_url:
         logger.error("Không có webhook_url để bắn dữ liệu.")
         return
@@ -37,7 +70,7 @@ async def process_and_send_webhook(req: DeepAnalysisRequest):
         }
         
         # 2. Send to 3rd party
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=False) as client:
             resp = await client.post(target_url, json=payload, timeout=30.0)
             if resp.status_code >= 400:
                 logger.error(f"Lỗi khi gửi webhook tới {target_url}: HTTP {resp.status_code}")
@@ -49,7 +82,7 @@ async def process_and_send_webhook(req: DeepAnalysisRequest):
         # In a real system, you might retry or send an error payload to the webhook
         if target_url:
             try:
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(follow_redirects=False) as client:
                     await client.post(target_url, json={"status": "error", "message": str(e)}, timeout=10.0)
             except:
                 pass
@@ -70,9 +103,7 @@ async def handle_generate_deep_analysis(
     target_url = req.webhook_url or THIRD_PARTY_WEBHOOK_URL
     if not target_url:
         raise HTTPException(400, "Chưa cấu hình THIRD_PARTY_WEBHOOK_URL và cũng không truyền webhook_url trong request.")
-    parsed = urlparse(target_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise HTTPException(400, "webhook_url không hợp lệ")
+    target_url = validate_webhook_url(target_url)
     if req.n_questions < 1 or req.n_questions > 10:
         raise HTTPException(400, "n_questions phải nằm trong khoảng 1-10")
         

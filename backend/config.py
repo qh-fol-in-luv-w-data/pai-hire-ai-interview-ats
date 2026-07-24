@@ -420,6 +420,11 @@ LEVEL_ORDER = {"nắm vững": 10, "am hiểu": 7.5, "có biết qua": 5, "khôn
 _JOB_LEVELS = ("Entry", "Junior", "Mid", "Senior", "Manager", "Director")
 
 THIRD_PARTY_WEBHOOK_URL = os.environ.get("THIRD_PARTY_WEBHOOK_URL", "")
+THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS = {
+    host.strip().lower()
+    for host in os.environ.get("THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+}
 
 DEEP_ANALYSIS_PROMPT = """Bạn là một Chuyên gia Tuyển dụng cấp cao. 
 Nhiệm vụ của bạn là phân tích sâu CV của ứng viên đối chiếu với Mô tả công việc (JD), sau đó sinh ra những câu hỏi phỏng vấn chuyên sâu (deep analysis). Số lượng câu hỏi tùy thuộc vào số lượng những điểm đáng chú ý, nghi vấn hoặc thành tích nổi bật trong CV (cứ có điểm nào đáng hỏi thì sinh câu hỏi, không bị giới hạn số lượng).

@@ -21,8 +21,13 @@
   <script>
     const API_BASE = window.location.origin;
     
-    // Attempt to get admin key from localStorage or prompt if missing
-    let ADMIN_KEY = localStorage.getItem('pai_admin_key');
+    // Attempt to get admin key from session storage or prompt if missing
+    const legacyAdminKey = localStorage.getItem('pai_admin_key');
+    if (legacyAdminKey) {
+      sessionStorage.setItem('pai_admin_key', legacyAdminKey);
+      localStorage.removeItem('pai_admin_key');
+    }
+    let ADMIN_KEY = sessionStorage.getItem('pai_admin_key');
 
     async function loadReport() {
       const params = new URLSearchParams(window.location.search);

@@ -8,6 +8,8 @@ cert.pem
 
 # Database
 *.db
+*.sqlite
+*.sqlite3
 ats_phongvan.db
 ats_phongvan.db-journal
 
@@ -38,5 +40,6 @@ migrate_old_sessions.py
 # Personal & OS files
 *.pdf
 *.docx
+*.log
 .DS_Store
 Thumbs.db

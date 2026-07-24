@@ -212,7 +212,7 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
             response_format={"type": "json_object"}
         )
         ai_resp_raw = resp.choices[0].message.content
-        print(f"\n=== LLM RAW RESPONSE ===\n{ai_resp_raw}\n=======================")
+        print(f"[EvalStep] LLM response received | q={question_number or '-'} | chars={len(ai_resp_raw or '')}")
         
         try:
             ai_data = json.loads(ai_resp_raw)

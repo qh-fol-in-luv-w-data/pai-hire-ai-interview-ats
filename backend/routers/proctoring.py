@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
+import hashlib
+import hmac
 import httpx
 import re
 from hmac import compare_digest
 from datetime import datetime
 import logging
 from urllib.parse import urlencode, urlparse, urlunparse
+import time
 
 from backend.config import (
     PROCTORING_EMBED_PUBLIC_BASE,
@@ -19,6 +22,35 @@ from backend.database import db
 
 router = APIRouter(tags=["proctoring"])
 logger = logging.getLogger(__name__)
+ALERT_TOKEN_TTL_SECONDS = 4 * 60 * 60
+
+
+def _alert_token_secret() -> str:
+    secret = PROCTORING_WEBHOOK_SECRET or PROCTORING_API_KEY
+    if not secret:
+        raise HTTPException(500, "Chưa cấu hình secret cho proctoring alert token")
+    return secret
+
+
+def _sign_alert_token(app_id: str, exp: int) -> str:
+    msg = f"{app_id}.{exp}"
+    sig = hmac.new(_alert_token_secret().encode(), msg.encode(), hashlib.sha256).hexdigest()
+    return f"{exp}.{sig}"
+
+
+def _verify_alert_token(app_id: str, token: str | None) -> None:
+    if not token:
+        raise HTTPException(401, "Thiếu proctoring token")
+    try:
+        exp_raw, sig = token.split(".", 1)
+        exp = int(exp_raw)
+    except Exception:
+        raise HTTPException(401, "Proctoring token không hợp lệ")
+    if exp < int(time.time()):
+        raise HTTPException(401, "Proctoring token đã hết hạn")
+    expected = _sign_alert_token(app_id, exp).split(".", 1)[1]
+    if not compare_digest(sig, expected):
+        raise HTTPException(401, "Proctoring token không hợp lệ")
 
 
 def _public_embed_url(embed_url: str | None) -> str | None:
@@ -92,7 +124,13 @@ async def create_proctoring_session(req: ProctoringSessionRequest):
             
             if resp.status_code == 200:
                 data = resp.json()
-                return {"embed_url": _public_embed_url(data.get("embed_url")), "mode": "ai_proctoring"}
+                exp = int(time.time()) + ALERT_TOKEN_TTL_SECONDS
+                return {
+                    "embed_url": _public_embed_url(data.get("embed_url")),
+                    "mode": "ai_proctoring",
+                    "alerts_token": _sign_alert_token(req.app_id, exp),
+                    "alerts_token_expires_at": exp,
+                }
             else:
                 logger.error(f"Failed to create proctoring session: {resp.status_code} {resp.text}")
                 return {"embed_url": None, "mode": "local_webcam", "reason": "Không kết nối được AI proctoring server"}
@@ -102,9 +140,10 @@ async def create_proctoring_session(req: ProctoringSessionRequest):
 
 
 @router.get("/api/v1/proctoring/alerts")
-async def get_proctoring_alerts(app_id: str, last_id: int = 0):
+async def get_proctoring_alerts(app_id: str, last_id: int = 0, token: str = None):
     if not re.fullmatch(r"APP-[A-F0-9]{8}", app_id or ""):
         raise HTTPException(400, "app_id không hợp lệ")
+    _verify_alert_token(app_id, token)
     with db() as conn:
         app = conn.execute("SELECT id FROM cv_applications WHERE id=?", (app_id,)).fetchone()
         if not app:
