@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trả lời câu hỏi bổ sung — PAI HR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);min-height:100vh;color:#f1f5f9;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:20px;max-width:680px;width:100%;box-shadow:0 25px 50px rgba(0,0,0,.5)}
+  .header{background:linear-gradient(135deg,#0051d5,#0ea5e9);padding:32px 40px;border-radius:20px 20px 0 0}
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .logo-icon{width:40px;height:40px;background:rgba(255,255,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff}
+  .logo-name{font-size:17px;font-weight:700;color:#fff}
+  h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:8px}
+  .subtitle{color:rgba(255,255,255,.75);font-size:14px;line-height:1.6}
+  .body{padding:32px 40px}
+  .info-box{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:16px 20px;margin-bottom:28px;font-size:13px;color:#94a3b8}
+  .info-box strong{color:#e2e8f0}
+  .q-block{margin-bottom:24px}
+  .q-label{font-size:13px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .q-num{width:24px;height:24px;background:#0051d5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+  .q-text{font-size:15px;color:#e2e8f0;line-height:1.65;margin-bottom:12px;padding-left:32px}
+  textarea{width:100%;background:#0f172a;border:1.5px solid #334155;border-radius:10px;padding:14px 16px;color:#f1f5f9;font-family:'Inter',sans-serif;font-size:14px;line-height:1.7;resize:vertical;min-height:110px;outline:none;transition:border-color .2s}
+  textarea:focus{border-color:#0ea5e9}
+  textarea::placeholder{color:#475569}
+  .btn-submit{width:100%;padding:16px;background:linear-gradient(135deg,#0051d5,#0ea5e9);border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity .2s,transform .1s}
+  .btn-submit:hover{opacity:.9}
+  .btn-submit:active{transform:scale(.99)}
+  .btn-submit:disabled{opacity:.5;cursor:not-allowed}
+  .success{text-align:center;padding:48px 20px}
+  .success .icon{font-size:52px;margin-bottom:16px}
+  .success h2{font-size:22px;font-weight:800;color:#10b981;margin-bottom:10px}
+  .success p{color:#94a3b8;font-size:14px;line-height:1.7}
+  .loading{text-align:center;padding:80px 20px;color:#94a3b8}
+  .spin{animation:spin 1s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:20px}
+  .field-error{border-color:#f87171!important;box-shadow:0 0 0 3px rgba(248,113,113,.12)}
+  .divider{border:none;border-top:1px solid #334155;margin:28px 0}
+  .note{font-size:12px;color:#64748b;line-height:1.6;text-align:center;padding:0 0 28px}
+  @media (max-width: 600px) {
+    body { padding: 16px 12px; }
+    .header { padding: 24px 20px; border-radius: 16px 16px 0 0; }
+    .body { padding: 24px 20px; }
+    .card { border-radius: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">P</div>
+      <span class="logo-name">PAI HR</span>
+    </div>
+    <h1>Câu hỏi bổ sung từ HR</h1>
+    <p class="subtitle">Vui lòng đọc kỹ và trả lời đầy đủ các câu hỏi bên dưới. Câu trả lời của bạn sẽ được đội ngũ tuyển dụng xem xét.</p>
+  </div>
+  <div class="body">
+    <div id="content">
+      <div class="loading"><span class="spin">↻</span> Đang tải câu hỏi...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ref = new URLSearchParams(location.search).get('ref');
+const API = location.origin;
+let questions = [];
+
+async function load() {
+  if (!ref) {
+    document.getElementById('content').innerHTML = '<div class="err">Đường link không hợp lệ. Vui lòng kiểm tra lại email.</div>';
+    return;
+  }
+  try {
+    const r = await fetch(`${API}/candidate/questions?ref=${encodeURIComponent(ref)}`);
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    questions = data.questions || [];
+
+    if (data.already_replied) {
+      showSuccess(true);
+      return;
+    }
+
+    const job = (data.job_id || '').replace(/_/g,' ');
+    let html = `
+      <div class="info-box">
+        Kính gửi <strong>${data.name || 'Ứng viên'}</strong> — Vị trí ứng tuyển: <strong>${job}</strong><br>
+        Sau khi xem xét CV, đội tuyển dụng muốn tìm hiểu thêm về bạn qua <strong>${questions.length} câu hỏi</strong> dưới đây.
+      </div>
+      <div id="error-msg"></div>
+    `;
+    questions.forEach((q, i) => {
+      html += `
+        <div class="q-block">
+          <div class="q-label"><span class="q-num">${i+1}</span> Câu hỏi ${i+1}/${questions.length}</div>
+          <p class="q-text">${q.question_text || q.text || ''}</p>
+          <textarea id="ans-${i}" placeholder="Nhập câu trả lời của bạn tại đây..." rows="4"></textarea>
+        </div>
+      `;
+    });
+    html += `
+      <hr class="divider">
+      <div id="submit-error-msg"></div>
+      <button class="btn-submit" id="btn-send" onclick="submitReply()">📨 Nộp câu trả lời</button>
+      <p class="note" style="margin-top:12px">Câu trả lời chỉ được gửi một lần duy nhất — hãy kiểm tra kỹ trước khi nộp.</p>
+    `;
+    document.getElementById('content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('content').innerHTML = `<div class="err">Lỗi tải dữ liệu: ${e.message}</div>`;
+  }
+}
+
+async function submitReply() {
+  const errEl = document.getElementById('error-msg');
+  const submitErrEl = document.getElementById('submit-error-msg') || errEl;
+  const answers = questions.map((_, i) => (document.getElementById(`ans-${i}`)?.value || '').trim());
+
+  document.querySelectorAll('textarea').forEach(t => t.classList.remove('field-error'));
+  const missingIndex = answers.findIndex(a => !a);
+  if (missingIndex >= 0) {
+    const msg = '<div class="err">⚠️ Vui lòng nhập câu trả lời cho tất cả câu hỏi trước khi nộp.</div>';
+    errEl.innerHTML = msg;
+    submitErrEl.innerHTML = msg;
+    const firstMissing = document.getElementById(`ans-${missingIndex}`);
+    if (firstMissing) {
+      firstMissing.classList.add('field-error');
+      firstMissing.focus();
+      firstMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return;
+  }
+  errEl.innerHTML = '';
+  submitErrEl.innerHTML = '';
+
+  const btn = document.getElementById('btn-send');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang gửi...';
+
+  try {
+    const r = await fetch(`${API}/candidate/reply`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ ref, answers })
+    });
+    const text = await r.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch {}
+    if (!r.ok) {
+      throw new Error(data.detail || text || 'Server không nhận được câu trả lời.');
+    }
+    if (data.ok) {
+      showSuccess(data.already_done);
+      return;
+    }
+    errEl.innerHTML = '<div class="err">Lỗi khi gửi. Vui lòng thử lại.</div>';
+    submitErrEl.innerHTML = errEl.innerHTML;
+  } catch(e) {
+    const msg = `<div class="err">Lỗi mạng: ${e.message}</div>`;
+    errEl.innerHTML = msg;
+    submitErrEl.innerHTML = msg;
+  }
+  btn.disabled = false;
+  btn.textContent = '📨 Nộp câu trả lời';
+}
+
+function showSuccess(alreadyDone) {
+  document.getElementById('content').innerHTML = `
+    <div class="success">
+      <div class="icon">✅</div>
+      <h2>${alreadyDone ? 'Đã ghi nhận trước đó' : 'Gửi thành công!'}</h2>
+      <p>${alreadyDone
+        ? 'Câu trả lời của bạn đã được ghi nhận từ trước. Đội tuyển dụng sẽ liên hệ với bạn trong thời gian sớm nhất.'
+        : 'Cảm ơn bạn đã dành thời gian trả lời! Đội tuyển dụng PAI HR sẽ xem xét và liên hệ với bạn trong thời gian sớm nhất.'
+      }</p>
+    </div>
+  `;
+}
+
+load();
+</script>
+</body>
+</html>

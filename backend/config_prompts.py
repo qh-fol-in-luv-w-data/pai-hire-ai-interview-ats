@@ -1,5 +1,6 @@
 
-SCORE_PROMPT = """Bạn là chuyên gia HR cấp cao, chấm điểm nghiêm khắc. Nhiệm vụ: đánh giá CV theo JD, cho điểm CHÍNH XÁC theo rubric dưới đây.
+SCORE_PROMPT = """Bạn là chuyên gia HR cấp cao cực kỳ khó tính và chấm điểm RẤT NGHIÊM KHẮC. Nhiệm vụ: đánh giá CV theo JD, cho điểm CHÍNH XÁC theo rubric dưới đây.
+Tuyệt đối KHÔNG nương tay, có xu hướng cho điểm thấp nếu thông tin trong CV mập mờ, chung chung hoặc không có minh chứng rõ ràng.
 QUAN TRỌNG: total_score = tổng cộng các sub-score thực tế, KHÔNG được tự ước lượng riêng.
 
 === JOB DESCRIPTION ===
@@ -21,13 +22,13 @@ NHÓM 1 – YẾU TỐ CỨNG (7đ):
      - CV < Y*0.3 → 0đ
      - Nếu JD ghi "fresher" hoặc "không yêu cầu KN": có internship/thực tập ≥ 3 tháng → 2đ; chỉ có project trường → 1đ; không có gì → 0.5đ
   b) Tính liên quan ngành (1đ):
-     - Đúng ngành/vai trò → 1đ
-     - Liên quan gần (cùng domain) → 0.5đ
+     - Đúng ngành/vai trò 100% → 1đ
+     - Liên quan gần (cùng domain nhưng khác role) → 0.5đ
      - Liên quan xa → 0.25đ
      - Không liên quan → 0đ
   c) Thành tích cụ thể (0.5đ):
-     - Có số liệu/kết quả rõ ràng (%, doanh số, giải thưởng) → 0.5đ
-     - Chỉ mô tả công việc chung chung → 0đ
+     - Phải có số liệu/kết quả rõ ràng (%, doanh số, KPI đạt được) → 0.5đ
+     - Mặc định 0đ nếu chỉ liệt kê công việc chung chung, không có số liệu.
 
 1.2 Học Vấn & Chứng Chỉ (2.5đ):
   a) Bằng cấp (1đ):
@@ -50,32 +51,30 @@ NHÓM 1 – YẾU TỐ CỨNG (7đ):
   - Đáp ứng 50–69% → 0.5đ
   - Đáp ứng 30–49% → 0.25đ
   - Đáp ứng < 30% → 0đ
-  - NẾU thiếu kỹ năng bắt buộc (must-have) trong JD → tối đa 0.25đ
+  - NẾU thiếu kỹ năng bắt buộc (must-have) trong JD → tối đa 0đ cho phần này.
 
 NHÓM 2 – YẾU TỐ MỀM (3đ):
 
 2.1 Chất lượng CV (1đ):
-  - 0.75–1đ: Bố cục rõ ràng, mô tả súc tích có số liệu, không lỗi chính tả, format nhất quán
-  - 0.5đ: Đủ thông tin nhưng thiếu số liệu hoặc mô tả chung
-  - 0.25đ: Thiếu nhiều mục, khó đọc
-  - 0đ: Quá sơ sài hoặc lộn xộn
-  - Mặc định chỉ cho 0.5đ nếu không có lý do rõ để cho cao hơn
+  - 0.75–1đ: CV thực sự xuất sắc, thiết kế chuyên nghiệp, có số liệu rõ ràng từng mục.
+  - 0.5đ: Bố cục tạm ổn, thông tin cơ bản.
+  - 0.25đ: Đủ thông tin nhưng trình bày nhàm chán, thiếu số liệu.
+  - 0đ: Lỗi chính tả, trình bày lộn xộn, sơ sài.
+  - Mặc định chỉ cho 0.25đ nếu CV bình thường không có gì nổi bật.
 
 2.2 Dự án & Portfolio (1đ):
-  - 1đ: Có dự án thực tế (không phải bài tập) với kết quả đo lường được, link demo/GitHub
-  - 0.75đ: Có dự án thực tế nhưng thiếu kết quả cụ thể
-  - 0.5đ: Chỉ có project trường/khóa học có mô tả rõ
-  - 0.25đ: Liệt kê project nhưng không có chi tiết
-  - 0đ: Không có project nào
-  - Mặc định 0.25đ nếu không rõ
+  - 1đ: Có dự án thực tế lớn với kết quả ấn tượng, có link demo/GitHub đang hoạt động.
+  - 0.75đ: Có dự án thực tế nhưng mô tả chưa sâu.
+  - 0.5đ: Chỉ có project làm trên trường/khóa học.
+  - 0đ: Không có project, hoặc có ghi nhưng hoàn toàn không mô tả chi tiết.
+  - Mặc định 0đ nếu không có minh chứng rõ ràng.
 
 2.3 Kỹ Năng Mềm & Leadership (1đ):
-  - 1đ: Có vai trò leadership rõ ràng (team lead, trưởng nhóm) + minh chứng cụ thể
-  - 0.75đ: Có kinh nghiệm dẫn nhóm nhỏ hoặc mentor
-  - 0.5đ: Tham gia nhóm có đóng góp được ghi nhận
-  - 0.25đ: Chỉ đề cập kỹ năng mềm chung (teamwork, communication) không có minh chứng
-  - 0đ: Không đề cập
-  - Mặc định 0.25đ nếu không rõ ràng
+  - 1đ: Có kinh nghiệm quản lý, team lead với thành tích dẫn dắt cụ thể.
+  - 0.75đ: Tham gia tổ chức sự kiện, làm mentor.
+  - 0.5đ: Có chứng minh kỹ năng làm việc nhóm tốt.
+  - 0đ: Chỉ liệt kê từ khóa (Teamwork, Communication) mà không có ví dụ thực tế.
+  - Mặc định 0đ nếu chỉ liệt kê từ khóa sáo rỗng.
 
 === CÁCH TÍNH TỔNG ===
 total_score = (years + relevance + achievements) + (degree + major + certs) + technical_skills + cv_quality + projects + leadership
@@ -103,7 +102,7 @@ Chỉ trả về JSON thuần (không markdown, không giải thích):
     "leadership": "<Lý do chấm điểm Kỹ năng mềm/Leadership (nêu rõ minh chứng)>"
   }},
   "summary": "<80-100 từ tiếng Việt: điểm mạnh cụ thể và điểm yếu cụ thể>",
-  "pass": <true nếu total_score >= 6>
+  "pass": <true nếu total_score >= {pass_score}>
 }}"""
 
 EVAL_PROMPT = """Bạn là chuyên gia đánh giá phỏng vấn tuyển dụng.
@@ -153,7 +152,7 @@ CV_QUESTIONS_PROMPT = """Bạn là HR Interviewer đang chuẩn bị phỏng v�
 CV của ứng viên:
 {cv_text}
 
-Tạo đúng 2 câu hỏi phỏng vấn về kinh nghiệm thực tế dựa trực tiếp vào thông tin có trong CV trên.
+Tạo đúng {num_gen} câu hỏi phỏng vấn về kinh nghiệm thực tế dựa trực tiếp vào thông tin có trong CV trên.
 Yêu cầu:
 - Điều chỉnh độ khó/chiều sâu phù hợp với cấp bậc {level} (Entry=cơ bản, Mid=dự án thực tế, Senior/Manager=lãnh đạo/chiến lược)
 - Hỏi cụ thể về dự án, công nghệ, hoặc kinh nghiệm thực sự đề cập trong CV (không hỏi chung chung)
@@ -161,8 +160,8 @@ Yêu cầu:
 - Câu hỏi phải giúp ứng viên kể chi tiết hơn về những gì họ đã thực sự làm
 - Viết bằng tiếng Việt, ngắn gọn (1-2 câu mỗi câu hỏi)
 
-Trả về JSON (không markdown):
-{{"q05": "câu hỏi thứ nhất", "q06": "câu hỏi thứ hai"}}"""
+Trả về JSON (không markdown) đúng định dạng sau:
+{json_format}"""
 
 HOD_QUESTIONS_PROMPT = """Bạn là chuyên gia tuyển dụng cấp cao. Dựa trên kết quả phỏng vấn bên dưới, hãy gợi ý 3-5 câu hỏi sâu hơn để trưởng bộ phận (HOD) khai thác thêm trong vòng phỏng vấn tiếp theo.
 

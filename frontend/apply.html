@@ -111,10 +111,10 @@
 </div>
 
 <!-- ── MAIN ───────────────────────────────────────────── -->
-<div class="max-w-7xl mx-auto px-4 py-6 flex gap-5">
+<div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row gap-5">
 
   <!-- Flat job list -->
-  <div class="flex-1 min-w-0">
+  <div id="job-list-container" class="flex-1 min-w-0">
     <p class="text-xs text-gray-400 mb-3">
       <span id="job-count" class="font-bold text-gray-700">—</span> vị trí đang tuyển
     </p>
@@ -127,7 +127,10 @@
 
   <!-- Detail panel -->
   <div id="detail-panel" class="hidden w-full md:w-[420px] shrink-0">
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-md sticky top-[108px] max-h-[calc(100vh-7rem)] overflow-y-auto">
+    <button onclick="closeDetail()" class="md:hidden flex items-center gap-1 text-sm font-semibold text-gray-600 mb-3 hover:text-blue-600 transition">
+      <span class="material-symbols-outlined text-base">arrow_back</span> Quay lại danh sách
+    </button>
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-md md:sticky md:top-[108px] max-h-none md:max-h-[calc(100vh-7rem)] overflow-y-auto">
       <div id="detail-content"></div>
     </div>
   </div>
@@ -283,7 +286,10 @@ async function selectJob(jobId) {
   document.getElementById('detail-content').innerHTML =
     '<div class="p-5 text-center text-gray-400 text-sm py-10"><span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...</div>';
 
-  if (window.innerWidth < 768) panel.scrollIntoView({behavior:'smooth', block:'start'});
+  if (window.innerWidth < 768) {
+    document.getElementById('job-list-container').classList.add('hidden');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
 
   try {
     const r = await fetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}?level=${selectedLevel}`);
@@ -291,6 +297,12 @@ async function selectJob(jobId) {
   } catch(e) {
     renderDetail(selectedJob);
   }
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('job-list-container').classList.remove('hidden');
+  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
 }
 
 function renderDetail(job) {

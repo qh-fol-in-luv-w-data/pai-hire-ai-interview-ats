@@ -80,10 +80,20 @@ def init_db():
             created_at  TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS proctoring_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            alert_type TEXT NOT NULL,
+            snapshot_id TEXT,
+            timestamp TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_interviews_candidate ON interviews(candidate_id);
         CREATE INDEX IF NOT EXISTS idx_answers_interview    ON answers(interview_id);
         CREATE INDEX IF NOT EXISTS idx_cvapp_job            ON cv_applications(job_id);
         CREATE INDEX IF NOT EXISTS idx_cvapp_status         ON cv_applications(status);
+        CREATE INDEX IF NOT EXISTS idx_proctoring_session   ON proctoring_alerts(session_id);
         """)
     # Migration v1: AI evaluation columns
     with db() as conn:
@@ -179,5 +189,46 @@ def init_db():
                 conn.execute(f"ALTER TABLE cv_applications ADD COLUMN {col} {typedef}")
             except Exception:
                 pass
+
+    # Migration v4: settings table, tab_switches, time_spent
+    with db() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        );
+        """)
+        for col, typedef in [
+            ("tab_switches", "INTEGER DEFAULT 0")
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE interviews ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
+        
+        for col, typedef in [
+            ("time_spent", "INTEGER DEFAULT 0")
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE answers ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
+        
+        # Initialize default settings
+        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cv_pass_score', '6.0')")
+
+    # Migration v5: interview_slots for link validity
+    with db() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS interview_slots (
+            token       TEXT PRIMARY KEY,
+            app_id      TEXT NOT NULL,
+            position_id TEXT NOT NULL,
+            level       TEXT NOT NULL,
+            start_time  TEXT,
+            end_time    TEXT,
+            created_at  TEXT NOT NULL
+        );
+        """)
 
     print(f"[DB] Sẵn sàng: {DB_PATH}")

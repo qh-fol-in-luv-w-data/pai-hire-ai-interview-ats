@@ -104,10 +104,15 @@
 </head>
 <body class="flex min-h-screen text-on-surface">
 <!-- SideNavBar -->
-<aside class="w-sidebar-width h-screen sticky left-0 top-0 flex flex-col h-full py-md px-sm bg-primary-container border-r border-outline-variant z-50">
-<div class="mb-xl px-xs">
+<aside id="admin-sidebar" class="w-[260px] md:w-sidebar-width h-screen fixed md:sticky left-0 top-0 flex flex-col py-md px-sm bg-primary-container border-r border-outline-variant z-50 transition-transform duration-300 -translate-x-full md:translate-x-0">
+<div class="mb-xl px-xs flex justify-between items-center">
+<div>
 <h1 class="font-headline-md text-headline-md font-bold text-on-primary-container leading-none">Luminal HR</h1>
 <p class="text-on-primary-container opacity-60 font-body-sm mt-1">Enterprise Suite</p>
+</div>
+<button onclick="toggleSidebar()" class="md:hidden text-on-primary-container">
+  <span class="material-symbols-outlined">close</span>
+</button>
 </div>
 <nav class="flex-1 space-y-1 overflow-y-auto scroll-hide">
 <a class="flex items-center gap-3 px-3 py-2.5 bg-secondary text-on-secondary rounded-lg font-bold transition-all duration-200 opacity-90 active:scale-95 active-nav-shadow" href="#">
@@ -173,11 +178,17 @@
 <span class="font-body-sm text-body-sm">Settings</span>
 </a>
 </div>
+<!-- MOBILE BACKDROP -->
+<div id="sidebar-backdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+
 </aside>
 <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
 <!-- TopNavBar -->
-<header class="h-16 w-full sticky top-0 bg-surface border-b border-outline-variant z-40 flex items-center justify-between px-lg">
-<div class="flex items-center gap-8 w-full max-w-2xl">
+<header class="h-16 w-full sticky top-0 bg-surface border-b border-outline-variant z-40 flex items-center justify-between px-4 md:px-lg gap-2 md:gap-0">
+  <button onclick="toggleSidebar()" class="md:hidden flex items-center justify-center text-on-surface hover:bg-surface-container rounded-lg p-1.5 shrink-0">
+    <span class="material-symbols-outlined">menu</span>
+  </button>
+<div class="flex items-center gap-4 md:gap-8 w-full max-w-2xl">
 <div class="relative flex-1 group">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary">search</span>
 <input class="w-full bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-body-md focus:ring-2 focus:ring-secondary transition-all" placeholder="Search employees, reports, or skills..." type="text"/>
@@ -492,6 +503,13 @@
 </div>
 </main>
 <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('admin-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+        
         // Simple micro-interaction for AI cards
         document.querySelectorAll('.bg-surface-container-low').forEach(card => {
             card.addEventListener('mouseenter', () => {

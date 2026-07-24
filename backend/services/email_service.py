@@ -15,7 +15,7 @@ def _smtp_send(msg: MIMEMultipart, to_email: str):
         print(f"[Email Error] {to_email}: {e}")
 
 
-def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level: str = "Junior"):
+def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level: str = "Junior", slot_token: str = None, time_note: str = "7 ngày"):
     if not SMTP_USER or not SMTP_PASS:
         print(f"[Email] Chưa cấu hình SMTP — bỏ qua gửi mail cho {to_email}")
         return
@@ -28,8 +28,10 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
             base_pos = job_title[len(lv)+1:]
             break
     import urllib.parse
-    interview_link = f"{INTERVIEW_URL}?ref={urllib.parse.quote(app_id)}&pos={urllib.parse.quote(base_pos)}&lv={urllib.parse.quote(level)}"
-    meet_link      = f"https://meet.ctpai.vn/PAI_HR_Interview_{app_id}"
+    if slot_token:
+        interview_link = f"{INTERVIEW_URL}?slot={urllib.parse.quote(slot_token)}"
+    else:
+        interview_link = f"{INTERVIEW_URL}?ref={urllib.parse.quote(app_id)}&pos={urllib.parse.quote(base_pos)}&lv={urllib.parse.quote(level)}"
     job_display    = job_title.replace("_", " ")
     today          = time.strftime("%d/%m/%Y")
 
@@ -105,8 +107,9 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
   <tr><td style="padding:32px 40px;">
     <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.75;">
       Bạn có thể thực hiện buổi phỏng vấn bất cứ lúc nào, theo đường link bên dưới.
-      Hệ thống sẽ <strong style="color:#dc2626;">tự động bật camera, ghi hình và share màn hình</strong> của bạn để đội tuyển dụng đánh giá.
+      Hệ thống sẽ <strong style="color:#dc2626;">yêu cầu quyền bật camera (webcam)</strong> của bạn trong suốt quá trình phỏng vấn.
     </p>
+
     <table cellpadding="0" cellspacing="0" style="width:100%;">
       <tr><td align="center">
         <a href="{interview_link}"
@@ -126,7 +129,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
   <tr><td style="padding:0 40px 32px;">
     <div style="background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;padding:14px 16px;">
       <p style="margin:0;color:#92400e;font-size:13px;line-height:1.6;">
-        <strong>Lưu ý:</strong> Link phỏng vấn có hiệu lực trong <strong>7 ngày</strong> kể từ ngày nhận email này.
+        <strong>Lưu ý:</strong> {time_note}.
         Nếu cần hỗ trợ, vui lòng liên hệ đội tuyển dụng.
       </p>
     </div>
@@ -159,7 +162,7 @@ def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level
         f"Kính gửi {name},\n\n"
         f"Chúc mừng! Bạn đã được mời tham gia phỏng vấn vị trí {job_display} tại PAI HR.\n\n"
         f"Link phỏng vấn: {interview_link}\n\n"
-        f"Hệ thống sẽ tự động record camera và màn hình của bạn. Thời lượng: 10–15 phút. Link có hiệu lực trong 7 ngày.\n\n"
+        f"Hệ thống sẽ yêu cầu quyền bật camera (webcam) của bạn trong quá trình phỏng vấn. Thời lượng: 10–15 phút. {time_note}.\n\n"
         f"Trân trọng,\nĐội Tuyển Dụng PAI HR"
     )
 
@@ -286,9 +289,6 @@ def send_interview_reminder(name: str, to_email: str, job_title: str, interview_
         return
     job_display = job_title.replace("_", " ")
     today       = time.strftime("%d/%m/%Y")
-    ref_match   = re.search(r"ref=([^&]+)", interview_link)
-    app_id      = ref_match.group(1) if ref_match else str(int(time.time()))
-    meet_link   = f"https://meet.ctpai.vn/PAI_HR_Interview_{app_id}"
 
     html = f"""<!DOCTYPE html>
 <html lang="vi"><head><meta charset="UTF-8"/></head>
@@ -311,7 +311,7 @@ def send_interview_reminder(name: str, to_email: str, job_title: str, interview_
     <p style="margin:0 0 6px;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Nhắc nhở phỏng vấn</p>
     <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700;">Kính gửi {name},</h1>
     <p style="margin:0;color:#374151;font-size:15px;line-height:1.75;">
-      Đây là email nhắc nhở buổi phỏng vấn trực tuyến trực tuyến vị trí
+      Đây là email nhắc nhở buổi phỏng vấn trực tuyến vị trí
       <strong style="color:#0051d5;">{job_display}</strong> của bạn.
       Link phỏng vấn vẫn còn hiệu lực và sẵn sàng để bạn sử dụng.
     </p>
@@ -321,10 +321,9 @@ def send_interview_reminder(name: str, to_email: str, job_title: str, interview_
       <p style="margin:0 0 12px;color:#1e40af;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Chuẩn bị trước khi phỏng vấn</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:13px;line-height:1.9;">
         <li>Sử dụng trình duyệt <strong>Chrome hoặc Edge</strong> phiên bản mới nhất</li>
-        <li>Cho phép trình duyệt <strong>truy cập microphone</strong> khi được hỏi</li>
+        <li>Cho phép trình duyệt <strong>truy cập microphone/webcam</strong> khi được hỏi</li>
         <li>Chọn nơi <strong>yên tĩnh</strong>, không có tiếng ồn xung quanh</li>
         <li>Buổi phỏng vấn có <strong>8 câu hỏi</strong>, thời lượng khoảng <strong>15–20 phút</strong></li>
-        <li>Câu trả lời của bạn sẽ được <strong>ghi âm</strong> để đội tuyển dụng đánh giá</li>
       </ul>
     </div>
   </td></tr>
@@ -357,7 +356,7 @@ def send_interview_reminder(name: str, to_email: str, job_title: str, interview_
         f"Kính gửi {name},\n\n"
         f"Nhắc nhở: bạn có buổi phỏng vấn trực tuyến vị trí {job_display}.\n"
         f"Link phỏng vấn: {interview_link}\n\n"
-        f"Hệ thống sẽ tự động record camera và màn hình. Thời lượng 10–15 phút.\n\n"
+        f"Hệ thống sẽ yêu cầu quyền bật camera (webcam). Thời lượng 10–15 phút.\n\n"
         f"Trân trọng, Đội Tuyển Dụng PAI HR"
     )
     msg = MIMEMultipart("alternative")
@@ -379,9 +378,6 @@ def send_reinterview_email(name: str, to_email: str, job_title: str,
         return
     job_display = job_title.replace("_", " ")
     today       = time.strftime("%d/%m/%Y")
-    ref_match   = re.search(r"ref=([^&]+)", interview_link)
-    app_id      = ref_match.group(1) if ref_match else str(int(time.time()))
-    meet_link   = f"https://meet.ctpai.vn/PAI_HR_ReInterview_{app_id}"
     scope_label = f"câu {scope}" if scope else "toàn bộ câu hỏi"
     reason_row  = f"""
       <tr><td style="padding:10px 16px;background:#fefce8;border:1px solid #fef08a;border-radius:8px;margin-top:8px;">
@@ -602,6 +598,92 @@ def send_interview_result(name: str, to_email: str, job_title: str, decision: st
     msg["Reply-To"] = SMTP_USER
     msg.attach(MIMEText(plain, "plain", "utf-8"))
     msg.attach(MIMEText(html,  "html",  "utf-8"))
+    _smtp_send(msg, to_email)
+
+
+
+def send_deep_questions_email(name: str, to_email: str, job_title: str, app_id: str, deep_questions: list):
+    if not SMTP_USER or not SMTP_PASS:
+        print(f"[Email] Chưa cấu hình SMTP — bỏ qua gửi mail cho {to_email}")
+        return
+
+    job_display = job_title.replace("_", " ")
+    
+    # Build the web reply URL
+    base_url = INTERVIEW_URL.replace("/interview", "")
+    reply_url = f"{base_url}/candidate/reply?ref={app_id}"
+
+    items_html = ""
+    for idx, q in enumerate(deep_questions):
+        items_html += f"""
+        <div style="margin-bottom:14px;padding:12px 16px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:6px;">
+            <p style="margin:0;font-size:14px;color:#0369a1;font-weight:700;">Câu {idx+1}:</p>
+            <p style="margin:6px 0 0;font-size:14px;color:#111827;">{q['question_text']}</p>
+        </div>
+        """
+
+    html = f"""<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:40px 16px;">
+<tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;">
+  <tr><td style="background:#131b2e;padding:24px 40px;border-bottom:3px solid #0ea5e9;">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="width:36px;height:36px;background:#0051d5;border-radius:8px;text-align:center;vertical-align:middle;">
+        <span style="color:#fff;font-size:18px;font-weight:800;line-height:36px;">P</span>
+      </td>
+      <td style="padding-left:12px;">
+        <p style="margin:0;color:#fff;font-size:16px;font-weight:700;">PAI HR</p>
+        <p style="margin:0;color:rgba(255,255,255,.45);font-size:11px;">Yêu cầu thông tin bổ sung</p>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:36px 40px 0;">
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.75;">Kính gửi <strong style="color:#111827;">{name}</strong>,</p>
+    <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.75;">
+      Cảm ơn bạn đã ứng tuyển vị trí <strong style="color:#111827;">{job_display}</strong> tại PAI HR.
+    </p>
+    <p style="margin:0;color:#374151;font-size:15px;line-height:1.75;">
+      Sau khi xem xét CV của bạn, đội tuyển dụng có một vài câu hỏi muốn bạn làm rõ thêm trước khi sắp xếp lịch phỏng vấn chính thức.
+    </p>
+  </td></tr>
+  <tr><td style="padding:24px 40px 36px;">
+    <p style="margin:0 0 20px;color:#374151;font-size:14px;line-height:1.75;">
+      Vui lòng nhấn nút bên dưới để truy cập trang web an toàn và xem danh sách câu hỏi:
+    </p>
+    <table cellpadding="0" cellspacing="0">
+      <tr><td style="background:#0051d5;border-radius:10px;padding:14px 28px;text-align:center;">
+        <a href="{reply_url}" style="color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">
+          ✍️ Xem & Trả lời câu hỏi ngay
+        </a>
+      </td></tr>
+    </table>
+    <p style="margin:16px 0 0;font-size:12px;color:#6b7280;">
+      Hoặc copy link: <a href="{reply_url}" style="color:#0051d5;">{reply_url}</a>
+    </p>
+  </td></tr>
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:14px 40px;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;">Email tự động từ hệ thống PAI HR · Mã hồ sơ: {app_id}</p>
+  </td></tr>
+</table></td></tr></table>
+</body>
+</html>"""
+
+    plain = (
+        f"Kính gửi {name},\n\n"
+        f"Đội tuyển dụng PAI HR có một vài câu hỏi muốn bạn làm rõ về hồ sơ ứng tuyển vị trí {job_display}.\n\n"
+        f"Vui lòng truy cập đường link sau để xem và trả lời câu hỏi: {reply_url}\n\n"
+        f"Trân trọng,\nĐội Tuyển Dụng PAI HR"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"PAI HR - Câu hỏi đánh giá chuyên sâu - Vị trí {job_display} [Ref: {app_id}]"
+    msg["From"] = f"PAI HR <{SMTP_USER}>"
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
     _smtp_send(msg, to_email)
 
 

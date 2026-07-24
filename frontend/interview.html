@@ -48,6 +48,10 @@
     <p class="text-white/50 text-xs">Phỏng vấn trực tuyến</p>
   </div>
   <div class="ml-auto flex items-center gap-3">
+    <div id="camera-alert-indicator" class="hidden items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-400/40 rounded-xl">
+      <span class="material-symbols-outlined text-amber-300 text-base">videocam_alert</span>
+      <span class="text-amber-100 text-xs font-semibold">Cam: <span id="camera-alert-badge" class="font-black text-amber-300">0s</span></span>
+    </div>
     <div id="tab-switch-indicator" class="hidden items-center gap-2 px-3 py-1.5 bg-red-600/20 border border-red-500/40 rounded-xl">
       <span class="material-symbols-outlined text-red-400 text-base">tab_close</span>
       <span class="text-red-300 text-xs font-semibold">Out tab: <span id="tab-switch-badge" class="font-black text-red-400">0</span> lần</span>
@@ -86,13 +90,14 @@
         </span>
       </label>
       <label class="flex items-start gap-3 cursor-pointer">
-        <input type="checkbox" id="consent-camera" class="mt-0.5 w-4 h-4 accent-[#0051d5] shrink-0"/>
+        <input type="checkbox" id="consent-camera" class="mt-0.5 w-4 h-4 accent-[#0051d5] shrink-0" required/>
         <span class="text-sm text-gray-600">
-          Tôi đồng ý bật camera (không bắt buộc — nếu được yêu cầu bởi HR)
+          Tôi đồng ý bật camera để hệ thống giám sát trong suốt buổi phỏng vấn
+          <span class="text-red-500"> *</span>
         </span>
       </label>
     </div>
-    <p id="consent-error" class="hidden text-red-500 text-xs mb-3 font-medium">Vui lòng đồng ý ghi âm để tiếp tục.</p>
+    <p id="consent-error" class="hidden text-red-500 text-xs mb-3 font-medium">Vui lòng đồng ý ghi âm và bật camera để tiếp tục.</p>
     <button onclick="acceptConsent()"
       class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition active:scale-[.98]">
       Đồng ý và Bắt đầu
@@ -106,11 +111,16 @@
 
 <main class="max-w-3xl mx-auto px-4 py-8">
 
-<!-- ── WEBCAM CONTAINER ────────────────────────────────── -->
-<!-- Thêm pointer-events-auto cho iframe để user có thể tương tác với iframe nếu cần (nhưng mặc định chặn để ko ảnh hưởng) -->
-<div id="webcam-container" class="hidden fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[100px] h-[140px] sm:w-[360px] sm:h-[240px] z-[9999] bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700 transition-transform hover:scale-105 pointer-events-auto">
-  <video id="webcam-video" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1] pointer-events-none"></video>
-  <iframe id="proctoring-iframe" allow="camera; microphone" class="hidden w-full h-full border-0 object-cover pointer-events-none" style="pointer-events: none;"></iframe>
+<!-- ── PROCTORING CAMERA ────────────────────────────────── -->
+<div id="webcam-container" class="hidden fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[160px] h-[120px] sm:w-[320px] sm:h-[240px] z-[9000] bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700">
+  <video id="webcam-video" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
+  <div class="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
+    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+    AI CAM
+  </div>
+  <div id="proctoring-ws-status" class="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white">WS: idle</div>
+  <canvas id="proctoring-canvas" class="hidden"></canvas>
+  <iframe id="proctoring-iframe" title="AI proctoring camera" allow="camera; microphone; autoplay" class="hidden w-full h-full border-0"></iframe>
 </div>
 
 <!-- ── STEP 1: Setup ─────────────────────────────────────── -->
@@ -282,7 +292,13 @@
     <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
       <div id="q-progress-bar" class="h-full bg-[#0051d5] transition-all duration-500" style="width:0%"></div>
     </div>
-    <div class="flex gap-1.5 mt-3" id="q-dots"></div>
+    <div class="flex items-center justify-between gap-3 mt-3">
+      <div class="flex gap-1.5" id="q-dots"></div>
+      <div id="camera-alert-inline" class="hidden shrink-0 items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-700 max-w-[70%]">
+        <span class="material-symbols-outlined text-sm">videocam_alert</span>
+        <span id="camera-alert-inline-list" class="truncate"></span>
+      </div>
+    </div>
   </div>
 
   <!-- Question cards -->
@@ -423,9 +439,17 @@ let surveyRatings = {};
 let surveyNPS     = null;
 
 let webcamStream = null;
+let pendingCameraStream = null;
 let currentInterviewId = '';
 let sttTexts = {};
 let pushbackTexts = {};
+let proctoringPollTimer = null;
+let proctoringLastAlertId = 0;
+let proctoringPollPrimed = false;
+let proctoringAlertTimer = null;
+let proctoringAlertStates = {};
+let proctoringWs = null;
+let proctoringFrameTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -439,6 +463,31 @@ function escapeHtml(value) {
 
 // ── Validate slot token nếu vào link từ lịch hẹn ───────────
 if (SLOT) {
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="slot-check-overlay" style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b);font-family:'Inter',sans-serif;color:#e2e8f0;padding:24px;text-align:center;">
+      <div>
+        <div style="font-size:36px;margin-bottom:12px;">⏳</div>
+        <p style="font-weight:800;margin-bottom:6px;">Đang kiểm tra khung giờ phỏng vấn...</p>
+        <p style="font-size:13px;color:#94a3b8;">Vui lòng chờ trong giây lát.</p>
+      </div>
+    </div>
+  `);
+  function showSlotBlocked(reason, msg) {
+    document.body.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;
+           background:linear-gradient(135deg,#0f172a,#1e293b);font-family:'Inter',sans-serif;padding:24px;">
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:20px;
+             max-width:480px;width:100%;padding:40px;text-align:center;">
+          <div style="font-size:52px;margin-bottom:16px;">${reason === 'not_started' ? '⏰' : '🔒'}</div>
+          <h2 style="color:#f87171;font-size:22px;font-weight:800;margin:0 0 12px;">${
+            reason === 'not_started' ? 'Chưa đến giờ phỏng vấn' :
+            reason === 'expired'     ? 'Khung giờ đã kết thúc'  : 'Link không hợp lệ'
+          }</h2>
+          <p style="color:#94a3b8;font-size:14px;line-height:1.7;margin:0 0 24px;">${escapeHtml(msg)}</p>
+          <p style="color:#64748b;font-size:12px;">Vui lòng liên hệ HR để được hỗ trợ.</p>
+        </div>
+      </div>`;
+  }
   (async () => {
     try {
       const r = await fetch(`${API_BASE}/api/v1/slot/${SLOT}/validate`);
@@ -447,26 +496,13 @@ if (SLOT) {
         const detail = err.detail || {};
         const reason = detail.reason || 'invalid';
         const msg = detail.message || 'Link phỏng vấn không hợp lệ hoặc đã hết hạn.';
-        // Hiện màn hình thông báo, ẩn toàn bộ nội dung
-        document.body.innerHTML = `
-          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;
-               background:linear-gradient(135deg,#0f172a,#1e293b);font-family:'Inter',sans-serif;padding:24px;">
-            <div style="background:#1e293b;border:1px solid #334155;border-radius:20px;
-                 max-width:480px;width:100%;padding:40px;text-align:center;">
-              <div style="font-size:52px;margin-bottom:16px;">${reason === 'not_started' ? '⏰' : '🔒'}</div>
-              <h2 style="color:#f87171;font-size:22px;font-weight:800;margin:0 0 12px;">${
-                reason === 'not_started' ? 'Chưa đến giờ phỏng vấn' :
-                reason === 'expired'     ? 'Khung giờ đã kết thúc'  : 'Link không hợp lệ'
-              }</h2>
-              <p style="color:#94a3b8;font-size:14px;line-height:1.7;margin:0 0 24px;">${escapeHtml(msg)}</p>
-              <p style="color:#64748b;font-size:12px;">Vui lòng liên hệ HR để được hỗ trợ.</p>
-            </div>
-          </div>`;
+        showSlotBlocked(reason, msg);
         return;
       }
       // Slot hợp lệ — lấy thông tin để pre-fill
       const slotData = await r.json();
       console.log('[Slot] Hợp lệ:', slotData);
+      document.getElementById('slot-check-overlay')?.remove();
       // Nếu URL chưa có app_ref, gán từ slot
       if (!REF && slotData.app_id) {
         REF = slotData.app_id;
@@ -490,6 +526,7 @@ if (SLOT) {
       }
     } catch(e) {
       console.warn('[Slot] Không thể validate:', e);
+      showSlotBlocked('invalid', 'Không kiểm tra được khung giờ phỏng vấn. Vui lòng tải lại trang hoặc liên hệ HR.');
     }
   })();
 }
@@ -523,9 +560,231 @@ async function logIncident(type, description) {
     await fetch(`${API_BASE}/interview/incident`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interview_id: currentInterviewId || null, type, description }),
+      body: JSON.stringify({ interview_id: currentInterviewId || null, app_ref: REF || null, type, description }),
     });
   } catch(e) { /* fire-and-forget */ }
+}
+
+function proctoringAlertLabel(alertType) {
+  const key = String(alertType || '').toUpperCase();
+  const labels = {
+    MULTI_FACE: 'Phát hiện nhiều khuôn mặt trong khung hình.',
+    FACE_MISSING: 'Không thấy khuôn mặt trong khung hình.',
+    FACE_NOT_FOUND: 'Không thấy khuôn mặt trong khung hình.',
+    NO_FACE: 'Không thấy khuôn mặt trong khung hình.',
+    LOOK_AWAY: 'Ứng viên nhìn ra ngoài màn hình quá lâu.',
+    PHONE_DETECTED: 'Phát hiện điện thoại trong khung hình.',
+    TAB_SWITCH: 'Phát hiện chuyển tab/cửa sổ.',
+  };
+  return labels[key] || `Cảnh báo camera: ${alertType || 'không xác định'}.`;
+}
+
+function proctoringAlertShortLabel(alertType) {
+  const key = String(alertType || '').toUpperCase();
+  const labels = {
+    MULTI_FACE: 'Nhiều mặt',
+    FACE_MISSING: 'Mất mặt',
+    FACE_NOT_FOUND: 'Mất mặt',
+    NO_FACE: 'Mất mặt',
+    LOOK_AWAY: 'Nhìn ra ngoài',
+    PHONE_DETECTED: 'Điện thoại',
+    TAB_SWITCH: 'Chuyển tab',
+  };
+  return labels[key] || (alertType || 'Camera');
+}
+
+function proctoringAlertDurationMs(state, now = Date.now()) {
+  const activeMs = state.activeSince ? Math.max(1000, now - state.activeSince) : 0;
+  return state.totalMs + activeMs;
+}
+
+function updateProctoringAlertDurations() {
+  const now = Date.now();
+  Object.values(proctoringAlertStates).forEach(state => {
+    if (state.activeSince && now - state.lastSeen > 8000) {
+      state.totalMs += Math.max(1000, state.lastSeen - state.activeSince);
+      state.activeSince = null;
+    }
+  });
+  renderProctoringAlertSummary();
+}
+
+function renderProctoringAlertSummary() {
+  const states = Object.values(proctoringAlertStates);
+  const header = document.getElementById('camera-alert-indicator');
+  const badge = document.getElementById('camera-alert-badge');
+  const inline = document.getElementById('camera-alert-inline');
+  const inlineList = document.getElementById('camera-alert-inline-list');
+
+  if (!states.length) {
+    header?.classList.add('hidden');
+    inline?.classList.add('hidden');
+    if (badge) badge.textContent = '0s';
+    if (inlineList) inlineList.textContent = '';
+    return;
+  }
+
+  const now = Date.now();
+  const rows = states
+    .map(state => ({
+      label: state.label,
+      seconds: Math.max(1, Math.ceil(proctoringAlertDurationMs(state, now) / 1000)),
+      lastSeen: state.lastSeen,
+    }))
+    .sort((a, b) => b.lastSeen - a.lastSeen);
+  const totalSeconds = rows.reduce((sum, row) => sum + row.seconds, 0);
+
+  if (header) {
+    header.classList.remove('hidden');
+    header.classList.add('flex');
+  }
+  if (badge) badge.textContent = `${totalSeconds}s`;
+  if (inline) {
+    inline.classList.remove('hidden');
+    inline.classList.add('flex');
+  }
+  if (inlineList) {
+    inlineList.textContent = rows.map(row => `${row.label}: ${row.seconds}s`).join(' · ');
+  }
+}
+
+function showProctoringWarning(alert) {
+  const type = String(alert?.alert_type || 'UNKNOWN').toUpperCase();
+  const now = Date.now();
+  const state = proctoringAlertStates[type] || {
+    type,
+    label: proctoringAlertShortLabel(type),
+    totalMs: 0,
+    activeSince: null,
+    lastSeen: 0,
+  };
+  if (!state.activeSince || now - state.lastSeen > 8000) {
+    state.activeSince = now;
+  }
+  state.lastSeen = now;
+  proctoringAlertStates[type] = state;
+  renderProctoringAlertSummary();
+}
+
+async function pollProctoringAlerts() {
+  if (!REF) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/proctoring/alerts?app_id=${encodeURIComponent(REF)}&last_id=${proctoringLastAlertId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const alerts = data.alerts || [];
+    if (!proctoringPollPrimed) {
+      if (alerts.length) {
+        proctoringLastAlertId = Math.max(proctoringLastAlertId, ...alerts.map(a => Number(a.id) || 0));
+      }
+      proctoringPollPrimed = true;
+      return;
+    }
+    if (!alerts.length) return;
+
+    proctoringLastAlertId = Math.max(proctoringLastAlertId, ...alerts.map(a => Number(a.id) || 0));
+
+    const latest = alerts[alerts.length - 1];
+    alerts.forEach(showProctoringWarning);
+    logIncident('proctoring_alert', `${latest.alert_type || 'unknown'}${latest.snapshot_id ? ` snapshot=${latest.snapshot_id}` : ''}`);
+  } catch(e) {
+    console.warn('Failed to poll proctoring alerts', e);
+  }
+}
+
+function startProctoringAlertPolling() {
+  if (!REF || proctoringPollTimer) return;
+  proctoringLastAlertId = 0;
+  proctoringPollPrimed = false;
+  proctoringAlertStates = {};
+  if (proctoringAlertTimer) clearInterval(proctoringAlertTimer);
+  proctoringAlertTimer = setInterval(updateProctoringAlertDurations, 1000);
+  renderProctoringAlertSummary();
+  pollProctoringAlerts();
+  proctoringPollTimer = setInterval(pollProctoringAlerts, 4000);
+}
+
+function stopProctoringAlertPolling() {
+  if (proctoringPollTimer) {
+    clearInterval(proctoringPollTimer);
+    proctoringPollTimer = null;
+  }
+  if (proctoringAlertTimer) {
+    clearInterval(proctoringAlertTimer);
+    proctoringAlertTimer = null;
+  }
+  updateProctoringAlertDurations();
+}
+
+function setProctoringWsStatus(status, tone = 'idle') {
+  const el = document.getElementById('proctoring-ws-status');
+  if (!el) return;
+  el.textContent = `WS: ${status}`;
+  el.className = 'absolute bottom-2 left-2 rounded-full px-2 py-1 text-[10px] font-bold text-white ' + (
+    tone === 'ok' ? 'bg-emerald-700/80' :
+    tone === 'bad' ? 'bg-red-700/80' :
+    tone === 'warn' ? 'bg-amber-600/80' :
+    'bg-black/70'
+  );
+}
+
+function tokenFromProctoringUrl(proctoringUrl) {
+  try {
+    return new URL(proctoringUrl).searchParams.get('token') || '';
+  } catch {
+    return '';
+  }
+}
+
+function stopDirectProctoringStream() {
+  if (proctoringFrameTimer) {
+    clearInterval(proctoringFrameTimer);
+    proctoringFrameTimer = null;
+  }
+  if (proctoringWs) {
+    try { proctoringWs.close(); } catch {}
+    proctoringWs = null;
+  }
+  setProctoringWsStatus('stopped');
+}
+
+function startDirectProctoringStream(proctoringUrl, videoEl) {
+  const token = tokenFromProctoringUrl(proctoringUrl);
+  if (!token || !videoEl) {
+    setProctoringWsStatus('no-token', 'bad');
+    return;
+  }
+  const canvas = document.getElementById('proctoring-canvas');
+  const wsUrl = `wss://service.ctpai.vn/detection/gateway/ws/stream?token=${encodeURIComponent(token)}`;
+  stopDirectProctoringStream();
+  setProctoringWsStatus('connecting', 'warn');
+  proctoringWs = new WebSocket(wsUrl);
+
+  proctoringWs.onopen = () => {
+    setProctoringWsStatus('connected', 'ok');
+    proctoringFrameTimer = setInterval(() => {
+      if (!proctoringWs || proctoringWs.readyState !== WebSocket.OPEN || !videoEl.videoWidth || !canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = videoEl.videoWidth || 640;
+      canvas.height = videoEl.videoHeight || 480;
+      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      proctoringWs.send(JSON.stringify({
+        timestamp: Math.floor(Date.now() / 1000),
+        frame: canvas.toDataURL('image/jpeg', 0.7),
+      }));
+    }, 200);
+  };
+  proctoringWs.onerror = err => {
+    console.error('Direct proctoring WebSocket error', err);
+    setProctoringWsStatus('error', 'bad');
+  };
+  proctoringWs.onclose = () => {
+    if (proctoringFrameTimer) {
+      clearInterval(proctoringFrameTimer);
+      proctoringFrameTimer = null;
+    }
+    setProctoringWsStatus('disconnected', 'bad');
+  };
 }
 
 // ── Consent modal (§22) ──────────────────────────────────
@@ -536,25 +795,40 @@ function showConsentModal() {
 }
 async function acceptConsent() {
   const audioBox = document.getElementById('consent-audio');
-  if (!audioBox.checked) {
+  const cameraBox = document.getElementById('consent-camera');
+  if (!audioBox.checked || !cameraBox.checked) {
     document.getElementById('consent-error').classList.remove('hidden');
     return;
   }
 
-  // Request mic permission upfront before starting
+  // Request mic/camera permission upfront so browser permission prompts do not count as tab-out.
   const btn = document.querySelector('#consent-modal button');
   const origText = btn.textContent;
-  btn.textContent = '🎤 Đang xin quyền mic...';
+  btn.textContent = 'Đang xin quyền mic/camera...';
   btn.disabled = true;
   requestingPermission = true;  // tắt đếm tab switch trong khi xin quyền
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    stream.getTracks().forEach(t => t.stop());
+    if (pendingCameraStream) {
+      pendingCameraStream.getTracks().forEach(t => t.stop());
+      pendingCameraStream = null;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: { width: 640, height: 480 }
+    });
+    stream.getAudioTracks().forEach(t => t.stop());
+    pendingCameraStream = new MediaStream(stream.getVideoTracks());
   } catch (err) {
     const errMsg = err.message || err.name || "Unknown error";
-    console.warn(`Không thể truy cập Mic/Cam (${errMsg}). Bỏ qua kiểm tra để test.`);
-    showToast(`Bỏ qua lỗi truy cập Mic/Cam (${errMsg}) để tiếp tục test.`, 'warning');
-    // Không return ở đây nữa để cho phép user vào test UI
+    console.warn(`Không thể truy cập Mic/Cam (${errMsg}).`);
+    requestingPermission = false;
+    btn.textContent = origText;
+    btn.disabled = false;
+    if (REF || SLOT) {
+      showToast('Vui lòng cấp quyền micro và camera để bắt đầu phỏng vấn.', 'error', 8000);
+      return;
+    }
+    showToast(`Bỏ qua lỗi truy cập Mic/Cam (${errMsg}) để tiếp tục test local.`, 'warning');
   }
   requestingPermission = false;
 
@@ -564,7 +838,7 @@ async function acceptConsent() {
   modal.style.pointerEvents = 'none';
   btn.textContent = origText;
   btn.disabled = false;
-  _doStartInterview();
+  await startInterview();
 }
 
 // ── Level selector (§13) ──────────────────────────────────
@@ -855,21 +1129,9 @@ async function startInterview() {
   btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-base">sync</span> Đang chuẩn bị phỏng vấn...';
   btn.disabled = true;
 
-  requestingPermission = true;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
-  } catch(e) {
-    requestingPermission = false;
-    alert('Vui lòng cấp quyền Microphone trên trình duyệt để bắt đầu phỏng vấn.');
-    btn.innerHTML = oldHtml;
-    btn.disabled = false;
-    return;
-  }
-  requestingPermission = false;
-
   // Lấy proctoring session URL
   let proctoringUrl = null;
+  let proctoringError = '';
   if (REF) {
     try {
       const resp = await fetch(`${API_BASE}/api/v1/proctoring/session`, {
@@ -880,10 +1142,25 @@ async function startInterview() {
       if (resp.ok) {
         const data = await resp.json();
         proctoringUrl = data.embed_url;
+        if (!proctoringUrl && data.mode === 'local_webcam') {
+          proctoringError = data.reason || 'Không khởi tạo được AI proctoring.';
+          console.warn("AI proctoring unavailable; using local webcam preview.", data.reason || '');
+        }
+      } else {
+        proctoringError = 'Không khởi tạo được phiên giám sát camera.';
       }
     } catch(err) {
+      proctoringError = err.message || 'Không kết nối được AI proctoring.';
       console.warn("Failed to get proctoring session", err);
     }
+  }
+
+  if (REF && !proctoringUrl) {
+    alert(`Không thể bắt đầu phỏng vấn vì camera giám sát chưa sẵn sàng. ${proctoringError}`);
+    btn.innerHTML = oldHtml;
+    btn.disabled = false;
+    showConsentModal();
+    return;
   }
 
   btn.innerHTML = oldHtml;
@@ -892,8 +1169,6 @@ async function startInterview() {
 }
 
 function _doStartInterview(proctoringUrl) {
-  enterFullscreen();
-  
   // Show and initialize Webcam
   const webcamContainer = document.getElementById('webcam-container');
   const webcamVideo = document.getElementById('webcam-video');
@@ -902,20 +1177,56 @@ function _doStartInterview(proctoringUrl) {
   if (webcamContainer && !webcamStream) {
     webcamContainer.classList.remove('hidden');
     if (proctoringUrl) {
-      webcamVideo.classList.add('hidden');
-      proctoringIframe.classList.remove('hidden');
+      webcamVideo.classList.remove('hidden');
       proctoringIframe.src = proctoringUrl;
+      proctoringIframe.classList.add('hidden');
+      if (pendingCameraStream) {
+        webcamStream = pendingCameraStream;
+        pendingCameraStream = null;
+        webcamVideo.srcObject = webcamStream;
+        webcamVideo.onloadedmetadata = () => startDirectProctoringStream(proctoringUrl, webcamVideo);
+        if (webcamVideo.readyState >= 2) startDirectProctoringStream(proctoringUrl, webcamVideo);
+      } else {
+        requestingPermission = true;
+        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
+          .then(stream => {
+            requestingPermission = false;
+            webcamStream = stream;
+            webcamVideo.srcObject = stream;
+            webcamVideo.onloadedmetadata = () => startDirectProctoringStream(proctoringUrl, webcamVideo);
+            if (webcamVideo.readyState >= 2) startDirectProctoringStream(proctoringUrl, webcamVideo);
+          })
+          .catch(err => {
+            requestingPermission = false;
+            console.warn("Webcam access denied or failed", err);
+            setProctoringWsStatus('camera-error', 'bad');
+            showToast('Không lấy được camera để gửi về hệ thống giám sát.', 'error', 8000);
+          });
+      }
     } else {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(stream => {
-          webcamStream = stream;
-          webcamVideo.srcObject = stream;
-        })
-        .catch(err => {
-          console.warn("Webcam access denied or failed", err);
-        });
+      if (pendingCameraStream) {
+        webcamStream = pendingCameraStream;
+        pendingCameraStream = null;
+        webcamVideo.srcObject = webcamStream;
+      } else {
+        requestingPermission = true;
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+          .then(stream => {
+            requestingPermission = false;
+            webcamStream = stream;
+            webcamVideo.srcObject = stream;
+          })
+          .catch(err => {
+            requestingPermission = false;
+            console.warn("Webcam access denied or failed", err);
+          });
+      }
     }
   }
+
+  enterFullscreen();
+  setTimeout(() => { antiCheatArmed = true; }, 800);
+  startProctoringAlertPolling();
 
   const meta = JD_META[selectedPosition] || JD_META['_default'];
   prepInterview().then(() => {
@@ -1279,7 +1590,12 @@ async function processAnswer(qn, isPushback = false) {
     form.append('audio', answers[qn]);
     const qText = PREP_QUESTIONS[mainQn]?.text || '';
     form.append('question_text', qText);
+    form.append('question_number', mainQn);
     form.append('question_type', isPushback ? 'FollowUp' : qObj.type);
+    const allowFollowUp = isPushback ? false : PREP_QUESTIONS[mainQn]?.allow_follow_up !== false;
+    if (!allowFollowUp) {
+      form.append('follow_up_limit', 0);
+    }
     
     // Build history
     const historyArray = [];
@@ -1302,7 +1618,7 @@ async function processAnswer(qn, isPushback = false) {
       }
     }
     form.append('history', JSON.stringify(historyArray));
-    form.append('follow_up_limit', followUpLimit);
+    form.append('follow_up_limit', allowFollowUp ? followUpLimit : 0);
     
     const res = await fetch(`${API_BASE}/interview/evaluate-step`, { method: 'POST', body: form });
     const data = await res.json();
@@ -1635,12 +1951,24 @@ async function submitInterview() {
     document.getElementById('step-2').classList.add('hidden');
     document.getElementById('step-3').classList.remove('hidden');
     document.getElementById('step-badge').textContent = '';
+    stopProctoringAlertPolling();
+    stopDirectProctoringStream();
     
     // Dispose Webcam when done
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       webcamStream = null;
       document.getElementById('webcam-container').classList.add('hidden');
+    }
+    if (pendingCameraStream) {
+      pendingCameraStream.getTracks().forEach(track => track.stop());
+      pendingCameraStream = null;
+    }
+    const proctoringIframe = document.getElementById('proctoring-iframe');
+    if (proctoringIframe) {
+      proctoringIframe.src = '';
+      proctoringIframe.classList.add('hidden');
+      document.getElementById('webcam-container')?.classList.add('hidden');
     }
 
 
@@ -1880,32 +2208,89 @@ window.resumeTest = function() {
 };
 
 let tabSwitchCount = 0;
+let antiCheatArmed = false;
 let requestingPermission = false;  // flag để bỏ qua visibilitychange khi trình duyệt popup xin quyền
+let navigationInProgress = false;
+let pendingVisibilityTimer = null;
+let pendingFullscreenTimer = null;
+
+function markNavigationInProgress() {
+  navigationInProgress = true;
+  if (pendingVisibilityTimer) {
+    clearTimeout(pendingVisibilityTimer);
+    pendingVisibilityTimer = null;
+  }
+  if (pendingFullscreenTimer) {
+    clearTimeout(pendingFullscreenTimer);
+    pendingFullscreenTimer = null;
+  }
+}
+
+function shouldIgnoreAntiCheatEvent() {
+  return requestingPermission || navigationInProgress || !antiCheatArmed;
+}
+
+function recordAntiCheatEvent(type, description) {
+  tabSwitchCount++;
+  logIncident(type, description);
+  const countEl = document.getElementById('overlay-tab-count');
+  if (countEl) countEl.textContent = tabSwitchCount;
+  const badgeEl = document.getElementById('tab-switch-badge');
+  if (badgeEl) badgeEl.textContent = tabSwitchCount;
+  const indicator = document.getElementById('tab-switch-indicator');
+  if (indicator) {
+    indicator.classList.remove('hidden');
+    indicator.classList.add('flex');
+  }
+  showCheatOverlay();
+}
+
+document.addEventListener('keydown', e => {
+  const key = (e.key || '').toLowerCase();
+  if (key === 'f5' || ((e.ctrlKey || e.metaKey) && key === 'r')) {
+    markNavigationInProgress();
+  }
+});
+window.addEventListener('beforeunload', markNavigationInProgress);
+window.addEventListener('pagehide', markNavigationInProgress);
+
 document.addEventListener('visibilitychange', () => {
-  if (requestingPermission) return;  // bỏ qua nếu đang xin quyền mic/camera
+  if (shouldIgnoreAntiCheatEvent()) return;  // bỏ qua nếu đang xin quyền mic/camera hoặc reload trang
   const step2 = document.getElementById('step-2');
   if (step2 && !step2.classList.contains('hidden')) {
     if (document.hidden) {
-      tabSwitchCount++;
-      logIncident('tab_switch', `Candidate switched tab (${tabSwitchCount} times)`);
-      // Update count in overlay before showing
-      const countEl = document.getElementById('overlay-tab-count');
-      if (countEl) countEl.textContent = tabSwitchCount;
-      // Update count in header badge
-      const badgeEl = document.getElementById('tab-switch-badge');
-      if (badgeEl) badgeEl.textContent = tabSwitchCount;
-      // Show header indicator on first out-tab
-      const indicator = document.getElementById('tab-switch-indicator');
-      if (indicator) {
-        indicator.classList.remove('hidden');
-        indicator.classList.add('flex');
-      }
-      showCheatOverlay();
+      if (pendingVisibilityTimer) clearTimeout(pendingVisibilityTimer);
+      pendingVisibilityTimer = setTimeout(() => {
+        pendingVisibilityTimer = null;
+        if (shouldIgnoreAntiCheatEvent() || !document.hidden) return;
+        const activeStep2 = document.getElementById('step-2');
+        if (!activeStep2 || activeStep2.classList.contains('hidden')) return;
+        recordAntiCheatEvent('tab_switch', `Candidate switched tab (${tabSwitchCount + 1} times)`);
+      }, 700);
+    } else if (pendingVisibilityTimer) {
+      clearTimeout(pendingVisibilityTimer);
+      pendingVisibilityTimer = null;
     }
   }
 });
 
-// (Đã loại bỏ window.blur và fullscreenchange vì gây xung đột với popup hệ thống của Jitsi)
+document.addEventListener('fullscreenchange', () => {
+  if (shouldIgnoreAntiCheatEvent()) return;
+  const step2 = document.getElementById('step-2');
+  const overlay = document.getElementById('anti-cheat-overlay');
+  if (step2 && !step2.classList.contains('hidden') && !document.fullscreenElement && overlay?.classList.contains('hidden')) {
+    if (pendingFullscreenTimer) clearTimeout(pendingFullscreenTimer);
+    pendingFullscreenTimer = setTimeout(() => {
+      pendingFullscreenTimer = null;
+      if (shouldIgnoreAntiCheatEvent()) return;
+      const activeStep2 = document.getElementById('step-2');
+      const activeOverlay = document.getElementById('anti-cheat-overlay');
+      if (activeStep2 && !activeStep2.classList.contains('hidden') && !document.fullscreenElement && activeOverlay?.classList.contains('hidden')) {
+        recordAntiCheatEvent('fullscreen_exit', `Candidate exited fullscreen (${tabSwitchCount + 1} total anti-cheat events)`);
+      }
+    }, 700);
+  }
+});
 
 // Hook vào submitInterview để thoát fullscreen
 const originalSubmit = submitInterview;

@@ -60,7 +60,10 @@ def temp_pushback_audio(filename: str, token: str = None):
 
 @app.get("/interview", response_class=HTMLResponse)
 def interview_page():
-    return (FRONTEND_DIR / "interview.html").read_text(encoding="utf-8")
+    return HTMLResponse(
+        (FRONTEND_DIR / "interview.html").read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-store"},
+    )
 
 @app.get("/apply", response_class=HTMLResponse)
 def apply_page():
@@ -72,4 +75,7 @@ def admin_page():
 
 @app.get("/candidate/reply", response_class=HTMLResponse)
 def candidate_reply_page():
-    return (FRONTEND_DIR / "candidate_reply.html").read_text(encoding="utf-8")
+    return HTMLResponse(
+        (FRONTEND_DIR / "candidate_reply.html").read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-store"},
+    )

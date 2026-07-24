@@ -42,7 +42,9 @@ INTERVIEW_URL   = os.environ.get("INTERVIEW_URL", _default_interview_url)
 
 PROCTORING_API_URL = os.environ.get("PROCTORING_API_URL", "http://127.0.0.1:8003/api/v1")
 PROCTORING_API_KEY = os.environ.get("PROCTORING_API_KEY", "")
+PROCTORING_EMBED_PUBLIC_BASE = os.environ.get("PROCTORING_EMBED_PUBLIC_BASE", "https://service.ctpai.vn/detection/")
 PROCTORING_WEBHOOK_SECRET = os.environ.get("PROCTORING_WEBHOOK_SECRET", "")
+PROCTORING_WEBHOOK_REQUIRE_SECRET = os.environ.get("PROCTORING_WEBHOOK_REQUIRE_SECRET", "true").lower() not in {"0", "false", "no"}
 PUBLIC_WEBHOOK_DOMAIN = os.environ.get("PUBLIC_WEBHOOK_DOMAIN", f"http://{_detect_local_ip()}:{_server_port}")
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -197,9 +199,17 @@ SCORE_PROMPT = """Bạn là chuyên gia AI (PAI Engine) đóng vai trò Chuyên 
 Nhiệm vụ của bạn là đánh giá CV của ứng viên so với Mô tả công việc (JD), cho điểm CHÍNH XÁC theo 10 tiêu chí dưới đây (Tổng tối đa 10 điểm).
 
 QUY TẮC CHẤM ĐIỂM (CỰC KỲ QUAN TRỌNG):
-1. Bạn là giám khảo KHẮT KHE nhưng PHẢI CÔNG BẰNG. CHỈ CHO ĐIỂM TỐI ĐA NẾU THẬT SỰ XUẤT SẮC VÀ CÓ MINH CHỨNG.
-2. KHÔNG ĐƯỢC TRỪ ĐIỂM VÔ LÝ: Nếu ứng viên lọt vào một khung điểm (VD: 0.9 - 1.0đ) và KHÔNG CÓ BẤT KỲ ĐIỂM YẾU/THIẾU SÓT NÀO, BẮT BUỘC phải cho ĐIỂM TỐI ĐA CỦA KHUNG ĐÓ (tức là 1.0đ, không được cho 0.9đ).
-3. Nếu bạn cho điểm KHÔNG PHẢI LÀ ĐIỂM TỐI ĐA của tiêu chí (VD: cho 0.9 thay vì 1.0, hoặc 1.8 thay vì 2.0), trong phần `reasons` BẮT BUỘC phải có câu "Điểm trừ: [lý do tại sao không được điểm tuyệt đối]". NẾU KHÔNG TÌM ĐƯỢC LÝ DO TRỪ, HÃY SỬA LẠI THÀNH ĐIỂM TỐI ĐA.
+1. Chấm theo hướng TUYỂN DỤNG THẬN TRỌNG. Điểm 9.0+ là trường hợp hiếm, chỉ dành cho CV gần như khớp JD, có thành tích định lượng mạnh và có thể làm ngay.
+2. Không suy diễn tốt cho ứng viên. Chỉ cho điểm dựa trên bằng chứng xuất hiện trong CV/JD. Nếu CV không nêu rõ một kỹ năng/kinh nghiệm/thành tích, xem là thiếu minh chứng.
+3. Mốc tham chiếu tổng điểm:
+   - 9.0-10.0: Xuất sắc, khớp gần như toàn bộ JD, có số liệu/thành tích nổi bật, cùng ngành, ít rủi ro.
+   - 8.0-8.9: Rất phù hợp nhưng vẫn thiếu một vài minh chứng hoặc kỹ năng phụ.
+   - 7.0-7.9: Phù hợp để phỏng vấn, còn gap rõ cần xác minh.
+   - 6.0-6.9: Có tiềm năng nhưng thiếu nhiều điểm quan trọng.
+   - 4.0-5.9: Yếu hoặc lệch đáng kể so với JD.
+   - <4.0: Không phù hợp.
+4. Nếu một tiêu chí thiếu minh chứng rõ ràng, không được cho điểm ở nhóm cao nhất của tiêu chí đó.
+5. Trong `reasons`, luôn ghi rõ bằng chứng đã dùng và điểm trừ/rủi ro chính. Không được viết chung chung kiểu "phù hợp tốt" nếu thiếu dẫn chứng.
 
 === JOB DESCRIPTION ===
 {jd}
@@ -211,7 +221,7 @@ QUY TẮC CHẤM ĐIỂM (CỰC KỲ QUAN TRỌNG):
 
 1. Mức độ phù hợp về kỹ năng chuyên môn (Tối đa 2.0đ):
    - Đánh giá mức độ đáp ứng các kỹ năng bắt buộc, ưu tiên và bổ sung theo JD. Đánh giá theo ngữ nghĩa.
-   - 1.8-2.0đ: Đáp ứng ≥95% kỹ năng bắt buộc. (Mặc định 2.0, chỉ trừ còn 1.8-1.9 nếu có sạn nhỏ).
+   - 1.8-2.0đ: Đáp ứng ≥95% kỹ năng bắt buộc, có minh chứng dùng thực tế. Không có minh chứng thực tế thì tối đa 1.6.
    - 1.5-1.75đ: Đáp ứng 80–94%.
    - 1.2-1.4đ: Đáp ứng 60–79%.
    - 0.5-1.1đ: Thiếu rất nhiều kỹ năng quan trọng.
@@ -219,7 +229,7 @@ QUY TẮC CHẤM ĐIỂM (CỰC KỲ QUAN TRỌNG):
 
 2. Mức độ phù hợp về kinh nghiệm làm việc (Tối đa 2.0đ):
    - Đánh giá số năm kinh nghiệm, vai trò, trách nhiệm so với mức yêu cầu của JD.
-   - 1.8-2.0đ: Kinh nghiệm rất phù hợp (đạt hoặc vượt mốc JD). (Mặc định 2.0, chỉ trừ còn 1.8-1.9 nếu có sạn nhỏ).
+   - 1.8-2.0đ: Kinh nghiệm rất phù hợp, đúng vai trò/quy mô, đạt hoặc vượt mốc JD và có mô tả trách nhiệm rõ.
    - 1.5-1.75đ: Phù hợp phần lớn.
    - 1.2-1.4đ: Có kinh nghiệm liên quan.
    - 0.5-1.1đ: Thiếu đáng kể.
@@ -228,56 +238,56 @@ QUY TẮC CHẤM ĐIỂM (CỰC KỲ QUAN TRỌNG):
 3. Trình độ học vấn và chứng chỉ (Tối đa 1.0đ):
    - Đánh giá bằng cấp, chuyên ngành, chứng chỉ nghề nghiệp liên quan đến vị trí so với JD.
    - 1.0đ: Vượt yêu cầu.
-   - 0.8-0.9đ: Đáp ứng đầy đủ. (Mặc định 0.9, trừ còn 0.8 nếu có sạn).
+   - 0.8-0.9đ: Đáp ứng đầy đủ nhưng chưa vượt yêu cầu.
    - 0.6-0.7đ: Đáp ứng một phần (ví dụ bằng cấp liên quan nhưng không đúng chuyên ngành).
    - 0.1-0.5đ: Không đáp ứng đủ.
    - 0.0đ: Không có bằng cấp hoặc bằng cấp không liên quan một chút nào.
 
 4. Mức độ phù hợp về lĩnh vực/ngành nghề (Tối đa 1.0đ):
    - Đánh giá kinh nghiệm làm việc trong cùng lĩnh vực hoặc có mức tương đồng cao.
-   - 0.9-1.0đ: Cùng ngành. (Mặc định 1.0, trừ còn 0.9 nếu ngành hơi khác biệt nhẹ).
+   - 0.9-1.0đ: Cùng ngành/lĩnh vực trực tiếp với JD và có kinh nghiệm gần đây.
    - 0.75-0.85đ: Ngành tương tự.
    - 0.6-0.7đ: Có thể chuyển đổi.
    - 0.0-0.5đ: KHÁC BIỆT HOÀN TOÀN (VD: JD IT nhưng CV là Nhân sự -> BẮT BUỘC 0.0).
 
 5. Lộ trình phát triển nghề nghiệp (Tối đa 1.0đ):
    - Đánh giá sự phát triển về chức danh, trách nhiệm hoặc chiều sâu chuyên môn.
-   - 0.9-1.0đ: Phát triển rõ ràng. (Mặc định 1.0, trừ còn 0.9 nếu thăng tiến chậm).
+   - 0.9-1.0đ: Phát triển rõ ràng về chức danh/trách nhiệm/quy mô, có bằng chứng cụ thể.
    - 0.75-0.85đ: Phát triển ổn định.
    - 0.6-0.7đ: Ít thay đổi.
    - 0.0-0.5đ: Không phát triển, hoặc trái ngành hoàn toàn nên lộ trình vô nghĩa.
 
 6. Thành tích và tác động đến doanh nghiệp (Tối đa 1.0đ):
    - Đánh giá các kết quả mang lại giá trị, ưu tiên các thành tích có số liệu định lượng.
-   - 0.9-1.0đ: Thành tích nổi bật. (Mặc định 1.0, trừ còn 0.9 nếu impact hẹp).
+   - 0.9-1.0đ: Thành tích nổi bật, có số liệu định lượng hoặc tác động kinh doanh rõ.
    - 0.75-0.85đ: Có thành tích rõ ràng.
    - 0.6-0.7đ: Có thành tích nhưng thiếu minh chứng định lượng.
    - 0.0-0.5đ: Chỉ mô tả công việc hoặc thành tích trái ngành không áp dụng được.
 
 7. Minh chứng về kỹ năng mềm (Tối đa 0.5đ):
    - Đánh giá kỹ năng mềm (lãnh đạo, làm việc nhóm, giao tiếp) qua minh chứng trong CV dựa trên level của JD.
-   - 0.45-0.5đ: Có nhiều minh chứng. (Mặc định 0.5, trừ còn 0.45 nếu thiếu cụ thể).
+   - 0.45-0.5đ: Có nhiều minh chứng hành vi/kết quả cụ thể.
    - 0.35-0.4đ: Có minh chứng rõ ràng.
    - 0.1-0.3đ: Chỉ liệt kê kỹ năng.
    - 0.0đ: Không thể hiện.
 
 8. Khả năng ngoại ngữ và trình bày CV (Tối đa 0.5đ):
    - Đánh giá ngoại ngữ (so với JD) và tính chuyên nghiệp của bố cục CV.
-   - 0.45-0.5đ: Chuyên nghiệp (vượt/đạt yêu cầu ngoại ngữ của JD, format xuất sắc). (Mặc định 0.5).
+   - 0.45-0.5đ: CV trình bày chuyên nghiệp và đáp ứng/vượt yêu cầu ngoại ngữ nếu JD có yêu cầu.
    - 0.35-0.4đ: Đạt yêu cầu.
    - 0.1-0.3đ: Có lỗi nhỏ.
    - 0.0đ: Khó đọc hoặc sai nhiều lỗi.
 
 9. Mức độ ổn định và rủi ro nghề nghiệp (Tối đa 0.5đ):
    - Đánh giá mức độ ổn định trong quá trình làm việc.
-   - 0.45-0.5đ: Rất ổn định. (Mặc định 0.5).
+   - 0.45-0.5đ: Rất ổn định, không có khoảng trống/chuyển việc bất thường cần xác minh.
    - 0.35-0.4đ: Có rủi ro nhỏ.
    - 0.1-0.3đ: Có dấu hiệu cần xác minh.
    - 0.0đ: Rủi ro quá cao.
 
 10. Đánh giá tổng thể bằng AI (Tối đa 0.5đ):
    - Phân tích toàn bộ JD và CV để đánh giá mức độ phù hợp.
-   - 0.45-0.5đ: Rất phù hợp, đáp ứng ≥95% làm ngay. (Mặc định 0.5).
+   - 0.45-0.5đ: Rất phù hợp, đáp ứng ≥95%, có thể làm ngay với rủi ro thấp.
    - 0.35-0.4đ: Phù hợp, thiếu 1 số kỹ năng nhưng đào tạo được.
    - 0.1-0.3đ: Tiềm năng, cần đào tạo lâu.
    - 0.0đ: HOÀN TOÀN TRÁI NGÀNH, KHÔNG THỂ NHẬN. BỘ HỒ SƠ NÀY CHỈ XỨNG ĐÁNG DƯỚI 2/10 ĐIỂM.
@@ -308,6 +318,22 @@ Chỉ trả về JSON thuần (KHÔNG markdown ```json, KHÔNG văn bản thừa
     "c8_language_cv": "<Nhận xét CV & ngoại ngữ. NẾU điểm < 0.5, BẮT BUỘC thêm 'Điểm trừ: [lỗi form / ngoại ngữ kém]'>",
     "c9_stability": "<Nêu trung bình năm/công ty. NẾU điểm < 0.5, BẮT BUỘC thêm 'Điểm trừ: [rủi ro nhảy việc]'>",
     "c10_ai_overall": "<Kết luận tổng quát lý do điểm tổng. Chỉ ra Điểm mạnh nhất và Điểm rủi ro nhất.>"
+  }},
+  "evidence": {{
+    "matched_requirements": ["Yêu cầu JD đã khớp + bằng chứng ngắn trong CV"],
+    "missing_requirements": ["Yêu cầu JD còn thiếu/không thấy trong CV"],
+    "transferable_strengths": ["Điểm mạnh có thể chuyển đổi sang vị trí này"],
+    "quantified_achievements": ["Thành tích có số liệu; nếu không có thì trả []"]
+  }},
+  "risk_flags": [
+    {{"risk": "rủi ro hoặc nghi vấn", "severity": "low|medium|high", "why": "vì sao cần lưu ý"}}
+  ],
+  "interview_focus": [
+    {{"topic": "nội dung cần hỏi kỹ", "question": "câu hỏi phỏng vấn đề xuất", "why": "lý do cần xác minh"}}
+  ],
+  "confidence": {{
+    "level": "low|medium|high",
+    "reason": "mức độ chắc chắn dựa trên độ đầy đủ của CV/JD"
   }},
   "summary": "<Tóm tắt 80-100 từ tiếng Việt: 2 điểm mạnh nổi trội và 2 điểm yếu/điểm rủi ro cần làm rõ trong phỏng vấn>"
 }}"""

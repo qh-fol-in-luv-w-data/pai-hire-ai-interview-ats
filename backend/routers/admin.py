@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import time
 import json
@@ -9,9 +10,30 @@ from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile,
 from fastapi.responses import HTMLResponse, JSONResponse
 from backend.database import db
 from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, _JOB_LEVELS, INTERVIEW_URL
+from backend.routers.api_v1 import parse_slot_datetime
 
 from backend.services.email_service import send_interview_result, send_reinterview_email
 router = APIRouter()
+
+@router.get("/admin/settings")
+def get_settings(x_admin_key: str = Header(...)):
+    require_admin(x_admin_key)
+    with db() as conn:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        settings = {row["key"]: row["value"] for row in rows}
+    return JSONResponse(settings)
+
+@router.post("/admin/settings")
+async def update_settings(request: Request, x_admin_key: str = Header(...)):
+    require_admin(x_admin_key)
+    body = await request.json()
+    with db() as conn:
+        for k, v in body.items():
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?",
+                (k, str(v), str(v))
+            )
+    return JSONResponse({"status": "ok"})
 
 @router.get("/admin/interviews")
 def admin_list_interviews(
@@ -57,7 +79,7 @@ def admin_list_interviews(
 
 
 @router.patch("/interview/{interview_id}/review")
-async def review_interview(interview_id: str, body: dict):
+async def review_interview(interview_id: str, body: dict, x_admin_key: str = Header(None)):
     """
     body: {
       "status": "reviewed" | "passed" | "failed",
@@ -65,7 +87,10 @@ async def review_interview(interview_id: str, body: dict):
     }
     §27 — Khi status=passed/failed → tự động gửi email kết quả cho ứng viên.
     """
+    require_admin(x_admin_key)
     new_status = body.get("status", "reviewed")
+    if new_status not in {"reviewed", "passed", "failed"}:
+        raise HTTPException(400, "Trạng thái review không hợp lệ")
     hr_score = body.get("hr_score")
     hr_notes = body.get("hr_notes")
     expert_score = body.get("expert_score")
@@ -164,11 +189,148 @@ def admin_get_application(app_id: str, x_admin_key: str = Header(None)):
     return data
 
 
+@router.get("/admin/proctoring/logs")
+def admin_get_proctoring_logs(
+    app_id: str = None,
+    interview_id: str = None,
+    x_admin_key: str = Header(None),
+):
+    require_admin(x_admin_key)
+    with db() as conn:
+        resolved_app_id = app_id
+        tab_switches = 0
+        if interview_id:
+            iv = conn.execute(
+                "SELECT id, cv_path, tab_switches FROM interviews WHERE id=?",
+                (interview_id,),
+            ).fetchone()
+            if iv:
+                tab_switches = iv["tab_switches"] or 0
+                if not resolved_app_id and iv["cv_path"]:
+                    m = re.search(r"APP-[A-F0-9]{8}", iv["cv_path"])
+                    if m:
+                        resolved_app_id = m.group(0)
+
+        alerts = []
+        if resolved_app_id:
+            alerts = [
+                dict(r)
+                for r in conn.execute(
+                    """
+                    SELECT id, session_id, alert_type, snapshot_id, timestamp, created_at
+                    FROM proctoring_alerts
+                    WHERE session_id=?
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                    """,
+                    (resolved_app_id,),
+                ).fetchall()
+            ]
+
+        incidents = []
+        incident_ids = []
+        if interview_id:
+            incident_ids.append(interview_id)
+        if resolved_app_id and resolved_app_id not in incident_ids:
+            incident_ids.append(resolved_app_id)
+        if incident_ids:
+            placeholders = ",".join("?" for _ in incident_ids)
+            incidents = [
+                dict(r)
+                for r in conn.execute(
+                    f"""
+                    SELECT id, interview_id, type, description, created_at
+                    FROM incidents
+                    WHERE interview_id IN ({placeholders})
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                    """,
+                    incident_ids,
+                ).fetchall()
+            ]
+
+    return {
+        "app_id": resolved_app_id,
+        "interview_id": interview_id,
+        "tab_switches": tab_switches,
+        "proctoring_alerts": alerts,
+        "incidents": incidents,
+    }
+
+@router.post("/admin/applications/{app_id}/analyze-reply")
+async def admin_analyze_reply(app_id: str, request: Request, x_admin_key: str = Header(None)):
+    """API cho HR nhập câu trả lời của ứng viên qua email để AI phân tích."""
+    require_admin(x_admin_key)
+    
+    try:
+        body = await request.json()
+        reply_text = body.get("reply_text", "").strip()
+        if not reply_text:
+            raise HTTPException(400, "Nội dung trả lời không được để trống")
+            
+        with db() as conn:
+            row = conn.execute("SELECT * FROM cv_applications WHERE id = ?", (app_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "Không tìm thấy hồ sơ")
+            if not row["status"].startswith("waiting_for_reply"):
+                raise HTTPException(400, f"Hồ sơ đang ở trạng thái '{row['status']}', không thể phân tích phản hồi")
+                
+            score_bd = json.loads(row["score_breakdown"] or "{}")
+            deep_qs = score_bd.get("deep_questions", [])
+            
+        # Analyze reply
+        from backend.services.ai_service import analyze_candidate_reply
+        from backend.services.document_service import extract_cv_text, get_jd_content
+        import os
+        from pathlib import Path
+        
+        cv_text = ""
+        if row["cv_path"] and os.path.exists(row["cv_path"]):
+            cv_text = extract_cv_text(Path(row["cv_path"]))
+            
+        jd_text = get_jd_content(row["job_id"])
+            
+        reply_analysis = await analyze_candidate_reply(cv_text, jd_text, deep_qs, reply_text)
+        
+        # Save to DB and update status
+        score_bd["candidate_reply"] = reply_text
+        score_bd["reply_analysis"] = reply_analysis
+        
+        # Determine pass/fail from recommendation
+        new_status = "pending_hr_approval_passed" if reply_analysis.get("recommendation") == "Phê duyệt" else "pending_hr_approval_failed"
+        
+        with db() as conn:
+            conn.execute(
+                "UPDATE cv_applications SET score_breakdown=?, status=? WHERE id=?",
+                (json.dumps(score_bd, ensure_ascii=False), new_status, app_id)
+            )
+            
+        return {"ok": True, "analysis": reply_analysis, "new_status": new_status}
+        
+    except Exception as e:
+        print(f"Error analyzing reply: {e}")
+        raise HTTPException(500, str(e))
+
+
 @router.post("/admin/applications/{app_id}/approve")
-def admin_approve_application(app_id: str, x_admin_key: str = Header(None)):
+async def admin_approve_application(app_id: str, request: Request, x_admin_key: str = Header(None)):
     """§ Feature (6): HR duyệt CV → cập nhật status=passed → gửi Email Pass với link phỏng vấn."""
     require_admin(x_admin_key)
+    
+    try:
+        body = await request.json()
+        interview_config = json.dumps(body.get("config", {}))
+        valid_from = body.get("valid_from")
+        valid_until = body.get("valid_until")
+        is_unlimited = body.get("is_unlimited", False)
+    except:
+        interview_config = None
+        valid_from = None
+        valid_until = None
+        is_unlimited = False
+        
     from backend.services.email_service import send_pass_email
+    from datetime import datetime, timezone
     with db() as conn:
         row = conn.execute(
             "SELECT * FROM cv_applications WHERE id = ?", (app_id,)
@@ -180,13 +342,95 @@ def admin_approve_application(app_id: str, x_admin_key: str = Header(None)):
 
         level = dict(row).get("level", "Junior") or "Junior"
         conn.execute(
-            "UPDATE cv_applications SET status='passed' WHERE id=?", (app_id,)
+            "UPDATE cv_applications SET status='passed', interview_config=? WHERE id=?", (interview_config, app_id)
+        )
+        
+        # Tạo slot
+        slot_token = f"SLOT-{uuid.uuid4().hex[:12].upper()}"
+        start_time = None if is_unlimited else parse_slot_datetime(valid_from).isoformat()
+        end_time = None if is_unlimited else parse_slot_datetime(valid_until).isoformat()
+        if not is_unlimited:
+            start_dt = parse_slot_datetime(valid_from)
+            end_dt = parse_slot_datetime(valid_until)
+            if end_dt <= start_dt:
+                raise HTTPException(400, "Giờ kết thúc phải sau giờ bắt đầu")
+            start_time = start_dt.isoformat()
+            end_time = end_dt.isoformat()
+        conn.execute(
+            "INSERT INTO interview_slots (token, app_id, position_id, level, start_time, end_time, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (slot_token, app_id, row["job_id"], level, start_time, end_time, datetime.now(timezone.utc).isoformat())
         )
 
     # Gửi email Pass
-    send_pass_email(row["name"], row["email"], row["job_id"], app_id, level=level)
+    time_note = "không giới hạn thời gian" if is_unlimited else f"từ {start_time} đến {end_time}"
+    if not is_unlimited and start_time and end_time:
+        try:
+            st = datetime.fromisoformat(start_time).strftime("%H:%M %d/%m/%Y")
+            et = datetime.fromisoformat(end_time).strftime("%H:%M %d/%m/%Y")
+            time_note = f"từ {st} đến {et}"
+        except:
+            pass
+            
+    send_pass_email(row["name"], row["email"], row["job_id"], app_id, level=level, slot_token=slot_token, time_note=time_note)
     print(f"[HR Approve] {app_id} → passed → Email sent to {row['email']}")
     return {"ok": True, "app_id": app_id, "status": "passed", "msg": f"Đã duyệt và gửi email mời phỏng vấn tới {row['email']}"}
+
+
+@router.post("/admin/applications/{app_id}/generate_prep")
+async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key: str = Header(None)):
+    """Tạo trước danh sách câu hỏi phỏng vấn để HR xem và duyệt trước khi gửi email."""
+    require_admin(x_admin_key)
+    try:
+        body = await request.json()
+    except:
+        body = {}
+
+    from backend.services.prep_service import _create_prep
+    from backend.config import QUESTIONS_BANK
+    
+    with db() as conn:
+        row = conn.execute("SELECT * FROM cv_applications WHERE id=?", (app_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Không tìm thấy đơn")
+
+    # Save config first so _create_prep respects it
+    config = body.get("config")
+    if config:
+        with db() as conn:
+            conn.execute(
+                "UPDATE cv_applications SET interview_config=? WHERE id=?",
+                (json.dumps(config), app_id)
+            )
+    
+    level = dict(row).get("level", "Junior") or "Junior"
+    
+    # Delete existing prep so we regenerate fresh
+    with db() as conn:
+        conn.execute("DELETE FROM interview_prep WHERE app_ref=?", (app_id,))
+    
+    prep = await _create_prep(dict(row)["job_id"], app_id, level=level)
+    
+    # Return question list with meta for preview
+    questions_preview = []
+    for q_num, q_data in (prep.get("questions") or {}).items():
+        meta = QUESTIONS_BANK.get(q_num, {})
+        questions_preview.append({
+            "n": q_num,
+            "text": q_data.get("text", ""),
+            "type": q_data.get("type") or meta.get("type", ""),
+            "label": meta.get("label", f"Câu {q_num}"),
+            "is_ai_generated": q_num not in QUESTIONS_BANK or meta.get("is_dynamic", False)
+        })
+    
+    return {
+        "ok": True,
+        "prep_id": prep.get("prep_id"),
+        "questions": questions_preview,
+        "follow_up_limit": prep.get("follow_up_limit", 0),
+        "follow_up_note": "Số câu đào sâu là giới hạn tối đa; AI chỉ hỏi thêm khi câu trả lời còn thiếu hoặc có rủi ro rõ.",
+    }
+
+
 
 
 @router.post("/admin/applications/{app_id}/reject")
@@ -468,5 +712,3 @@ def get_prev_interview(app_id: str, x_admin_key: str = Header(None)):
             GROUP BY i.id ORDER BY i.submitted_at DESC LIMIT 1
         """, (app["email"], app["email"])).fetchone()
         return {"has_prev": bool(prev_ivs), "prev_interview": dict(prev_ivs) if prev_ivs else None}
-
-

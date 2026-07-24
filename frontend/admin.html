@@ -158,31 +158,44 @@
 
 
 <!-- APP SHELL -->
-<div id="app-shell" class="hidden flex min-h-screen w-full">
+<div id="app-shell" class="hidden flex min-h-screen w-full relative">
+  
+  <!-- MOBILE BACKDROP -->
+  <div id="sidebar-backdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+
   <!-- SIDEBAR -->
-<aside class="w-sidebar-width h-screen sticky left-0 top-0 flex flex-col h-full py-md px-sm bg-primary-container border-r border-outline-variant z-50">
-<div class="mb-xl px-xs">
-<h1 class="font-headline-md text-headline-md font-bold text-on-primary-container leading-none">PAI HR Admin</h1>
-<p class="text-on-primary-container opacity-60 font-body-sm mt-1">Enterprise Suite</p>
+<aside id="admin-sidebar" class="w-[260px] h-screen fixed md:sticky left-0 top-0 flex flex-col py-md px-sm bg-primary-container border-r border-outline-variant z-50 transition-transform duration-300 -translate-x-full md:translate-x-0">
+<div class="mb-xl px-xs flex justify-between items-center">
+  <div>
+    <h1 class="font-headline-md text-headline-md font-bold text-on-primary-container leading-none">PAI HR Admin</h1>
+    <p class="text-on-primary-container opacity-60 font-body-sm mt-1">Enterprise Suite</p>
+  </div>
+  <button onclick="toggleSidebar()" class="md:hidden text-on-primary-container">
+    <span class="material-symbols-outlined">close</span>
+  </button>
 </div>
 
 <nav class="flex-1 space-y-1 overflow-y-auto scroll-hide">
-<a id="nav-dashboard" onclick="switchTab('dashboard')" class="admin-nav flex items-center gap-3 px-3 py-2.5 bg-secondary text-on-secondary rounded-lg font-bold transition-all duration-200 opacity-90 active:scale-95 active-nav-shadow cursor-pointer">
+<a id="nav-dashboard" onclick="switchTab('dashboard'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 bg-secondary text-on-secondary rounded-lg font-bold transition-all duration-200 opacity-90 active:scale-95 active-nav-shadow cursor-pointer">
 <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
 <span class="font-body-sm">Dashboard</span>
 </a>
-<a id="nav-interviews" onclick="switchTab('interviews')" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<a id="nav-interviews" onclick="switchTab('interviews'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
 <span class="material-symbols-outlined" data-icon="record_voice_over">record_voice_over</span>
 <span class="font-body-sm">Phỏng vấn</span>
 <span id="iv-count-badge" class="ml-auto bg-secondary text-white text-xs px-2 py-0.5 rounded-full font-bold hidden"></span>
 </a>
-<a id="nav-applications" onclick="switchTab('applications')" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<a id="nav-applications" onclick="switchTab('applications'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
 <span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
 <span class="font-body-sm">Hồ sơ</span>
 </a>
-<a id="nav-feedback" onclick="switchTab('feedback')" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<a id="nav-feedback" onclick="switchTab('feedback'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
 <span class="material-symbols-outlined" data-icon="star_rate">star_rate</span>
 <span class="font-body-sm">Phản hồi</span>
+</a>
+<a id="nav-settings" onclick="switchTab('settings'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-sm">Cài đặt</span>
 </a>
 </nav>
 
@@ -195,8 +208,11 @@
 
   
   <!-- MAIN CONTENT -->
-  <main class="flex-1 flex flex-col h-screen overflow-hidden bg-background">
-    <header class="h-16 border-b border-outline-variant bg-surface-container-lowest flex items-center px-6 shrink-0 sticky top-0 z-40">
+  <main class="flex-1 flex flex-col h-screen overflow-hidden bg-background w-full md:w-auto">
+    <header class="h-16 border-b border-outline-variant bg-surface-container-lowest flex items-center px-4 md:px-6 shrink-0 sticky top-0 z-40 gap-3">
+      <button onclick="toggleSidebar()" class="md:hidden flex items-center justify-center text-on-surface hover:bg-surface-container rounded-lg p-1.5 -ml-1">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
       <h2 class="font-bold text-lg text-on-surface" id="topbar-title">Dashboard</h2>
     </header>
     
@@ -362,6 +378,34 @@
   </div>
 </div>
 
+<!-- ── TAB: SETTINGS ─────────────────────────────────────── -->
+<div id="tab-settings" class="hidden">
+  <div class="max-w-3xl mx-auto space-y-6">
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-sm border border-outline-variant">
+      <h3 class="font-bold text-lg text-on-surface mb-2 flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary">tune</span> Tiêu chuẩn đánh giá AI
+      </h3>
+      <p class="text-xs text-on-surface-variant mb-6">Cấu hình các tham số tự động chấm điểm và đánh giá hồ sơ.</p>
+      
+      <div class="space-y-6">
+        <div>
+          <label class="block text-sm font-semibold mb-2">Điểm Pass CV (Mặc định: 6.0)</label>
+          <div class="flex items-center gap-4">
+            <input type="number" step="0.1" id="cfg-cv-pass-score" class="w-32 border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-secondary bg-surface-container-low font-medium">
+            <span class="text-xs text-outline">Hệ thống AI sẽ đánh giá "Đạt" nếu tổng điểm CV >= mức này.</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="pt-6 mt-6 border-t border-outline-variant flex justify-end">
+        <button onclick="saveSettings(event)" class="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all active:scale-95 flex items-center gap-2">
+          <span class="material-symbols-outlined text-sm">save</span> Lưu cấu hình
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 
 const API_BASE  = location.origin;
@@ -425,6 +469,13 @@ const CRITERIA_V2 = [
   "Chấp nhận rủi ro có kiểm soát"
 ];
 
+function toggleSidebar() {
+  const sidebar = document.getElementById('admin-sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  sidebar.classList.toggle('-translate-x-full');
+  backdrop.classList.toggle('hidden');
+}
+
 function generateCriteriaRows(round, criteriaList, getScoreVal = null) {
   return criteriaList.map((c, i) => {
     const id = `${round}_${i+1}`;
@@ -444,8 +495,10 @@ let currentIvId = '';
 
 const STATUS_LABEL = {
   pending_review: 'Chờ xem xét',
-  pending_hr_approval_pass: 'Chờ HR duyệt (Pass)',
-  pending_hr_approval_fail: 'Chờ HR duyệt (Fail)',
+  pending_hr_approval_passed: 'Chờ HR duyệt cuối (Pass)',
+  pending_hr_approval_failed: 'Chờ HR duyệt cuối (Fail)',
+  waiting_for_reply_passed: 'Chờ phản hồi Email (AI Pass)',
+  waiting_for_reply_failed: 'Chờ phản hồi Email (AI Fail)',
   evaluated:      'Hệ thống đã đánh giá',
   passed:         'Đạt',
   failed:         'Không đạt',
@@ -496,6 +549,16 @@ async function apiFetch(path, opts = {}) {
   });
 }
 
+function escapeAdminText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
 // ── Init ──────────────────────────────────────────────────
 async function init() {
   const authRes = await checkAuth();
@@ -527,7 +590,16 @@ async function init() {
 
 // ── Tab switching ─────────────────────────────────────────
 function switchTab(tab) {
-  ['dashboard','interviews','applications','feedback'].forEach(t => {
+  const titles = {
+    'dashboard': 'Tổng quan',
+    'interviews': 'Quản lý phỏng vấn',
+    'applications': 'Hồ sơ ứng viên',
+    'feedback': 'Phản hồi từ ứng viên',
+    'settings': 'Cài đặt hệ thống'
+  };
+  document.getElementById('topbar-title').textContent = titles[tab] || 'Dashboard';
+
+  ['dashboard','interviews','applications','feedback','settings'].forEach(t => {
     const el = document.getElementById('tab-'+t);
     if(el) el.classList.add('hidden');
   });
@@ -548,6 +620,39 @@ function switchTab(tab) {
   if (tab === 'interviews')   loadInterviews();
   if (tab === 'applications') loadApplications();
   if (tab === 'feedback')     loadFeedback();
+  if (tab === 'settings')     loadSettings();
+}
+
+// ── Settings ─────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const r = await apiFetch('/admin/settings');
+    const data = await r.json();
+    document.getElementById('cfg-cv-pass-score').value = data.cv_pass_score || '6.0';
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function saveSettings(event) {
+  const btn = event.currentTarget;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span class="material-symbols-outlined text-sm">refresh</span> Đang lưu...';
+  try {
+    const payload = {
+      cv_pass_score: document.getElementById('cfg-cv-pass-score').value || '6.0'
+    };
+    const r = await fetch('/admin/settings', {
+      method: 'POST',
+      headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if(r.ok) alert('Đã lưu cấu hình!');
+    else alert('Lỗi khi lưu!');
+  } catch(e) {
+    alert('Lỗi mạng');
+  }
+  btn.innerHTML = originalText;
 }
 
 // ── Dashboard ─────────────────────────────────────────────
@@ -806,18 +911,63 @@ async function openAppModal(appId) {
       const b = app.score_breakdown;
       const c = b.criteria_scores || {};
       const r_rs = b.reasons || {};
+      const ev = b.evidence || {};
+      const renderList = (items, empty = 'Không có') => Array.isArray(items) && items.length
+        ? `<ul class="list-disc pl-5 space-y-1">${items.map(x => `<li>${typeof x === 'string' ? x : JSON.stringify(x)}</li>`).join('')}</ul>`
+        : `<span class="text-gray-400">${empty}</span>`;
       
       bdHtml = `
       <div class="space-y-6">
         <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant text-center">
           <p class="text-sm font-semibold text-outline">TỔNG ĐIỂM CV</p>
           <p class="text-4xl font-black ${app.cv_score>=6.0?'text-emerald-600':'text-red-500'} mt-1">${app.cv_score}/10</p>
+          ${b.score_cap_reason ? `<p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">${b.score_cap_reason}</p>` : ''}
         </div>
         
         <div>
           <h3 class="font-bold text-sm text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[18px]">summarize</span> TÓM TẮT TỪ AI</h3>
           <p class="text-sm text-on-surface-variant bg-surface-container-low p-3 rounded-lg leading-relaxed">${b.summary || app.ai_summary || 'Không có tóm tắt.'}</p>
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+            <h4 class="font-bold text-xs text-emerald-700 mb-2">KHỚP JD / BẰNG CHỨNG</h4>
+            <div class="text-xs text-emerald-900 leading-relaxed">${renderList(ev.matched_requirements)}</div>
+          </div>
+          <div class="bg-red-50 border border-red-100 rounded-xl p-4">
+            <h4 class="font-bold text-xs text-red-700 mb-2">THIẾU / GAP SO VỚI JD</h4>
+            <div class="text-xs text-red-900 leading-relaxed">${renderList(ev.missing_requirements)}</div>
+          </div>
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <h4 class="font-bold text-xs text-blue-700 mb-2">ĐIỂM MẠNH CHUYỂN ĐỔI</h4>
+            <div class="text-xs text-blue-900 leading-relaxed">${renderList(ev.transferable_strengths)}</div>
+          </div>
+          <div class="bg-violet-50 border border-violet-100 rounded-xl p-4">
+            <h4 class="font-bold text-xs text-violet-700 mb-2">THÀNH TÍCH CÓ SỐ LIỆU</h4>
+            <div class="text-xs text-violet-900 leading-relaxed">${renderList(ev.quantified_achievements)}</div>
+          </div>
+        </div>
+
+        ${(b.risk_flags || []).length ? `
+        <div class="bg-white border border-outline-variant rounded-xl p-4">
+          <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">RỦI RO CẦN LƯU Ý</h4>
+          <ul class="space-y-2 text-xs">
+            ${b.risk_flags.map(r => `<li class="p-3 rounded-lg bg-gray-50 border border-gray-100"><span class="font-bold uppercase text-amber-700">${r.severity || 'medium'}</span> · <span class="font-semibold">${r.risk || ''}</span><p class="text-gray-600 mt-1">${r.why || ''}</p></li>`).join('')}
+          </ul>
+        </div>` : ''}
+
+        ${(b.interview_focus || []).length ? `
+        <div class="bg-white border border-outline-variant rounded-xl p-4">
+          <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">TRỌNG TÂM CẦN XÁC MINH KHI PHỎNG VẤN</h4>
+          <ul class="space-y-3 text-xs">
+            ${b.interview_focus.map((x, i) => `<li class="p-3 rounded-lg bg-surface-container-low border border-gray-100"><div class="font-bold text-on-surface">#${i+1} ${x.topic || 'Cần xác minh'}</div><div class="mt-1 text-primary font-semibold">${x.question || ''}</div><p class="text-gray-500 mt-1">${x.why || ''}</p></li>`).join('')}
+          </ul>
+        </div>` : ''}
+
+        ${b.confidence ? `
+        <div class="bg-surface-container-low border border-outline-variant rounded-xl p-3 text-xs text-gray-600">
+          <strong>Độ tin cậy đánh giá:</strong> ${(b.confidence.level || 'medium').toUpperCase()} · ${b.confidence.reason || ''}
+        </div>` : ''}
         
         <div class="bg-white border border-outline-variant rounded-xl p-4">
           <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">CHI TIẾT 10 TIÊU CHÍ (Theo Khung đánh giá)</h4>
@@ -864,22 +1014,89 @@ async function openAppModal(appId) {
             </li>
           </ul>
         </div>
+      `;
+
+      if (b.deep_questions && b.deep_questions.length > 0) {
+        bdHtml += `
+        <div class="bg-white border border-outline-variant rounded-xl p-4 mt-4">
+          <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">psychology</span> DEEP ANALYSIS (GỢI Ý PHỎNG VẤN)</h4>
+          <ul class="space-y-4 text-sm">
+        `;
+        b.deep_questions.forEach((q, idx) => {
+          bdHtml += `
+            <li class="flex flex-col border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+              <div class="font-semibold text-on-surface mb-1 text-primary">Câu ${idx+1}: ${q.question_text}</div>
+              <div class="text-[12px] text-gray-500 italic px-3 py-2 bg-surface-container-low rounded-lg mt-1 border-l-2 border-primary">
+                <strong>Lý do:</strong> ${q.rationale}
+              </div>
+            </li>
+          `;
+        });
+        bdHtml += `
+          </ul>
+        </div>
+        `;
+      }
+      
+      if (b.candidate_reply) {
+        bdHtml += `
+        <div class="bg-white border border-outline-variant rounded-xl p-4 mt-4">
+          <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">PHẢN HỒI CỦA ỨNG VIÊN</h4>
+          <div class="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg border">${b.candidate_reply}</div>
+        </div>
+        `;
+      }
+      
+      if (b.reply_analysis) {
+        const ra = b.reply_analysis;
+        bdHtml += `
+        <div class="bg-white border border-outline-variant rounded-xl p-4 mt-4">
+          <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">robot_2</span> AI ĐÁNH GIÁ PHẢN HỒI</h4>
+          <div class="text-sm text-gray-700 mb-3 whitespace-pre-wrap">${ra.summary || ra.evaluation || '—'}</div>
+          
+          <div class="grid grid-cols-2 gap-4 mt-2">
+            <div class="bg-emerald-50 p-3 rounded border border-emerald-100">
+              <h5 class="text-xs font-bold text-emerald-700 mb-1">Điểm mạnh</h5>
+              <div class="text-xs text-emerald-800 space-y-1 whitespace-pre-wrap">${Array.isArray(ra.strengths) ? `<ul class="list-disc pl-4">${ra.strengths.map(s => `<li>${s}</li>`).join('')}</ul>` : (ra.strengths || 'Không có')}</div>
+            </div>
+            <div class="bg-red-50 p-3 rounded border border-red-100">
+              <h5 class="text-xs font-bold text-red-700 mb-1">Cần lưu ý (Red Flags)</h5>
+              <div class="text-xs text-red-800 space-y-1 whitespace-pre-wrap">${Array.isArray(ra.concerns || ra.red_flags) ? `<ul class="list-disc pl-4">${(ra.concerns || ra.red_flags).map(s => `<li>${s}</li>`).join('')}</ul>` : (ra.concerns || ra.red_flags || 'Không có')}</div>
+            </div>
+          </div>
+          <div class="mt-3 font-bold text-sm">
+            AI Đề xuất: <span class="${ra.recommendation === 'Phê duyệt' ? 'text-emerald-600' : 'text-red-500'}">${ra.recommendation}</span>
+          </div>
+        </div>
+        `;
+      }
+      
+      bdHtml += `
       </div>
       `;
     }
 
     
-    
-    
     let hrActionHtml = '';
-    if (app.status && app.status.startsWith('pending_hr_approval')) {
+    
+    if (app.status && app.status.startsWith('waiting_for_reply')) {
+      hrActionHtml = `
+        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+          <h4 class="font-bold text-blue-800 mb-2 flex items-center gap-2"><span class="material-symbols-outlined text-sm">mail</span> Đang chờ phản hồi từ ứng viên</h4>
+          <p class="text-xs text-blue-600 mb-3">Hệ thống đang tự động theo dõi email. Khi ứng viên phản hồi, AI sẽ tự phân tích và cập nhật kết quả.</p>
+          <div class="flex gap-2">
+            <button onclick="hrReject('${app.id}')" class="px-4 py-2 bg-error text-on-error rounded font-medium hover:opacity-90 text-sm transition">Từ chối ứng viên</button>
+          </div>
+        </div>
+      `;
+    } else if (app.status && app.status.startsWith('pending_hr_approval')) {
       const isPass = app.status.includes('pass');
       hrActionHtml = `
         <div class="mt-6 p-4 bg-tertiary-fixed border border-on-tertiary-fixed-variant rounded-xl shadow-sm">
           <h4 class="font-bold text-on-tertiary-fixed mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-sm">admin_panel_settings</span> Phê duyệt (HR)</h4>
-          <p class="text-sm text-on-tertiary-fixed-variant mb-4">AI đề xuất: <strong>${isPass ? 'ĐẬU (Mời phỏng vấn)' : 'RỚT (Từ chối)'}</strong>. Vui lòng xác nhận.</p>
+          <p class="text-sm text-on-tertiary-fixed-variant mb-4">AI đề xuất chung: <strong>${isPass ? 'ĐẬU (Mời phỏng vấn)' : 'RỚT (Từ chối)'}</strong>. Vui lòng xác nhận.</p>
           <div class="flex gap-2">
-            <button onclick="hrApprove('${app.id}')" class="px-4 py-2 bg-secondary text-on-secondary rounded font-medium hover:opacity-90 text-sm transition">Duyệt & Gửi Email</button>
+            <button onclick="hrApprove('${app.id}')" class="px-4 py-2 bg-secondary text-on-secondary rounded font-medium hover:opacity-90 text-sm transition">Duyệt & Gửi Link Phỏng vấn</button>
             <button onclick="hrReject('${app.id}')" class="px-4 py-2 bg-error text-on-error rounded font-medium hover:opacity-90 text-sm transition">Từ chối ứng viên</button>
           </div>
         </div>
@@ -977,6 +1194,13 @@ async function openModal(ivId) {
         }
       } catch (e) {}
     }
+    try {
+      const logUrl = `/admin/proctoring/logs?interview_id=${encodeURIComponent(ivId)}${appId ? `&app_id=${encodeURIComponent(appId)}` : ''}`;
+      const logR = await apiFetch(logUrl);
+      if (logR.ok) {
+        iv.proctoring_logs = await logR.json();
+      }
+    } catch (e) {}
     
     renderModal(iv, evaluations, appId);
     setTimeout(initAllCalculations, 50);
@@ -1071,12 +1295,23 @@ function renderModal(iv, evaluations = [], appId = null) {
   const date = (iv.submitted_at||'').substring(0,16).replace('T',' ');
   document.getElementById('modal-candidate-name').textContent = iv.candidate_name || iv.candidate_id || '—';
   document.getElementById('modal-subtitle').textContent = `${pos} · ${iv.level||'—'} · Nộp lúc ${date}`;
-  document.getElementById('modal-status-badge').innerHTML = `<span class="status-pill s-${iv.status}">${STATUS_LABEL[iv.status]||iv.status}</span>`;
+
+  // Tab switches badge
+  const tabSw = iv.tab_switches || 0;
+  const tabColor = tabSw === 0 ? 'bg-emerald-100 text-emerald-700' : tabSw <= 2 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+  const tabIcon = tabSw === 0 ? '✅' : tabSw <= 2 ? '⚠️' : '🚨';
+  document.getElementById('modal-status-badge').innerHTML = `
+    <span class="status-pill s-${iv.status}">${STATUS_LABEL[iv.status]||iv.status}</span>
+    <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${tabColor}" title="Số lần chuyển tab trong lúc phỏng vấn">
+      ${tabIcon} Out tab: ${tabSw} lần
+    </span>
+  `;
 
   // Compute avg score
   const scorable = (iv.answers||[]).filter(a => a.ai_level && a.ai_level !== 'định tính');
   const scoreMap = {'nắm vững':10,'am hiểu':7.5,'có biết qua':5,'không biết':0};
   const avgScore = scorable.length ? (scorable.reduce((s,a)=>s+(scoreMap[a.ai_level]||0),0)/scorable.length).toFixed(1) : null;
+
 
   // HOD questions
   let hodHtml = '';
@@ -1096,6 +1331,48 @@ function renderModal(iv, evaluations = [], appId = null) {
       }
     } catch {}
   }
+
+  const proctorLogs = iv.proctoring_logs || {};
+  const cameraAlerts = proctorLogs.proctoring_alerts || [];
+  const localIncidents = proctorLogs.incidents || [];
+  const alertTone = cameraAlerts.length || tabSw > 2 ? 'red' : tabSw > 0 ? 'amber' : 'emerald';
+  const alertCls = {
+    red: { box: 'bg-red-50 border-red-100', text: 'text-red-700', title: 'text-red-800', item: 'border-red-100' },
+    amber: { box: 'bg-amber-50 border-amber-100', text: 'text-amber-700', title: 'text-amber-800', item: 'border-amber-100' },
+    emerald: { box: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700', title: 'text-emerald-800', item: 'border-emerald-100' },
+  }[alertTone];
+  const proctorHtml = `
+    <div class="${alertCls.box} border rounded-xl p-4">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined ${alertCls.text} text-lg">videocam</span>
+          <p class="font-bold ${alertCls.title} text-sm">Log giám sát camera & chống gian lận</p>
+        </div>
+        <span class="text-xs font-bold ${alertCls.text}">${cameraAlerts.length} cảnh báo AI · ${tabSw} out-tab</span>
+      </div>
+      ${cameraAlerts.length ? `
+        <ul class="space-y-2 mb-3">
+          ${cameraAlerts.map(a => `
+            <li class="bg-white/70 border ${alertCls.item} rounded-lg p-3 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-red-700">${escapeAdminText(a.alert_type)}</span>
+                <span class="text-gray-500">${escapeAdminText(a.timestamp || a.created_at)}</span>
+              </div>
+              ${a.snapshot_id ? `<p class="text-gray-600 mt-1">Snapshot: <span class="font-mono">${escapeAdminText(a.snapshot_id)}</span></p>` : ''}
+            </li>
+          `).join('')}
+        </ul>
+      ` : `<p class="text-xs ${alertCls.text} mb-2">Chưa có cảnh báo AI proctoring cho phiên này.</p>`}
+      ${localIncidents.length ? `
+        <details class="text-xs text-gray-600">
+          <summary class="cursor-pointer font-semibold">Xem incident local (${localIncidents.length})</summary>
+          <ul class="mt-2 space-y-1">
+            ${localIncidents.slice(0, 10).map(i => `<li>${escapeAdminText(i.created_at)} · ${escapeAdminText(i.type)} · ${escapeAdminText(i.description)}</li>`).join('')}
+          </ul>
+        </details>
+      ` : ''}
+    </div>
+  `;
 
   // Review form
   const r1 = evaluations.find(e => e.round === 1) || {};
@@ -1230,12 +1507,15 @@ function renderModal(iv, evaluations = [], appId = null) {
     const aiLabel = a.ai_level || 'Định tính';
     const typeClass = TYPE_COLOR[a.question_type] || 'bg-gray-100 text-gray-600';
     const hasTranscript = a.transcript && a.transcript.trim();
+    const ts = a.time_spent || 0;
+    const tsLabel = ts > 0 ? (ts >= 60 ? `${Math.floor(ts/60)}m ${ts%60}s` : `${ts}s`) : '';
 
     return `<div class="border border-outline-variant rounded-xl overflow-hidden">
       <div class="bg-surface-container-low px-4 py-3 flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-2">
           <span class="w-7 h-7 bg-primary-container text-white rounded-lg flex items-center justify-center font-bold text-xs">${a.question_number}</span>
           <span class="text-xs font-bold px-2 py-0.5 rounded-full ${typeClass}">${a.question_type}</span>
+          ${tsLabel ? `<span class="text-xs text-outline flex items-center gap-1" title="Thời gian trả lời"><span class="material-symbols-outlined text-sm">timer</span>${tsLabel}</span>` : ''}
         </div>
         <div class="flex items-center gap-2">
           ${a.ai_level ? `<span class="status-pill ${aiClass}">${aiLabel}</span>` : '<span class="status-pill ai-định-tính">Định tính</span>'}
@@ -1268,14 +1548,18 @@ function renderModal(iv, evaluations = [], appId = null) {
         <p class="text-xs text-outline mb-0.5">Tái ứng tuyển</p>
         <p class="text-xl font-extrabold ${iv.is_reapplicant?'text-purple-600':'text-gray-300'}">${iv.is_reapplicant?'Có':'Không'}</p>
       </div>
-      <div class="bg-surface-container-low rounded-xl p-3 text-center">
-        <p class="text-xs text-outline mb-0.5">CV</p>
-        ${iv.cv_path ? `<a href="${API_BASE}/admin/cv/${iv.candidate_id}" target="_blank" class="text-secondary font-bold text-sm flex items-center justify-center gap-1 hover:underline"><span class="material-symbols-outlined text-base">download</span>Tải CV</a>` : '<p class="text-gray-300 text-sm">—</p>'}
+      <div class="rounded-xl p-3 text-center ${tabSw===0?'bg-emerald-50':tabSw<=2?'bg-amber-50':'bg-red-50'}">
+        <p class="text-xs text-outline mb-0.5">Out tab</p>
+        <p class="text-xl font-extrabold ${tabSw===0?'text-emerald-600':tabSw<=2?'text-amber-600':'text-red-600'}">${tabSw} lần</p>
+        <p class="text-xs ${tabSw===0?'text-emerald-500':tabSw<=2?'text-amber-500':'text-red-500'}">${tabSw===0?'Không vi phạm':tabSw<=2?'Cần lưu ý':'Nghi vấn gian lận'}</p>
       </div>
     </div>
 
     <!-- HOD questions -->
     ${hodHtml}
+
+    <!-- Proctoring logs -->
+    ${proctorHtml}
 
     <!-- Review form -->
     ${reviewHtml}
@@ -1436,14 +1720,178 @@ switchTab = function(tabId) {
     }
   }
 
-async function hrApprove(appId) {
-  if(!confirm("Bạn có chắc chắn muốn DUYỆT hồ sơ này? Hệ thống sẽ gửi email Mời Phỏng Vấn (nếu Pass) hoặc Cảm Ơn (nếu Fail).")) return;
-  try {
-    const r = await fetch(`/admin/applications/${appId}/approve`, { method: 'POST', headers: {'X-Admin-Key': ADMIN_KEY} });
-    if(r.ok) { alert("Đã duyệt & gửi email!"); openAppModal(appId); loadApplications(); }
-    else alert("Lỗi khi duyệt");
-  } catch(e) { alert("Lỗi mạng"); }
+
+function hrApprove(appId) {
+  const modal = document.createElement('div');
+  modal.className = "fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 backdrop-blur-sm";
+  modal.innerHTML = `
+    <div id="approve-modal-box" class="bg-white rounded-2xl shadow-xl w-[540px] max-h-[90vh] overflow-hidden flex flex-col">
+      <!-- STEP 1: Config -->
+      <div id="step-config">
+        <div class="p-6 border-b border-gray-100">
+          <h3 class="font-bold text-lg text-gray-800">Cấu hình phỏng vấn</h3>
+          <p class="text-sm text-gray-500 mt-1">Thiết lập số lượng câu hỏi cho từng phần, sau đó xem trước trước khi gửi email.</p>
+        </div>
+        <div class="p-6 space-y-4 text-left">
+          <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+            <h4 class="font-semibold text-blue-800 text-sm">Thời gian hiệu lực của link</h4>
+            <label class="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700">
+                <input type="checkbox" id="cfg-unlimited" onchange="document.getElementById('cfg-timeframe').style.display = this.checked ? 'none' : 'grid'" class="w-4 h-4 text-blue-600 rounded">
+                Không giới hạn thời gian
+            </label>
+            <div id="cfg-timeframe" class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold mb-1 text-gray-600">Giờ bắt đầu</label>
+                    <input type="datetime-local" id="cfg-start" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1 text-gray-600">Giờ kết thúc</label>
+                    <input type="datetime-local" id="cfg-end" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 text-sm">
+                </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Số câu Mặc định (Phần 1) - Tối đa 11</label>
+            <input type="number" id="cfg-p1" value="11" min="1" max="11" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Số câu AI tạo từ CV/JD (Phần 2) - Tối đa 13</label>
+            <input type="number" id="cfg-p2" value="7" min="1" max="13" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Số câu hỏi Đào sâu (Phần 3) - Tối đa 12</label>
+            <input type="number" id="cfg-p3" value="5" min="1" max="12" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
+          </div>
+        </div>
+        <div class="p-4 bg-gray-50 border-t flex justify-end gap-3">
+          <button id="cfg-cancel" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Hủy</button>
+          <button id="cfg-next" class="px-4 py-2 bg-secondary text-white rounded-lg text-sm font-bold hover:opacity-90 flex items-center gap-2">
+            <span>Xem trước câu hỏi</span> <span class="material-symbols-outlined text-base">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+      <!-- STEP 2: Preview -->
+      <div id="step-preview" class="hidden flex-col flex-1 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 flex items-center gap-3">
+          <button id="preview-back" class="text-gray-500 hover:text-gray-800"><span class="material-symbols-outlined">arrow_back</span></button>
+          <div>
+            <h3 class="font-bold text-lg text-gray-800">Danh sách câu hỏi phỏng vấn</h3>
+            <p id="preview-subtitle" class="text-sm text-gray-500 mt-0.5"></p>
+          </div>
+        </div>
+        <div id="questions-preview-list" class="flex-1 overflow-y-auto p-6 space-y-2 text-sm"></div>
+        <div class="p-4 bg-gray-50 border-t flex justify-between items-center gap-3">
+          <button id="btn-regen" class="px-4 py-2 text-secondary border border-secondary rounded-lg text-sm font-bold hover:bg-secondary/10 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-base">refresh</span> Tạo lại
+          </button>
+          <button id="btn-confirm-send" class="px-5 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:opacity-90 flex items-center gap-2">
+            <span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Default dates
+  const now = new Date();
+  const nextWeek = new Date(now.getTime() + 7*24*60*60*1000);
+  const formatDT = d => {
+    const pad = n => n.toString().padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  document.getElementById('cfg-start').value = formatDT(now);
+  document.getElementById('cfg-end').value = formatDT(nextWeek);
+
+  let configData = null;
+
+  document.getElementById('cfg-cancel').onclick = () => document.body.removeChild(modal);
+  document.getElementById('preview-back').onclick = () => {
+    document.getElementById('step-config').classList.remove('hidden');
+    document.getElementById('step-preview').classList.add('hidden');
+    document.getElementById('step-preview').classList.remove('flex');
+  };
+
+  async function loadPreview() {
+    let p1 = Math.min(parseInt(document.getElementById('cfg-p1').value)||11, 11);
+    let p2 = Math.min(parseInt(document.getElementById('cfg-p2').value)||7, 13);
+    let p3 = Math.min(parseInt(document.getElementById('cfg-p3').value)||5, 12);
+    configData = { PART_1_DEFAULT: p1, PART_2_GENERATED: p2, PART_3_FOLLOW_UP: p3 };
+
+    document.getElementById('step-config').classList.add('hidden');
+    document.getElementById('step-preview').classList.remove('hidden');
+    document.getElementById('step-preview').classList.add('flex');
+
+    const list = document.getElementById('questions-preview-list');
+    const subtitle = document.getElementById('preview-subtitle');
+    list.innerHTML = '<div class="text-center py-8 text-gray-400"><span class="spin inline-block mr-2">↻</span> Đang tạo câu hỏi bằng AI...</div>';
+    subtitle.textContent = '';
+
+    try {
+      const r = await fetch(`/admin/applications/${appId}/generate_prep`, {
+        method: 'POST',
+        headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: configData })
+      });
+      const data = await r.json();
+      const qs = data.questions || [];
+      const followLimit = data.follow_up_limit || 0;
+      subtitle.textContent = `${qs.length} câu hỏi chính${followLimit ? ` · tối đa ${followLimit} câu đào sâu nếu cần` : ''}`;
+
+      const typeColor = { Technical: 'bg-blue-100 text-blue-700', Experience: 'bg-amber-100 text-amber-700', 'Soft Skill': 'bg-purple-100 text-purple-700', General: 'bg-gray-100 text-gray-600' };
+      list.innerHTML = qs.map((q, i) => `
+        <div class="flex gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition">
+          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-secondary/10 text-secondary font-bold text-xs flex items-center justify-center mt-0.5">${i+1}</span>
+          <div class="flex-1">
+            <p class="text-gray-800 leading-snug">${q.text}</p>
+            <div class="mt-1.5 flex gap-2 flex-wrap">
+              <span class="text-[11px] px-2 py-0.5 rounded-full ${typeColor[q.type]||'bg-gray-100 text-gray-600'}">${q.type||'—'}</span>
+              ${q.is_ai_generated ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">✨ AI</span>' : ''}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    } catch(e) {
+      list.innerHTML = '<div class="text-center text-red-500 py-8">Lỗi khi tạo câu hỏi</div>';
+    }
+  }
+
+  document.getElementById('cfg-next').onclick = loadPreview;
+  document.getElementById('btn-regen').onclick = loadPreview;
+
+    document.getElementById('btn-confirm-send').onclick = async () => {
+    document.getElementById('btn-confirm-send').textContent = 'Đang gửi...';
+    try {
+      const isUnlimited = document.getElementById('cfg-unlimited').checked;
+      const validFrom = document.getElementById('cfg-start').value;
+      const validUntil = document.getElementById('cfg-end').value;
+      if (!isUnlimited) {
+        if (!validFrom || !validUntil) {
+          alert('Vui lòng chọn giờ bắt đầu và giờ kết thúc.');
+          document.getElementById('btn-confirm-send').innerHTML = '<span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email';
+          return;
+        }
+        if (new Date(validUntil).getTime() <= new Date(validFrom).getTime()) {
+          alert('Giờ kết thúc phải sau giờ bắt đầu. Vui lòng kiểm tra lại lịch phỏng vấn.');
+          document.getElementById('btn-confirm-send').innerHTML = '<span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email';
+          return;
+        }
+      }
+
+      const r = await fetch(`/admin/applications/${appId}/approve`, {
+        method: 'POST',
+        headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: configData, is_unlimited: isUnlimited, valid_from: validFrom, valid_until: validUntil })
+      });
+      if(r.ok) {
+        document.body.removeChild(modal);
+        alert('Đã duyệt & gửi email mời phỏng vấn!');
+        openAppModal(appId); loadApplications();
+      } else alert('Lỗi khi duyệt');
+    } catch(e) { alert('Lỗi mạng'); }
+  };
 }
+
 
 async function hrReject(appId) {
   if(!confirm("Bạn có chắc chắn muốn TỪ CHỐI hồ sơ này? Hệ thống sẽ cập nhật trạng thái thành failed.")) return;

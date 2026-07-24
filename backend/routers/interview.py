@@ -108,6 +108,7 @@ async def evaluate_step(
     audio: UploadFile = File(...),
     question_text: str = Form(...),
     question_type: str = Form(...),
+    question_number: str = Form(""),
     history: str = Form("[]"),
     follow_up_limit: int = Form(5),
 ):
@@ -139,6 +140,10 @@ async def evaluate_step(
         print(f"[Eval] STT error: {e}")
 
     if not transcript:
+        return {"need_pushback": False, "transcript": transcript}
+
+    question_number = (question_number or "").split("_", 1)[0]
+    if follow_up_limit <= 0 or question_number == "01" or "giới thiệu" in (question_text or "").lower():
         return {"need_pushback": False, "transcript": transcript}
 
     # Theo yêu cầu: Chỉ follow-up các câu hỏi chuyên môn (Technical) và nghề nghiệp (Experience)
@@ -178,12 +183,13 @@ NHIỆM VỤ CỦA BẠN:
    - TUYỆT ĐỐI KHÔNG TỰ BỊA RA NỘI DUNG MỚI hoặc thay đổi ý nghĩa của ứng viên.
 
 2. Đánh giá câu trả lời và Quyết định follow-up:
-   - Nếu câu trả lời QUÁ NGẮN (dưới 3 câu) hoặc CHUNG CHUNG (không có ví dụ/số liệu/tình huống cụ thể): BẮT BUỘC đặt câu hỏi follow-up để yêu cầu ứng viên cụ thể hơn.
-   - Nếu ứng viên chỉ nói "không biết", "chưa có kinh nghiệm", "không nhớ": Hỏi thêm về những trải nghiệm TƯƠNG TỰ hoặc cách họ sẽ XỬ LÝ tình huống giả định.
-   - Nếu câu trả lời đã đầy đủ: Trả về "PASS" cho pushback_question.
-   - Chỉ DỪNG (PASS) khi: ứng viên đã trả lời cực kỳ đầy đủ VÀ chi tiết, hoặc đã hỏi follow-up quá 3 lần liên tiếp về cùng 1 câu.
+   - `follow_up_limit` chỉ là GIỚI HẠN TỐI ĐA, KHÔNG phải số câu bắt buộc phải hỏi đủ.
+   - Mặc định ưu tiên trả về "PASS" nếu câu trả lời đã trả lời đúng trọng tâm, có đủ ý chính để đánh giá, hoặc không còn điểm nghi vấn đáng đào sâu.
+   - Chỉ đặt follow-up khi có THIẾU SÓT/RỦI RO RÕ RÀNG ảnh hưởng đến đánh giá, ví dụ: thiếu ví dụ thực tế cho năng lực cốt lõi, thiếu số liệu/kết quả trong thành tích quan trọng, mâu thuẫn với CV/JD, trả lời né tránh, hoặc nói "không biết/chưa có kinh nghiệm" ở yêu cầu trọng yếu.
+   - Không hỏi follow-up chỉ vì câu trả lời chưa thật dài, chưa hoàn hảo về diễn đạt, hoặc đã đủ hiểu để chấm điểm.
+   - Nếu đã từng hỏi follow-up mà ứng viên trả lời thêm đủ để đánh giá, trả về "PASS"; không cố hỏi tiếp.
 
-3. Câu hỏi follow-up phải:
+3. Nếu thật sự cần hỏi follow-up, câu hỏi phải:
    - Ngắn gọn (dưới 25 từ), trực tiếp, không có câu mở đầu xã giao.
    - Yêu cầu ứng viên CHO VÍ DỤ CỤ THỂ, CON SỐ, hoặc TÌNH HUỐNG thực tế.
    - Bắt đầu bằng: "Cụ thể hơn...", "Bạn có thể kể ví dụ...", "Kết quả cụ thể là gì?", "Bạn đã làm gì khi...?" v.v.

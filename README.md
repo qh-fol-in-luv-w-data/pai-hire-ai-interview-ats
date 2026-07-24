@@ -40,7 +40,7 @@ OPENAI_API_KEY=sk-xxx
 ELEVENLABS_API_KEY=xxx
 
 # Cấu hình Admin
-ADMIN_KEY=admin@2024
+ADMIN_KEY=change-me-to-a-long-random-admin-secret
 
 # (Tuỳ chọn) Email cấu hình để gửi báo cáo cho ứng viên
 SMTP_HOST=smtp.gmail.com
@@ -60,7 +60,7 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8080
   Mở trình duyệt truy cập: `http://localhost:8080/ui/interview.html?reiv=test`
 - **Giao diện Admin (Quản lý)**:
   Mở trình duyệt truy cập: `http://localhost:8080/ui/admin.html`
-  *(Sử dụng admin key đã được cấu hình trong hệ thống, mặc định nhập: `admin@2024`)*
+  *(Sử dụng admin key đã được cấu hình trong `.env`.)*
 
 ## Các tính năng chính
 - **Real-time STT Normalization**: Chuẩn hoá văn bản giọng nói tức thời khi ứng viên kết thúc câu.

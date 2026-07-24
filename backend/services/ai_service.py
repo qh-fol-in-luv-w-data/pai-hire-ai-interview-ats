@@ -8,6 +8,76 @@ from openai import AsyncOpenAI
 from backend.config import SCORE_PROMPT, EVAL_PROMPT, SOFT_SKILL_EVAL_PROMPT, HOD_QUESTIONS_PROMPT,  OPENAI_API_KEY, ELEVENLABS_API_KEY, OUTPUT_DIR, QUESTION_AUDIO_DIR, CV_UPLOAD_DIR, PASS_SCORE, _DEFAULT_EXPERIENCE, BASE_DIR, _find_position_files, _parse_q0306
 from backend.database import db
 
+
+SCORE_MAXIMA = {
+    "c1_technical_skills": 2.0,
+    "c2_experience": 2.0,
+    "c3_education": 1.0,
+    "c4_industry": 1.0,
+    "c5_career_path": 1.0,
+    "c6_achievements": 1.0,
+    "c7_soft_skills": 0.5,
+    "c8_language_cv": 0.5,
+    "c9_stability": 0.5,
+    "c10_ai_overall": 0.5,
+}
+
+
+def normalize_cv_score(score_result: dict) -> tuple[dict, float]:
+    """Clamp AI sub-scores and cap inflated totals when core fit is weak."""
+    c = score_result.setdefault("criteria_scores", {})
+    normalized = {}
+    for key, max_value in SCORE_MAXIMA.items():
+        try:
+            value = float(c.get(key, 0) or 0)
+        except Exception:
+            value = 0.0
+        normalized[key] = round(min(max(value, 0.0), max_value), 2)
+    score_result["criteria_scores"] = normalized
+
+    total = round(sum(normalized.values()), 2)
+    caps = []
+    if normalized["c1_technical_skills"] < 1.2 or normalized["c2_experience"] < 1.2:
+        caps.append(6.5)
+    elif normalized["c1_technical_skills"] < 1.6 or normalized["c2_experience"] < 1.6:
+        caps.append(8.0)
+    if normalized["c4_industry"] < 0.6:
+        caps.append(7.0)
+    if normalized["c6_achievements"] < 0.7:
+        caps.append(8.5)
+    if total >= 9.0 and not (
+        normalized["c1_technical_skills"] >= 1.8
+        and normalized["c2_experience"] >= 1.8
+        and normalized["c4_industry"] >= 0.85
+        and normalized["c6_achievements"] >= 0.85
+        and normalized["c10_ai_overall"] >= 0.45
+    ):
+        caps.append(8.8)
+
+    if caps:
+        total = round(min(total, min(caps)), 2)
+        score_result["score_cap_applied"] = total
+        score_result["score_cap_reason"] = (
+            "Điểm tổng bị giới hạn vì chưa đủ bằng chứng mạnh ở kỹ năng, kinh nghiệm, ngành hoặc thành tích để đạt nhóm 9+."
+        )
+
+    evidence = score_result.setdefault("evidence", {})
+    for key in ("matched_requirements", "missing_requirements", "transferable_strengths", "quantified_achievements"):
+        if not isinstance(evidence.get(key), list):
+            evidence[key] = []
+    if not isinstance(score_result.get("risk_flags"), list):
+        score_result["risk_flags"] = []
+    if not isinstance(score_result.get("interview_focus"), list):
+        score_result["interview_focus"] = []
+    confidence = score_result.setdefault("confidence", {})
+    if confidence.get("level") not in {"low", "medium", "high"}:
+        confidence["level"] = "medium"
+    confidence.setdefault("reason", "CV/JD có đủ thông tin cơ bản để đánh giá sơ bộ.")
+
+    score_result["total_score"] = total
+    return score_result, total
+
+
 async def _tts(text: str, out_path: Path) -> None:
     """Sinh audio TTS và lưu vào out_path. Bỏ qua nếu đã tồn tại."""
     if out_path.exists():
@@ -29,8 +99,18 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
     try:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        
+        # Get pass score from settings
+        pass_score = PASS_SCORE
+        with db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='cv_pass_score'").fetchone()
+            if row and row["value"]:
+                try:
+                    pass_score = float(row["value"])
+                except:
+                    pass
 
-        prompt = SCORE_PROMPT.format(jd=jd_text[:4000], cv=cv_text[:5000])
+        prompt = SCORE_PROMPT.format(jd=jd_text[:4000], cv=cv_text[:5000], pass_score=pass_score)
         resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
@@ -43,27 +123,18 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
 
         result = json.loads(raw)
 
-        # Tính lại tổng từ sub-scores — không tin AI tự tính
-        c = result.get("criteria_scores", {})
-        sub = (
-            float(c.get("c1_technical_skills", 0))
-            + float(c.get("c2_experience", 0))
-            + float(c.get("c3_education", 0))
-            + float(c.get("c4_industry", 0))
-            + float(c.get("c5_career_path", 0))
-            + float(c.get("c6_achievements", 0))
-            + float(c.get("c7_soft_skills", 0))
-            + float(c.get("c8_language_cv", 0))
-            + float(c.get("c9_stability", 0))
-            + float(c.get("c10_ai_overall", 0))
-        )
-        # Làm tròn 2 chữ số thập phân
-        total = round(sub, 2)
-        result["total_score"] = total
-        ai_verdict = "passed" if total >= PASS_SCORE else "failed"
-        # § Feature (6): Không gửi email tự động — chờ HR xác nhận
-        # status = pending_hr_approval (pass/fail sẽ lưu vào ai_verdict để HR biết gợi ý)
-        pending_status = f"pending_hr_approval_{ai_verdict}"
+        result, total = normalize_cv_score(result)
+        ai_verdict = "passed" if total >= pass_score else "failed"
+        pending_status = f"waiting_for_reply_{ai_verdict}"
+
+        # Generate deep analysis questions
+        try:
+            deep_qs = await generate_deep_questions(cv_text, jd_text)
+            result["deep_questions"] = deep_qs
+        except Exception as e:
+            print(f"[CV Score] Deep questions error: {e}")
+            result["deep_questions"] = []
+            deep_qs = []
 
         with db() as conn:
             conn.execute(
@@ -74,16 +145,11 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
                 "SELECT name, email, job_id FROM cv_applications WHERE id=?", (app_id,)
             ).fetchone()
 
-        print(f"[CV Score] {app_id} → {total}/10 (AI gợi ý: {ai_verdict}) — Chờ HR duyệt")
+        print(f"[CV Score] {app_id} → {total}/10 (AI gợi ý: {ai_verdict}) — Chờ ứng viên trả lời")
 
-        if row and ai_verdict == "passed":
-            # Gen prep sẵn trong background để khi HR approve là gửi link ngay
-            print(f"[CV Score] Pre-gen prep cho {app_id} (AI gợi ý Pass)...")
-            try:
-                await _create_prep(row["job_id"], app_id, level=level)
-                print(f"[CV Score] Prep đã gen xong, sẵn sàng khi HR duyệt")
-            except Exception as e:
-                print(f"[CV Score] Prep error (không ảnh hưởng đến luồng): {e}")
+        if row and deep_qs:
+            from backend.services.email_service import send_deep_questions_email
+            send_deep_questions_email(row["name"], row["email"], row["job_id"], app_id, deep_qs)
 
     except Exception as e:
         print(f"[CV Score Error] {app_id}: {e}")
@@ -110,23 +176,20 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-        # Lấy câu hỏi kinh nghiệm cá nhân hoá từ prep
-        prep_questions = {
-            "07": _DEFAULT_EXPERIENCE["q07"],
-            "08": _DEFAULT_EXPERIENCE["q08"],
-        }
+        # Lấy toàn bộ câu hỏi từ prep_service
+        prep_data = {}
         with db() as conn:
             iv = conn.execute(
                 "SELECT prep_id FROM interviews WHERE id=?", (interview_id,)
             ).fetchone()
             if iv and iv["prep_id"]:
-                prep = conn.execute(
-                    "SELECT q07_text, q08_text FROM interview_prep WHERE id=?",
+                prep_row = conn.execute(
+                    "SELECT * FROM interview_prep WHERE id=?",
                     (iv["prep_id"],)
                 ).fetchone()
-                if prep:
-                    prep_questions["07"] = prep["q07_text"]
-                    prep_questions["08"] = prep["q08_text"]
+                if prep_row:
+                    from backend.services.prep_service import _prep_from_row
+                    prep_data = _prep_from_row(prep_row)
 
         type_count = {"Technical": 0, "Soft Skill": 0, "Experience": 0}
 
@@ -155,13 +218,13 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
             idx = type_count.get(q_type, 0)
             type_count[q_type] = idx + 1
 
-            if qn in prep_questions:
-                question = prep_questions[qn]
-            elif qn in ("01", "02", "03", "04"):
-                md_path, _ = _find_position_files(position_id)
-                question   = _parse_q0306(md_path).get(qn, "") if md_path else ""
+            if prep_data and qn in prep_data.get("questions", {}):
+                question = prep_data["questions"][qn]["text"]
+            elif row.get("question_text"):
+                question = row["question_text"]
             else:
                 question = ""
+
 
             # ── 3. GPT-4o đánh giá ─────────────────────────────
             ai_level     = None          # None = soft skill (không xếp mức)
@@ -327,8 +390,61 @@ Trả về CHỈ JSON theo định dạng (mỗi phần viết thành 1 đoạn 
 
 
 
-async def generate_deep_questions(cv_text: str, jd_text: str, n_questions: int = 5) -> list:
-    """Sử dụng GPT-4o để sinh n câu hỏi deep analysis xoáy sâu vào CV."""
+async def analyze_candidate_reply(cv_text: str, jd_text: str, deep_questions: list, candidate_reply: str) -> dict:
+    """Sử dụng GPT-4o để đánh giá câu trả lời của ứng viên."""
+    from openai import AsyncOpenAI
+    from backend.config import OPENAI_API_KEY, EVALUATE_REPLY_PROMPT
+    import json
+    
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY chưa được cấu hình.")
+        
+    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    
+    # Format deep questions into readable text
+    dq_text = "\n".join([f"Câu {i+1}: {q.get('question_text', '')}" for i, q in enumerate(deep_questions)])
+    
+    prompt = EVALUATE_REPLY_PROMPT.format(
+        cv_text=cv_text[:5000], 
+        jd_text=jd_text[:4000],
+        deep_questions=dq_text,
+        candidate_reply=candidate_reply
+    )
+    
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "return_reply_evaluation",
+                "description": "Trả về kết quả đánh giá câu trả lời của ứng viên.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "evaluation": {"type": "string", "description": "Đánh giá chi tiết câu trả lời."},
+                        "red_flags": {"type": "array", "items": {"type": "string"}, "description": "Các điểm đáng ngờ hoặc chưa thỏa đáng."},
+                        "strengths": {"type": "array", "items": {"type": "string"}, "description": "Các điểm mạnh thể hiện qua câu trả lời."},
+                        "recommendation": {"type": "string", "enum": ["Phê duyệt", "Từ chối"], "description": "Đề xuất cuối cùng."}
+                    },
+                    "required": ["evaluation", "red_flags", "strengths", "recommendation"]
+                }
+            }
+        }
+    ]
+    
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        tools=tools,
+        tool_choice={"type": "function", "function": {"name": "return_reply_evaluation"}}
+    )
+    
+    tool_call = resp.choices[0].message.tool_calls[0]
+    result_json = tool_call.function.arguments
+    return json.loads(result_json)
+
+async def generate_deep_questions(cv_text: str, jd_text: str) -> list:
+    """Sử dụng GPT-4o để sinh các câu hỏi deep analysis xoáy sâu vào CV (số lượng tuỳ ý)."""
     from openai import AsyncOpenAI
     from backend.config import OPENAI_API_KEY, DEEP_ANALYSIS_PROMPT
     
@@ -336,7 +452,7 @@ async def generate_deep_questions(cv_text: str, jd_text: str, n_questions: int =
         raise ValueError("OPENAI_API_KEY chưa được cấu hình.")
         
     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-    prompt = DEEP_ANALYSIS_PROMPT.format(n=n_questions, cv_text=cv_text[:5000], jd_text=jd_text[:4000])
+    prompt = DEEP_ANALYSIS_PROMPT.format(cv_text=cv_text[:5000], jd_text=jd_text[:4000])
     
     tools = [
         {

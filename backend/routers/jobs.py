@@ -12,6 +12,7 @@ from backend.config import BASE_DIR, ADMIN_KEY, require_admin, PASS_SCORE, OUTPU
 
 from backend.services.document_service import get_all_jobs, resolve_job_id, get_jd_content
 from backend.services.ai_service import _do_score_cv
+from backend.security import ALLOWED_CV_EXTENSIONS, MAX_CV_UPLOAD_BYTES, read_upload_limited
 router = APIRouter()
 _JOB_LEVELS = ("Entry", "Junior", "Mid", "Senior", "Manager", "Director")
 
@@ -67,10 +68,15 @@ async def apply_job(
     now    = time.strftime("%Y-%m-%dT%H:%M:%S")
     app_id = "APP-" + uuid.uuid4().hex[:8].upper()
 
-    ext         = Path(cv_file.filename).suffix or ".pdf"
+    cv_bytes, ext = await read_upload_limited(
+        cv_file,
+        allowed_extensions=ALLOWED_CV_EXTENSIONS,
+        max_bytes=MAX_CV_UPLOAD_BYTES,
+        field_name="CV",
+    )
     cv_filename = f"{app_id}{ext}"
     cv_path     = CV_UPLOAD_DIR / cv_filename
-    cv_path.write_bytes(await cv_file.read())
+    cv_path.write_bytes(cv_bytes)
 
     # §20 — Phát hiện tái ứng tuyển theo email
     is_reapplicant = False
@@ -102,5 +108,4 @@ async def apply_job(
         "is_reapplicant": is_reapplicant,
         "message": "CV đã nhận, đang chấm điểm tự động...",
     }
-
 
