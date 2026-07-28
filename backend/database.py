@@ -213,6 +213,10 @@ def init_db():
                 conn.execute(f"ALTER TABLE answers ADD COLUMN {col} {typedef}")
             except Exception:
                 pass
+        try:
+            conn.execute("ALTER TABLE answers ADD COLUMN attempt_number INTEGER DEFAULT 1")
+        except Exception:
+            pass
         
         # Initialize default settings
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cv_pass_score', '6.0')")

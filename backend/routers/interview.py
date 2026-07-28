@@ -278,6 +278,11 @@ async def submit_interview(
     except:
         pushback_texts = {}
 
+    question_meta_raw = form.get("question_meta", "{}")
+    try:
+        question_meta = json.loads(question_meta_raw)
+    except:
+        question_meta = {}
     
     if not position_id:
         raise HTTPException(400, "Thiếu position_id")
@@ -338,7 +343,9 @@ async def submit_interview(
                 qn = qn_raw
                 question_number = qn
 
-            q_type = QUESTIONS_BANK.get(qn, {}).get("type", "General")
+            q_meta = question_meta.get(qn, {}) if isinstance(question_meta, dict) else {}
+            original_qn = str(q_meta.get("original_n") or qn).split("_", 1)[0]
+            q_type = q_meta.get("type") or QUESTIONS_BANK.get(original_qn, {}).get("type", "General")
 
             audio_bytes, audio_ext = await read_upload_limited(
                 upload,
@@ -351,6 +358,8 @@ async def submit_interview(
             audio_path.write_bytes(audio_bytes)
             
             q_text = pushback_texts.get(key.replace("answer_", ""), None)
+            if q_text is None:
+                q_text = q_meta.get("text")
 
             answer_rows.append({
                 "interview_id":    interview_id,
@@ -359,6 +368,7 @@ async def submit_interview(
                 "question_text":   q_text,
                 "audio_path":      str(audio_path.relative_to(BASE_DIR)),
                 "created_at":      now,
+                "attempt_number":  1,
             })
 
 
@@ -371,13 +381,19 @@ async def submit_interview(
             if not orig:
                 raise HTTPException(404, f"Không tìm thấy interview gốc: {reiv}")
 
+            attempt_row = conn.execute(
+                "SELECT COALESCE(MAX(attempt_number), 1) AS max_attempt FROM answers WHERE interview_id=?",
+                (reiv,),
+            ).fetchone()
+            next_attempt = int(attempt_row["max_attempt"] or 1) + 1
+
             # Chèn answers mới vào interview gốc (giữ nguyên answers cũ để HR so sánh)
-            reiv_rows = [{**r, "interview_id": reiv} for r in answer_rows]
+            reiv_rows = [{**r, "interview_id": reiv, "attempt_number": next_attempt} for r in answer_rows]
             conn.executemany("""
                 INSERT INTO answers
-                    (interview_id, question_number, question_type, question_text, audio_path, created_at)
-                VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at)
-            """, reiv_rows)
+                    (interview_id, question_number, question_type, question_text, audio_path, created_at, time_spent, attempt_number)
+                VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at, :time_spent, :attempt_number)
+            """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in reiv_rows])
 
 
             # Cập nhật interview gốc
@@ -386,9 +402,9 @@ async def submit_interview(
                 (now, prep_id or None, reiv),
             )
 
-        print(f"[✓] Re-interview {reiv} | {len(answer_rows)} answers added")
+        print(f"[✓] Re-interview {reiv} | attempt={next_attempt} | {len(answer_rows)} answers added")
         background.add_task(_do_evaluate_interview, reiv, position_id, reiv_rows)
-        return {"ok": True, "interview_id": reiv, "reinterview": True, "answers_saved": len(answer_rows)}
+        return {"ok": True, "interview_id": reiv, "reinterview": True, "attempt_number": next_attempt, "answers_saved": len(answer_rows)}
 
     # ── Phỏng vấn mới: flow thông thường ───────────────────────
     with db() as conn:
@@ -412,8 +428,8 @@ async def submit_interview(
 
         conn.executemany("""
             INSERT INTO answers
-                (interview_id, question_number, question_type, question_text, audio_path, created_at, time_spent)
-            VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at, :time_spent)
+                (interview_id, question_number, question_type, question_text, audio_path, created_at, time_spent, attempt_number)
+            VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at, :time_spent, :attempt_number)
         """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in answer_rows])
 
     print(f"[✓] {interview_id} | candidate={candidate_id} | position={position_id}")
@@ -441,7 +457,7 @@ def get_interview(interview_id: str, x_admin_key: str = Header(None)):
             raise HTTPException(404, "Không tìm thấy interview")
 
         answers = conn.execute(
-            "SELECT * FROM answers WHERE interview_id = ? ORDER BY question_number",
+            "SELECT * FROM answers WHERE interview_id = ? ORDER BY attempt_number, question_number",
             (interview_id,)
         ).fetchall()
 
@@ -523,7 +539,7 @@ async def trigger_evaluate(interview_id: str, background: BackgroundTasks,
             raise HTTPException(404, "Không tìm thấy buổi phỏng vấn")
         rows = conn.execute(
             # Lấy tất cả answers — _do_evaluate_interview tự deduplicate theo created_at
-            "SELECT interview_id, question_number, question_type, audio_path, created_at FROM answers WHERE interview_id=? ORDER BY created_at",
+            "SELECT interview_id, question_number, question_type, audio_path, created_at, attempt_number FROM answers WHERE interview_id=? ORDER BY attempt_number, created_at",
             (interview_id,)
         ).fetchall()
     answer_rows = [dict(r) for r in rows]
@@ -542,7 +558,7 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
             raise HTTPException(404, "Không tìm thấy buổi phỏng vấn")
 
         answers = conn.execute(
-            "SELECT * FROM answers WHERE interview_id=? ORDER BY question_number",
+            "SELECT * FROM answers WHERE interview_id=? ORDER BY attempt_number, question_number",
             (interview_id,)
         ).fetchall()
 

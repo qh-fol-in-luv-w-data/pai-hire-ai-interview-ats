@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.database import init_db
@@ -24,14 +24,14 @@ async def add_security_headers(request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault(
         "Permissions-Policy",
-        "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()",
+        'camera=(self "https://service.ctpai.vn"), microphone=(self "https://service.ctpai.vn"), geolocation=(), payment=(), usb=()',
     )
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: blob:; "
         "media-src 'self' blob:; "
@@ -68,6 +68,10 @@ def startup():
 def health():
     return {"status": "ok"}
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
+
 @app.get("/temp_pushbacks/{filename}")
 def temp_pushback_audio(filename: str, token: str = None):
     verify_temp_file_token(filename, token)
@@ -97,6 +101,10 @@ def apply_page():
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page():
+    return (FRONTEND_DIR / "admin.html").read_text(encoding="utf-8")
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_page():
     return (FRONTEND_DIR / "admin.html").read_text(encoding="utf-8")
 
 @app.get("/candidate/reply", response_class=HTMLResponse)

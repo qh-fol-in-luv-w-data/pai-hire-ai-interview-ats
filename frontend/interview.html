@@ -7,6 +7,10 @@
 <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet"/>
+<link href="/ui/pai-theme.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
+<script src="/ui/pai-dropdowns.js" defer></script>
 <style>
   body { font-family: 'Inter', sans-serif; background: #f0f2f5; }
   @keyframes recPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
@@ -38,25 +42,31 @@
   .star-btn.lit { color:#f59e0b; }
 </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen overflow-x-hidden selection:bg-[#dbe1ff] selection:text-[#00174b]">
 
 <!-- Header -->
-<header class="bg-[#131b2e] text-white px-6 py-4 flex items-center gap-3 sticky top-0 z-50 shadow-lg">
-  <div class="w-9 h-9 bg-[#0051d5] rounded-xl flex items-center justify-center font-extrabold text-lg">P</div>
-  <div>
-    <p class="font-bold text-sm leading-none">PAI HR</p>
-    <p class="text-white/50 text-xs">Phỏng vấn trực tuyến</p>
+<header class="bg-[#0d1b35] text-white px-4 md:px-12 py-3 flex items-center justify-between fixed top-0 left-0 right-0 z-50 shadow-md">
+  <div class="flex items-center gap-5">
+    <div class="font-bold text-xl text-white flex items-center gap-2">
+      <span class="w-9 h-9 rounded-xl bg-[#0051d5] text-white flex items-center justify-center">P</span>
+      PAI Recruitment
+    </div>
+    <span class="hidden md:inline-flex text-xs font-bold bg-white/10 text-[#dbe1ff] px-2 py-1 rounded">Session: <span id="header-session-ref" class="ml-1">LOCAL</span></span>
   </div>
-  <div class="ml-auto flex items-center gap-3">
-    <div id="camera-alert-indicator" class="hidden items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-400/40 rounded-xl">
-      <span class="material-symbols-outlined text-amber-300 text-base">videocam_alert</span>
-      <span class="text-amber-100 text-xs font-semibold">Cam: <span id="camera-alert-badge" class="font-black text-amber-300">0s</span></span>
+  <nav class="hidden md:flex gap-8 items-center text-sm font-semibold text-[#dbe1ff]">
+    <a class="text-white/55 hover:text-white transition" href="/apply">Applications</a>
+    <a class="text-[#b4c5ff] border-b-2 border-[#b4c5ff] pb-1" href="#">Interviews</a>
+    <a class="text-white/55 hover:text-white transition" href="/admin">Reports</a>
+  </nav>
+  <div class="flex items-center gap-3 text-[#dbe1ff]">
+    <div id="camera-alert-indicator" class="hidden flex-col items-end gap-1">
+      <div id="camera-alert-list" class="flex flex-col items-end gap-1"></div>
     </div>
     <div id="tab-switch-indicator" class="hidden items-center gap-2 px-3 py-1.5 bg-red-600/20 border border-red-500/40 rounded-xl">
       <span class="material-symbols-outlined text-red-400 text-base">tab_close</span>
       <span class="text-red-300 text-xs font-semibold">Out tab: <span id="tab-switch-badge" class="font-black text-red-400">0</span> lần</span>
     </div>
-    <span id="step-badge" class="hidden px-3 py-1 bg-[#0051d5]/30 text-[#93c5fd] rounded-full text-xs font-bold">BƯỚC 1 / 3</span>
+    <span id="step-badge" class="hidden px-3 py-1 bg-white/10 text-[#b4c5ff] rounded-full text-xs font-bold">BƯỚC 1 / 3</span>
   </div>
 </header>
 
@@ -109,17 +119,18 @@
   </div>
 </div>
 
-<main class="max-w-3xl mx-auto px-4 py-8">
+<main class="pt-[80px] pb-12 px-4 md:px-5 max-w-[1280px] mx-auto min-h-screen">
 
 <!-- ── PROCTORING CAMERA ────────────────────────────────── -->
-<div id="webcam-container" class="hidden fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[160px] h-[120px] sm:w-[320px] sm:h-[240px] z-[9000] bg-black rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700">
-  <video id="webcam-video" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
-  <div class="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
-    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-    AI CAM
+<div id="webcam-container" class="hidden fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[180px] h-[135px] sm:w-[320px] sm:h-[240px] z-[9000] bg-[#2e3038] rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 group">
+  <video id="webcam-video" autoplay muted playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
+  <div class="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/60 backdrop-blur-md px-2 py-1 text-[10px] font-bold text-white">
+    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+    AI Monitoring Active
   </div>
-  <div id="proctoring-ws-status" class="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white">WS: idle</div>
-  <canvas id="proctoring-canvas" class="hidden"></canvas>
+  <button type="button" onclick="hideProctoringBox()" title="Ẩn ô camera debug" class="absolute right-2 top-2 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90">
+    <span class="material-symbols-outlined text-sm">close</span>
+  </button>
   <iframe id="proctoring-iframe" title="AI proctoring camera" allow="camera; microphone; autoplay" class="hidden w-full h-full border-0"></iframe>
 </div>
 
@@ -265,23 +276,25 @@
 
 <!-- ── STEP 2: Questions ──────────────────────────────────── -->
 <div id="step-2" class="hidden">
+  <div class="flex flex-col md:flex-row gap-8">
+    <div class="flex-1 flex flex-col gap-5">
 
   <!-- Intro audio banner -->
-  <div id="intro-banner" class="hidden bg-[#0051d5] text-white rounded-2xl p-4 mb-5 flex items-center gap-4 shadow-sm">
+  <div id="intro-banner" class="hidden bg-white/80 border border-[#e5e7eb] rounded-xl p-6 flex items-center gap-4 shadow-sm glass-panel">
     <button onclick="toggleIntro()" id="intro-play-btn"
-      class="w-11 h-11 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/30 transition active:scale-95">
+      class="w-11 h-11 bg-[#0051d5] text-white rounded-full flex items-center justify-center flex-shrink-0 hover:opacity-90 transition active:scale-95">
       <span class="material-symbols-outlined" id="intro-icon" style="font-variation-settings:'FILL' 1;">play_arrow</span>
     </button>
     <div class="flex-1 min-w-0">
-      <p class="font-bold text-sm">Giới thiệu buổi phỏng vấn</p>
-      <p class="text-white/70 text-xs" id="intro-hint">Nhấn ▶ để nghe hướng dẫn trước khi bắt đầu</p>
+      <p class="font-bold text-sm text-[#003ca3] flex items-center gap-2"><span class="material-symbols-outlined text-base">smart_toy</span> PAI Agent</p>
+      <p class="text-[#434654] text-xs" id="intro-hint">Nhấn ▶ để nghe hướng dẫn trước khi bắt đầu</p>
     </div>
     <audio id="intro-audio" onended="onIntroEnded()" ontimeupdate="onIntroProgress()"></audio>
-    <span class="text-white/70 text-xs font-mono flex-shrink-0" id="intro-time">0:00</span>
+    <span class="text-[#434654] text-xs font-mono flex-shrink-0" id="intro-time">0:00</span>
   </div>
 
   <!-- Progress -->
-  <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-5 shadow-sm">
+  <div class="bg-white/85 rounded-xl border border-[#e5e7eb] p-6 shadow-sm glass-panel">
     <div class="flex items-center justify-between mb-2">
       <div>
         <p class="font-bold text-gray-900 text-sm" id="interview-position-name">—</p>
@@ -292,13 +305,7 @@
     <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
       <div id="q-progress-bar" class="h-full bg-[#0051d5] transition-all duration-500" style="width:0%"></div>
     </div>
-    <div class="flex items-center justify-between gap-3 mt-3">
-      <div class="flex gap-1.5" id="q-dots"></div>
-      <div id="camera-alert-inline" class="hidden shrink-0 items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-700 max-w-[70%]">
-        <span class="material-symbols-outlined text-sm">videocam_alert</span>
-        <span id="camera-alert-inline-list" class="truncate"></span>
-      </div>
-    </div>
+    <div class="flex gap-1.5 mt-3" id="q-dots"></div>
   </div>
 
   <!-- Question cards -->
@@ -322,6 +329,32 @@
         Nộp bài phỏng vấn
       </button>
     </div>
+  </div>
+    </div>
+
+    <aside class="w-full md:w-[320px] flex flex-col gap-5">
+      <div class="bg-white/85 rounded-xl p-5 border border-[#e5e7eb] shadow-sm glass-panel">
+        <div class="font-bold text-sm text-[#191b23] mb-3 border-b border-[#e5e7eb] pb-2">Session Details</div>
+        <div class="space-y-3 text-sm">
+          <div class="flex justify-between gap-3"><span class="text-[#434654]">Ứng viên:</span><span class="font-bold text-right" id="side-candidate-ref">Local</span></div>
+          <div class="flex justify-between gap-3"><span class="text-[#434654]">Role:</span><span class="font-bold text-right" id="side-position-name">—</span></div>
+          <div class="flex justify-between gap-3"><span class="text-[#434654]">Mode:</span><span class="font-bold text-[#003ca3]">AI Interview</span></div>
+        </div>
+        <div class="mt-4 w-full bg-[#e1e2ed] rounded-full h-2">
+          <div class="bg-[#0051d5] h-2 rounded-full" id="side-progress-bar" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="bg-[#2e3038] rounded-2xl overflow-hidden aspect-[4/3] shadow-lg border-2 border-white/20 relative hidden md:block">
+        <div class="absolute inset-0 flex items-center justify-center text-white/50 text-sm">
+          <span class="material-symbols-outlined mr-2">videocam</span> AI Monitoring
+        </div>
+        <div class="absolute inset-0 border-2 border-[#0051d5]/60 rounded-2xl pointer-events-none"></div>
+        <div class="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-bold px-2 py-1 rounded flex items-center gap-1 backdrop-blur-md">
+          <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+          Active
+        </div>
+      </div>
+    </aside>
   </div>
 </div>
 
@@ -438,18 +471,19 @@ let consentAudio  = false;
 let surveyRatings = {};
 let surveyNPS     = null;
 
+document.getElementById('header-session-ref').textContent = REF || SLOT || 'LOCAL';
+document.getElementById('side-candidate-ref')?.replaceChildren(document.createTextNode(REF ? 'Theo hồ sơ' : 'Local'));
+
 let webcamStream = null;
-let pendingCameraStream = null;
 let currentInterviewId = '';
 let sttTexts = {};
 let pushbackTexts = {};
 let proctoringPollTimer = null;
 let proctoringLastAlertId = 0;
+let proctoringSessionStartAlertId = 0;
 let proctoringPollPrimed = false;
 let proctoringAlertTimer = null;
 let proctoringAlertStates = {};
-let proctoringWs = null;
-let proctoringFrameTimer = null;
 let proctoringAlertsToken = '';
 
 function escapeHtml(value) {
@@ -566,16 +600,37 @@ async function logIncident(type, description) {
   } catch(e) { /* fire-and-forget */ }
 }
 
+function interviewStateKey(suffix) {
+  return `PAI_HR_${REF || REIV || currentInterviewId || selectedPosition || 'local'}_${suffix}`;
+}
+
+function saveInterviewState() {
+  try {
+    localStorage.setItem(interviewStateKey('tab_switch_count'), String(tabSwitchCount || 0));
+    localStorage.setItem(interviewStateKey('proctoring_alert_states'), JSON.stringify(proctoringAlertStates || {}));
+    localStorage.setItem(interviewStateKey('proctoring_last_alert_id'), String(proctoringLastAlertId || 0));
+  } catch(e) {}
+}
+
+function restoreInterviewState() {
+  try {
+    const savedTabCount = Number(localStorage.getItem(interviewStateKey('tab_switch_count')) || 0);
+    if (savedTabCount > tabSwitchCount) tabSwitchCount = savedTabCount;
+    const savedAlertStates = JSON.parse(localStorage.getItem(interviewStateKey('proctoring_alert_states')) || '{}');
+    if (savedAlertStates && typeof savedAlertStates === 'object') {
+      proctoringAlertStates = savedAlertStates;
+    }
+    const savedLastAlertId = Number(localStorage.getItem(interviewStateKey('proctoring_last_alert_id')) || 0);
+    if (savedLastAlertId > proctoringLastAlertId) proctoringLastAlertId = savedLastAlertId;
+    updateAntiCheatCountUI();
+    renderProctoringAlertSummary();
+  } catch(e) {}
+}
+
 function proctoringAlertLabel(alertType) {
   const key = String(alertType || '').toUpperCase();
   const labels = {
     MULTI_FACE: 'Phát hiện nhiều khuôn mặt trong khung hình.',
-    FACE_MISSING: 'Không thấy khuôn mặt trong khung hình.',
-    FACE_NOT_FOUND: 'Không thấy khuôn mặt trong khung hình.',
-    NO_FACE: 'Không thấy khuôn mặt trong khung hình.',
-    LOOK_AWAY: 'Ứng viên nhìn ra ngoài màn hình quá lâu.',
-    PHONE_DETECTED: 'Phát hiện điện thoại trong khung hình.',
-    TAB_SWITCH: 'Phát hiện chuyển tab/cửa sổ.',
   };
   return labels[key] || `Cảnh báo camera: ${alertType || 'không xác định'}.`;
 }
@@ -584,68 +639,46 @@ function proctoringAlertShortLabel(alertType) {
   const key = String(alertType || '').toUpperCase();
   const labels = {
     MULTI_FACE: 'Nhiều mặt',
-    FACE_MISSING: 'Mất mặt',
-    FACE_NOT_FOUND: 'Mất mặt',
-    NO_FACE: 'Mất mặt',
-    LOOK_AWAY: 'Nhìn ra ngoài',
-    PHONE_DETECTED: 'Điện thoại',
-    TAB_SWITCH: 'Chuyển tab',
   };
   return labels[key] || (alertType || 'Camera');
 }
 
-function proctoringAlertDurationMs(state, now = Date.now()) {
-  const activeMs = state.activeSince ? Math.max(1000, now - state.activeSince) : 0;
-  return state.totalMs + activeMs;
-}
-
 function updateProctoringAlertDurations() {
-  const now = Date.now();
-  Object.values(proctoringAlertStates).forEach(state => {
-    if (state.activeSince && now - state.lastSeen > 8000) {
-      state.totalMs += Math.max(1000, state.lastSeen - state.activeSince);
-      state.activeSince = null;
-    }
-  });
   renderProctoringAlertSummary();
 }
 
 function renderProctoringAlertSummary() {
   const states = Object.values(proctoringAlertStates);
   const header = document.getElementById('camera-alert-indicator');
-  const badge = document.getElementById('camera-alert-badge');
-  const inline = document.getElementById('camera-alert-inline');
-  const inlineList = document.getElementById('camera-alert-inline-list');
+  const list = document.getElementById('camera-alert-list');
 
   if (!states.length) {
     header?.classList.add('hidden');
-    inline?.classList.add('hidden');
-    if (badge) badge.textContent = '0s';
-    if (inlineList) inlineList.textContent = '';
+    if (list) list.innerHTML = '';
     return;
   }
 
-  const now = Date.now();
   const rows = states
     .map(state => ({
-      label: state.label,
-      seconds: Math.max(1, Math.ceil(proctoringAlertDurationMs(state, now) / 1000)),
-      lastSeen: state.lastSeen,
+      type: String(state.type || 'UNKNOWN').toUpperCase(),
+      label: proctoringAlertShortLabel(state.type || 'UNKNOWN'),
+      count: Number(state.count || 0),
+      lastSeen: Number(state.lastSeen || 0),
     }))
+    .filter(row => row.count > 0)
     .sort((a, b) => b.lastSeen - a.lastSeen);
-  const totalSeconds = rows.reduce((sum, row) => sum + row.seconds, 0);
 
   if (header) {
     header.classList.remove('hidden');
-    header.classList.add('flex');
+    header.classList.add('flex', 'flex-col');
   }
-  if (badge) badge.textContent = `${totalSeconds}s`;
-  if (inline) {
-    inline.classList.remove('hidden');
-    inline.classList.add('flex');
-  }
-  if (inlineList) {
-    inlineList.textContent = rows.map(row => `${row.label}: ${row.seconds}s`).join(' · ');
+  if (list) {
+    list.innerHTML = rows.map(row => `
+      <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-400/40 rounded-xl">
+        <span class="material-symbols-outlined text-amber-300 text-base">videocam_alert</span>
+        <span class="text-amber-100 text-xs font-semibold">${escapeHtml(row.label)}: <span class="font-black text-amber-300">${row.count}</span> lần</span>
+      </div>
+    `).join('');
   }
 }
 
@@ -655,16 +688,17 @@ function showProctoringWarning(alert) {
   const state = proctoringAlertStates[type] || {
     type,
     label: proctoringAlertShortLabel(type),
-    totalMs: 0,
-    activeSince: null,
+    count: 0,
     lastSeen: 0,
   };
-  if (!state.activeSince || now - state.lastSeen > 8000) {
-    state.activeSince = now;
-  }
+  state.count = Number(state.count || 0) + 1;
+  state.type = type;
+  state.label = proctoringAlertShortLabel(type);
   state.lastSeen = now;
   proctoringAlertStates[type] = state;
+  saveInterviewState();
   renderProctoringAlertSummary();
+  showToast(`Cảnh báo camera: ${state.label} (${state.count} lần)`, 'warning', 6000);
 }
 
 async function pollProctoringAlerts() {
@@ -675,19 +709,17 @@ async function pollProctoringAlerts() {
     const data = await res.json();
     const alerts = data.alerts || [];
     if (!proctoringPollPrimed) {
-      if (alerts.length) {
-        proctoringLastAlertId = Math.max(proctoringLastAlertId, ...alerts.map(a => Number(a.id) || 0));
-      }
       proctoringPollPrimed = true;
-      return;
     }
     if (!alerts.length) return;
 
     proctoringLastAlertId = Math.max(proctoringLastAlertId, ...alerts.map(a => Number(a.id) || 0));
+    saveInterviewState();
 
-    const latest = alerts[alerts.length - 1];
     alerts.forEach(showProctoringWarning);
-    logIncident('proctoring_alert', `${latest.alert_type || 'unknown'}${latest.snapshot_id ? ` snapshot=${latest.snapshot_id}` : ''}`);
+    alerts.forEach(alert => {
+      logIncident('proctoring_alert', `${alert.alert_type || 'unknown'}${alert.snapshot_id ? ` snapshot=${alert.snapshot_id}` : ''}`);
+    });
   } catch(e) {
     console.warn('Failed to poll proctoring alerts', e);
   }
@@ -695,14 +727,16 @@ async function pollProctoringAlerts() {
 
 function startProctoringAlertPolling() {
   if (!REF || proctoringPollTimer) return;
-  proctoringLastAlertId = 0;
-  proctoringPollPrimed = false;
-  proctoringAlertStates = {};
+  restoreInterviewState();
+  if (!proctoringLastAlertId && proctoringSessionStartAlertId) {
+    proctoringLastAlertId = proctoringSessionStartAlertId;
+  }
+  proctoringPollPrimed = proctoringLastAlertId > 0;
   if (proctoringAlertTimer) clearInterval(proctoringAlertTimer);
   proctoringAlertTimer = setInterval(updateProctoringAlertDurations, 1000);
   renderProctoringAlertSummary();
   pollProctoringAlerts();
-  proctoringPollTimer = setInterval(pollProctoringAlerts, 4000);
+  proctoringPollTimer = setInterval(pollProctoringAlerts, 2000);
 }
 
 function stopProctoringAlertPolling() {
@@ -718,76 +752,16 @@ function stopProctoringAlertPolling() {
   updateProctoringAlertDurations();
 }
 
-function setProctoringWsStatus(status, tone = 'idle') {
-  const el = document.getElementById('proctoring-ws-status');
-  if (!el) return;
-  el.textContent = `WS: ${status}`;
-  el.className = 'absolute bottom-2 left-2 rounded-full px-2 py-1 text-[10px] font-bold text-white ' + (
-    tone === 'ok' ? 'bg-emerald-700/80' :
-    tone === 'bad' ? 'bg-red-700/80' :
-    tone === 'warn' ? 'bg-amber-600/80' :
-    'bg-black/70'
-  );
+function shouldHideProctoringBox() {
+  const params = new URLSearchParams(location.search);
+  return params.get('hide_cam_box') === '1' || params.get('debug_hide_cam_box') === '1';
 }
 
-function tokenFromProctoringUrl(proctoringUrl) {
-  try {
-    return new URL(proctoringUrl).searchParams.get('token') || '';
-  } catch {
-    return '';
-  }
+function hideProctoringBox() {
+  document.getElementById('webcam-container')?.classList.add('proctoring-box-hidden');
+  showToast('Đã ẩn ô camera debug. CTPAI vẫn đang chạy nền.', 'info', 2500);
 }
 
-function stopDirectProctoringStream() {
-  if (proctoringFrameTimer) {
-    clearInterval(proctoringFrameTimer);
-    proctoringFrameTimer = null;
-  }
-  if (proctoringWs) {
-    try { proctoringWs.close(); } catch {}
-    proctoringWs = null;
-  }
-  setProctoringWsStatus('stopped');
-}
-
-function startDirectProctoringStream(proctoringUrl, videoEl) {
-  const token = tokenFromProctoringUrl(proctoringUrl);
-  if (!token || !videoEl) {
-    setProctoringWsStatus('no-token', 'bad');
-    return;
-  }
-  const canvas = document.getElementById('proctoring-canvas');
-  const wsUrl = `wss://service.ctpai.vn/detection/gateway/ws/stream?token=${encodeURIComponent(token)}`;
-  stopDirectProctoringStream();
-  setProctoringWsStatus('connecting', 'warn');
-  proctoringWs = new WebSocket(wsUrl);
-
-  proctoringWs.onopen = () => {
-    setProctoringWsStatus('connected', 'ok');
-    proctoringFrameTimer = setInterval(() => {
-      if (!proctoringWs || proctoringWs.readyState !== WebSocket.OPEN || !videoEl.videoWidth || !canvas) return;
-      const ctx = canvas.getContext('2d');
-      canvas.width = videoEl.videoWidth || 640;
-      canvas.height = videoEl.videoHeight || 480;
-      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      proctoringWs.send(JSON.stringify({
-        timestamp: Math.floor(Date.now() / 1000),
-        frame: canvas.toDataURL('image/jpeg', 0.7),
-      }));
-    }, 200);
-  };
-  proctoringWs.onerror = err => {
-    console.error('Direct proctoring WebSocket error', err);
-    setProctoringWsStatus('error', 'bad');
-  };
-  proctoringWs.onclose = () => {
-    if (proctoringFrameTimer) {
-      clearInterval(proctoringFrameTimer);
-      proctoringFrameTimer = null;
-    }
-    setProctoringWsStatus('disconnected', 'bad');
-  };
-}
 
 // ── Consent modal (§22) ──────────────────────────────────
 function showConsentModal() {
@@ -803,43 +777,10 @@ async function acceptConsent() {
     return;
   }
 
-  // Request mic/camera permission upfront so browser permission prompts do not count as tab-out.
-  const btn = document.querySelector('#consent-modal button');
-  const origText = btn.textContent;
-  btn.textContent = 'Đang xin quyền mic/camera...';
-  btn.disabled = true;
-  requestingPermission = true;  // tắt đếm tab switch trong khi xin quyền
-  try {
-    if (pendingCameraStream) {
-      pendingCameraStream.getTracks().forEach(t => t.stop());
-      pendingCameraStream = null;
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: { width: 640, height: 480 }
-    });
-    stream.getAudioTracks().forEach(t => t.stop());
-    pendingCameraStream = new MediaStream(stream.getVideoTracks());
-  } catch (err) {
-    const errMsg = err.message || err.name || "Unknown error";
-    console.warn(`Không thể truy cập Mic/Cam (${errMsg}).`);
-    requestingPermission = false;
-    btn.textContent = origText;
-    btn.disabled = false;
-    if (REF || SLOT) {
-      showToast('Vui lòng cấp quyền micro và camera để bắt đầu phỏng vấn.', 'error', 8000);
-      return;
-    }
-    showToast(`Bỏ qua lỗi truy cập Mic/Cam (${errMsg}) để tiếp tục test local.`, 'warning');
-  }
-  requestingPermission = false;
-
   consentAudio = true;
   const modal = document.getElementById('consent-modal');
   modal.style.opacity = '0';
   modal.style.pointerEvents = 'none';
-  btn.textContent = origText;
-  btn.disabled = false;
   await startInterview();
 }
 
@@ -1145,6 +1086,7 @@ async function startInterview() {
         const data = await resp.json();
         proctoringUrl = data.embed_url;
         proctoringAlertsToken = data.alerts_token || '';
+        proctoringSessionStartAlertId = Number(data.latest_alert_id || 0);
         if (!proctoringUrl && data.mode === 'local_webcam') {
           proctoringError = data.reason || 'Không khởi tạo được AI proctoring.';
           console.warn("AI proctoring unavailable; using local webcam preview.", data.reason || '');
@@ -1168,62 +1110,67 @@ async function startInterview() {
 
   btn.innerHTML = oldHtml;
   btn.disabled = false;
-  _doStartInterview(proctoringUrl);
+  await _doStartInterview(proctoringUrl);
 }
 
-function _doStartInterview(proctoringUrl) {
+function waitForProctoringFrame(proctoringIframe) {
+  if (!proctoringIframe) return Promise.resolve();
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      requestingPermission = false;
+      resolve();
+    };
+    const timeout = setTimeout(finish, 8000);
+    proctoringIframe.onload = () => {
+      clearTimeout(timeout);
+      setTimeout(finish, 2000);
+    };
+  });
+}
+
+async function _doStartInterview(proctoringUrl) {
   // Show and initialize Webcam
+  restoreInterviewState();
   const webcamContainer = document.getElementById('webcam-container');
   const webcamVideo = document.getElementById('webcam-video');
   const proctoringIframe = document.getElementById('proctoring-iframe');
   
   if (webcamContainer && !webcamStream) {
     webcamContainer.classList.remove('hidden');
-    if (proctoringUrl) {
-      webcamVideo.classList.remove('hidden');
-      proctoringIframe.src = proctoringUrl;
-      proctoringIframe.classList.add('hidden');
-      if (pendingCameraStream) {
-        webcamStream = pendingCameraStream;
-        pendingCameraStream = null;
-        webcamVideo.srcObject = webcamStream;
-        webcamVideo.onloadedmetadata = () => startDirectProctoringStream(proctoringUrl, webcamVideo);
-        if (webcamVideo.readyState >= 2) startDirectProctoringStream(proctoringUrl, webcamVideo);
-      } else {
-        requestingPermission = true;
-        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
-          .then(stream => {
-            requestingPermission = false;
-            webcamStream = stream;
-            webcamVideo.srcObject = stream;
-            webcamVideo.onloadedmetadata = () => startDirectProctoringStream(proctoringUrl, webcamVideo);
-            if (webcamVideo.readyState >= 2) startDirectProctoringStream(proctoringUrl, webcamVideo);
-          })
-          .catch(err => {
-            requestingPermission = false;
-            console.warn("Webcam access denied or failed", err);
-            setProctoringWsStatus('camera-error', 'bad');
-            showToast('Không lấy được camera để gửi về hệ thống giám sát.', 'error', 8000);
-          });
-      }
+    if (shouldHideProctoringBox()) {
+      webcamContainer.classList.add('proctoring-box-hidden');
     } else {
-      if (pendingCameraStream) {
-        webcamStream = pendingCameraStream;
-        pendingCameraStream = null;
-        webcamVideo.srcObject = webcamStream;
-      } else {
-        requestingPermission = true;
-        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-          .then(stream => {
-            requestingPermission = false;
-            webcamStream = stream;
-            webcamVideo.srcObject = stream;
-          })
-          .catch(err => {
-            requestingPermission = false;
-            console.warn("Webcam access denied or failed", err);
-          });
-      }
+      webcamContainer.classList.remove('proctoring-box-hidden');
+    }
+    if (proctoringUrl) {
+      webcamVideo.classList.add('hidden');
+      webcamVideo.srcObject = null;
+      const iframeUrl = new URL(proctoringUrl, window.location.href);
+      iframeUrl.searchParams.set('autostart', 'true');
+      requestingPermission = true;
+      showToast('Vui lòng cấp quyền camera/micro cho khung giám sát trước khi vào bài.', 'info', 8000);
+      proctoringIframe.src = iframeUrl.toString();
+      proctoringIframe.classList.remove('hidden');
+      await waitForProctoringFrame(proctoringIframe);
+      showToast('Camera giám sát đã sẵn sàng. Bắt đầu bài phỏng vấn.', 'success', 3000);
+    } else {
+      proctoringIframe.classList.add('hidden');
+      proctoringIframe.src = '';
+      webcamVideo.classList.remove('hidden');
+      requestingPermission = true;
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(stream => {
+          requestingPermission = false;
+          webcamStream = stream;
+          webcamVideo.srcObject = stream;
+        })
+        .catch(err => {
+          requestingPermission = false;
+          console.warn("Webcam access denied or failed", err);
+        });
     }
   }
 
@@ -1237,6 +1184,8 @@ function _doStartInterview(proctoringUrl) {
     document.getElementById('step-2').classList.remove('hidden');
     document.getElementById('step-badge').textContent = '';
     document.getElementById('interview-position-name').textContent = `${meta.title} · ${selectedLevel}`;
+    const sidePosition = document.getElementById('side-position-name');
+    if (sidePosition) sidePosition.textContent = `${meta.title} · ${selectedLevel}`;
 
     if (INTRO_AUDIO_URL) {
       document.getElementById('intro-audio').src = `${API_BASE}${INTRO_AUDIO_URL}`;
@@ -1827,8 +1776,11 @@ function unlockNext(qn) {
 
 function updateProgress() {
   const doneMain = Object.keys(answers).filter(k => !k.includes('_')).length;
+  const pct = QUESTION_TYPES.length ? doneMain / QUESTION_TYPES.length * 100 : 0;
   document.getElementById('q-counter').textContent = `${doneMain} / ${QUESTION_TYPES.length}`;
-  document.getElementById('q-progress-bar').style.width = `${doneMain/QUESTION_TYPES.length*100}%`;
+  document.getElementById('q-progress-bar').style.width = `${pct}%`;
+  const sideBar = document.getElementById('side-progress-bar');
+  if (sideBar) sideBar.style.width = `${pct}%`;
 }
 
 async function prepInterview() {
@@ -1884,8 +1836,8 @@ async function prepInterview() {
       '02': { text: 'Kể về một vấn đề kỹ thuật khó khăn bạn từng gặp và cách giải quyết.', audio_url: '', type: 'Technical' },
       '03': { text: 'Kể về một lần làm việc với người có quan điểm khác bạn.', audio_url: '', type: 'Soft Skill' },
       '04': { text: 'Bạn làm gì khi nhận nhiều việc cùng lúc với deadline gấp?', audio_url: '', type: 'Soft Skill' },
-      '07': { text: 'Mô tả một dự án bạn tự hào nhất: vai trò và kết quả đạt được.', audio_url: '', type: 'Experience' },
-      '08': { text: 'Kể về một lần bạn mắc sai lầm trong công việc và bài học rút ra.', audio_url: '', type: 'Experience' },
+      '05': { text: 'Mô tả một dự án bạn tự hào nhất: vai trò và kết quả đạt được.', audio_url: '', type: 'Experience' },
+      '06': { text: 'Kể về một lần bạn mắc sai lầm trong công việc và bài học rút ra.', audio_url: '', type: 'Experience' },
       '07': { text: 'Bạn đã từng tham gia vào một dự án nào liên quan đến học máy chưa? Nếu có, hãy mô tả vai trò của bạn.', audio_url: '', type: 'Experience' },
       '08': { text: 'Trong quá khứ, bạn đã có kinh nghiệm làm việc nhóm trong một dự án nào chưa? Hãy chia sẻ một ví dụ cụ thể.', audio_url: '', type: 'Experience' },
     };
@@ -1955,17 +1907,12 @@ async function submitInterview() {
     document.getElementById('step-3').classList.remove('hidden');
     document.getElementById('step-badge').textContent = '';
     stopProctoringAlertPolling();
-    stopDirectProctoringStream();
     
     // Dispose Webcam when done
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       webcamStream = null;
       document.getElementById('webcam-container').classList.add('hidden');
-    }
-    if (pendingCameraStream) {
-      pendingCameraStream.getTracks().forEach(track => track.stop());
-      pendingCameraStream = null;
     }
     const proctoringIframe = document.getElementById('proctoring-iframe');
     if (proctoringIframe) {

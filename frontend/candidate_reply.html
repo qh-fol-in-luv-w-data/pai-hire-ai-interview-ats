@@ -6,66 +6,62 @@
 <title>Trả lời câu hỏi bổ sung — PAI HR</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet">
+<link href="/ui/pai-theme.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
+<script src="/ui/pai-dropdowns.js" defer></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);min-height:100vh;color:#f1f5f9;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px}
-  .card{background:#1e293b;border:1px solid #334155;border-radius:20px;max-width:680px;width:100%;box-shadow:0 25px 50px rgba(0,0,0,.5)}
-  .header{background:linear-gradient(135deg,#0051d5,#0ea5e9);padding:32px 40px;border-radius:20px 20px 0 0}
-  .logo{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-  .logo-icon{width:40px;height:40px;background:rgba(255,255,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff}
-  .logo-name{font-size:17px;font-weight:700;color:#fff}
-  h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:8px}
-  .subtitle{color:rgba(255,255,255,.75);font-size:14px;line-height:1.6}
-  .body{padding:32px 40px}
-  .info-box{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:16px 20px;margin-bottom:28px;font-size:13px;color:#94a3b8}
-  .info-box strong{color:#e2e8f0}
-  .q-block{margin-bottom:24px}
-  .q-label{font-size:13px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
-  .q-num{width:24px;height:24px;background:#0051d5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
-  .q-text{font-size:15px;color:#e2e8f0;line-height:1.65;margin-bottom:12px;padding-left:32px}
-  textarea{width:100%;background:#0f172a;border:1.5px solid #334155;border-radius:10px;padding:14px 16px;color:#f1f5f9;font-family:'Inter',sans-serif;font-size:14px;line-height:1.7;resize:vertical;min-height:110px;outline:none;transition:border-color .2s}
-  textarea:focus{border-color:#0ea5e9}
-  textarea::placeholder{color:#475569}
-  .btn-submit{width:100%;padding:16px;background:linear-gradient(135deg,#0051d5,#0ea5e9);border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity .2s,transform .1s}
-  .btn-submit:hover{opacity:.9}
-  .btn-submit:active{transform:scale(.99)}
-  .btn-submit:disabled{opacity:.5;cursor:not-allowed}
-  .success{text-align:center;padding:48px 20px}
-  .success .icon{font-size:52px;margin-bottom:16px}
-  .success h2{font-size:22px;font-weight:800;color:#10b981;margin-bottom:10px}
-  .success p{color:#94a3b8;font-size:14px;line-height:1.7}
-  .loading{text-align:center;padding:80px 20px;color:#94a3b8}
-  .spin{animation:spin 1s linear infinite;display:inline-block}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .err{color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:20px}
-  .field-error{border-color:#f87171!important;box-shadow:0 0 0 3px rgba(248,113,113,.12)}
-  .divider{border:none;border-top:1px solid #334155;margin:28px 0}
-  .note{font-size:12px;color:#64748b;line-height:1.6;text-align:center;padding:0 0 28px}
-  @media (max-width: 600px) {
-    body { padding: 16px 12px; }
-    .header { padding: 24px 20px; border-radius: 16px 16px 0 0; }
-    .body { padding: 24px 20px; }
-    .card { border-radius: 16px; }
-  }
+  body{font-family:'Inter',sans-serif;min-height:100vh;color:#191b23;background:#faf8ff;display:flex;flex-direction:column}
+  .topbar{width:100%;background:#fff;border-bottom:1px solid #e5e7eb;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;box-shadow:0 2px 10px rgba(13,27,53,.04)}
+  .brand{font-size:20px;font-weight:800;color:#003ca3;letter-spacing:-.02em}
+  .portal{font-size:14px;font-weight:700;color:#515e7c}
+  main{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden}
+  main::before{content:"";position:absolute;top:-120px;right:-80px;width:380px;height:380px;background:rgba(180,197,255,.28);border-radius:999px;filter:blur(48px);z-index:0}
+  main::after{content:"";position:absolute;bottom:-160px;left:-100px;width:500px;height:500px;background:rgba(216,226,255,.38);border-radius:999px;filter:blur(56px);z-index:0}
+  .card{width:100%;max-width:768px;background:rgba(255,255,255,.8);border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 18px 45px rgba(0,81,213,.10);backdrop-filter:blur(14px);padding:24px;z-index:1;display:flex;flex-direction:column;gap:24px}
+  .header{border-bottom:1px solid #e5e7eb;padding-bottom:20px;display:flex;flex-direction:column;gap:8px}
+  .title-row{display:flex;align-items:center;gap:10px}
+  .title-row .material-symbols-outlined{font-size:28px;color:#003ca3;font-variation-settings:'FILL' 1}
+  h1{font-size:clamp(24px,4vw,32px);font-weight:800;line-height:1.2;color:#191b23;letter-spacing:-.02em}
+  .subtitle{font-size:16px;line-height:1.65;color:#434654}
+  .info-box{background:#eff6ff;color:#003ca3;border:1px solid #dbe1ff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;margin-top:6px}
+  .question-card,.q-block{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 24px rgba(13,27,53,.05);margin-bottom:24px}
+  .q-label{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;color:#191b23;letter-spacing:-.01em;text-transform:none;margin:0}
+  .q-num{width:28px;height:28px;background:#dbe1ff;color:#003ca3;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+  .q-text{font-size:14px;line-height:1.65;color:#515e7c;padding-left:38px;margin:0}
+  textarea{width:100%;margin-top:8px;border-radius:12px;background:#f9fafb;border:1px solid #e5e7eb;padding:16px;font:14px/1.65 Inter,sans-serif;color:#191b23;resize:vertical;min-height:120px;outline:none;transition:.15s}
+  textarea:focus{border-color:#003ca3;box-shadow:0 0 0 3px rgba(0,60,163,.12)}
+  textarea::placeholder{color:#9ca3af}
+  .actions{display:flex;flex-direction:column;gap:12px;align-items:stretch;border-top:1px solid #e5e7eb;padding-top:20px;margin-top:8px}
+  .btn-submit{width:100%;padding:14px 24px;background:#003ca3;color:white;border:none;border-radius:999px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 24px rgba(0,81,213,.18)}
+  .btn-submit:hover{background:#0051d5}.btn-submit:disabled{opacity:.55;cursor:not-allowed}
+  .success{text-align:center;padding:44px 20px}.success .icon{font-size:52px;margin-bottom:16px}.success h2{font-size:22px;font-weight:800;color:#16a34a;margin-bottom:10px}.success p{color:#515e7c;font-size:14px;line-height:1.7}
+  .loading{text-align:center;padding:72px 20px;color:#515e7c}.spin{animation:spin 1s linear infinite;display:inline-block}@keyframes spin{to{transform:rotate(360deg)}}
+  .err{color:#93000a;background:#ffdad6;border:1px solid rgba(186,26,26,.2);border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:16px}.field-error{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)!important}
+  .divider{border:none;border-top:1px solid #e5e7eb;margin:24px 0}.note{font-size:12px;color:#737686;line-height:1.6;text-align:center}
+  @media(min-width:640px){.actions{flex-direction:row;justify-content:flex-end;align-items:center}.btn-submit{width:auto}.note{text-align:left;margin-right:auto}}
+  @media(max-width:600px){main{padding:16px}.card{padding:20px}.question-card,.q-block{padding:18px}.q-text{padding-left:0}}
 </style>
 </head>
 <body>
+<header class="topbar">
+  <div class="brand">PAI Recruitment</div>
+  <div class="portal">Candidate Portal</div>
+</header>
+<main>
 <div class="card">
   <div class="header">
-    <div class="logo">
-      <div class="logo-icon">P</div>
-      <span class="logo-name">PAI HR</span>
-    </div>
-    <h1>Câu hỏi bổ sung từ HR</h1>
+    <div class="title-row"><span class="material-symbols-outlined">assignment</span><h1>Additional Questions</h1></div>
     <p class="subtitle">Vui lòng đọc kỹ và trả lời đầy đủ các câu hỏi bên dưới. Câu trả lời của bạn sẽ được đội ngũ tuyển dụng xem xét.</p>
+    <div class="info-box"><span class="material-symbols-outlined" style="font-size:16px">auto_awesome</span> Estimated completion time: 15-20 mins</div>
   </div>
-  <div class="body">
-    <div id="content">
-      <div class="loading"><span class="spin">↻</span> Đang tải câu hỏi...</div>
-    </div>
+  <div id="content">
+    <div class="loading"><span class="spin">↻</span> Đang tải câu hỏi...</div>
   </div>
 </div>
-
+</main>
 <script>
 const ref = new URLSearchParams(location.search).get('ref');
 const API = location.origin;
@@ -107,7 +103,7 @@ async function load() {
     html += `
       <hr class="divider">
       <div id="submit-error-msg"></div>
-      <button class="btn-submit" id="btn-send" onclick="submitReply()">📨 Nộp câu trả lời</button>
+      <button class="btn-submit" id="btn-send" onclick="submitReply()">Nộp câu trả lời <span class="material-symbols-outlined" style="font-size:18px">send</span></button>
       <p class="note" style="margin-top:12px">Câu trả lời chỉ được gửi một lần duy nhất — hãy kiểm tra kỹ trước khi nộp.</p>
     `;
     document.getElementById('content').innerHTML = html;
@@ -140,7 +136,7 @@ async function submitReply() {
 
   const btn = document.getElementById('btn-send');
   btn.disabled = true;
-  btn.textContent = '⏳ Đang gửi...';
+  btn.textContent = 'Đang gửi...';
 
   try {
     const r = await fetch(`${API}/candidate/reply`, {
@@ -166,7 +162,7 @@ async function submitReply() {
     submitErrEl.innerHTML = msg;
   }
   btn.disabled = false;
-  btn.textContent = '📨 Nộp câu trả lời';
+  btn.innerHTML = 'Nộp câu trả lời <span class="material-symbols-outlined" style="font-size:18px">send</span>';
 }
 
 function showSuccess(alreadyDone) {

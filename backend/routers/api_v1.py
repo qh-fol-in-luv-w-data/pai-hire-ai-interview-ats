@@ -406,10 +406,10 @@ def api_get_report(
             answers = conn.execute("""
                 SELECT question_number, question_type, question_text,
                        transcript, ai_level, ai_feedback,
-                       score, notes, duration_sec, time_spent
+                       score, notes, duration_sec, time_spent, attempt_number
                 FROM answers
                 WHERE interview_id = ?
-                ORDER BY question_number
+                ORDER BY attempt_number, question_number
             """, (iv_dict["id"],)).fetchall()
 
             incidents = conn.execute("""

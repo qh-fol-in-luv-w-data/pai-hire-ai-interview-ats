@@ -3,11 +3,15 @@
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Luminal HR | Executive Dashboard</title>
+<title>PAI HR | Executive Dashboard</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet"/>
+<link href="/ui/pai-theme.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
+<script src="/ui/pai-dropdowns.js" defer></script>
 <script id="tailwind-config">
       tailwind.config = {
         darkMode: "class",
@@ -109,7 +113,7 @@
         }
     </style>
 </head>
-<body class="flex min-h-screen text-on-surface">
+<body class="flex min-h-screen text-on-surface bg-background antialiased">
 
 <!-- ══════════════════════════════════════════════════════════
      LOGIN PAGE
@@ -168,36 +172,41 @@
 <div id="sidebar-backdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
 
 <!-- SideNavBar -->
-<aside id="admin-sidebar" class="w-[260px] md:w-sidebar-width h-screen fixed md:sticky left-0 top-0 flex flex-col py-md px-sm bg-primary-container border-r border-outline-variant z-50 transition-transform duration-300 -translate-x-full md:translate-x-0">
-<div class="mb-xl px-xs flex justify-between items-center">
-<div>
-<h1 class="font-headline-md text-headline-md font-bold text-on-primary-container leading-none">Luminal HR</h1>
-<p class="text-on-primary-container opacity-60 font-body-sm mt-1">Enterprise Suite</p>
+<aside id="admin-sidebar" class="w-[260px] md:w-sidebar-width h-screen fixed md:sticky left-0 top-0 flex flex-col py-md px-sm bg-surface-container-low border-r border-outline-variant z-50 transition-transform duration-300 -translate-x-full md:translate-x-0">
+<div class="mb-lg px-xs flex justify-between items-center">
+<div class="flex items-center gap-xs">
+<div class="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1;">psychology</span>
 </div>
-<button onclick="toggleSidebar()" class="md:hidden text-on-primary-container">
+<div>
+<h1 class="font-headline-sm text-headline-sm font-bold text-on-surface leading-none">PAI HR</h1>
+<p class="text-secondary font-body-sm mt-1">Enterprise Mode</p>
+</div>
+</div>
+<button onclick="toggleSidebar()" class="md:hidden text-on-surface">
   <span class="material-symbols-outlined">close</span>
 </button>
 </div>
 <nav class="flex-1 space-y-1 overflow-y-auto scroll-hide">
-<a id="nav-dashboard" onclick="showView('dashboard'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 bg-secondary text-on-secondary rounded-lg font-bold transition-all duration-200 opacity-90 active:scale-95 active-nav-shadow cursor-pointer" href="#">
+<a id="nav-dashboard" onclick="showView('dashboard'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs bg-primary-container/10 text-primary rounded-lg font-bold transition-all duration-200 active:scale-95 cursor-pointer" href="#">
 <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
-<span class="font-body-sm">Dashboard</span>
+<span class="font-label-lg text-label-lg">Dashboard</span>
 </a>
-<a id="nav-recruitment" onclick="showView('recruitment'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer" href="#">
+<a id="nav-recruitment" onclick="showView('recruitment'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs text-secondary hover:bg-surface-container-high rounded-lg transition-colors duration-200 cursor-pointer" href="#">
 <span class="material-symbols-outlined" data-icon="work">work</span>
-<span class="font-body-sm">Recruitment</span>
+<span class="font-label-lg text-label-lg">Recruitment</span>
 </a>
-<a id="nav-jobs" onclick="showView('jobs'); if(window.innerWidth < 768) toggleSidebar();" class="flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer" href="#">
+<a id="nav-jobs" onclick="showView('jobs'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs text-secondary hover:bg-surface-container-high rounded-lg transition-colors duration-200 cursor-pointer" href="#">
 <span class="material-symbols-outlined" data-icon="description">description</span>
-<span class="font-body-sm">Việc Làm</span>
+<span class="font-label-lg text-label-lg">Việc Làm</span>
 </a>
-<a id="nav-screening" onclick="showView('screening'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer" href="#">
+<a id="nav-screening" onclick="showView('screening'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs text-secondary hover:bg-surface-container-high rounded-lg transition-colors duration-200 cursor-pointer" href="#">
 <span class="material-symbols-outlined" data-icon="grading">grading</span>
-<span class="font-body-sm">Chấm CV</span>
+<span class="font-label-lg text-label-lg">Chấm CV</span>
 </a>
-<a id="nav-interviews" onclick="showView('interviews'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200 cursor-pointer" href="#">
+<a id="nav-interviews" onclick="showView('interviews'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs text-secondary hover:bg-surface-container-high rounded-lg transition-colors duration-200 cursor-pointer" href="#">
 <span class="material-symbols-outlined" data-icon="mic">mic</span>
-<span class="font-body-sm">Kết quả phỏng vấn</span>
+<span class="font-label-lg text-label-lg">Kết quả phỏng vấn</span>
 </a>
 <a class="admin-nav flex items-center gap-3 px-3 py-2.5 text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors duration-200" href="#">
 <span class="material-symbols-outlined" data-icon="person_add">person_add</span>

@@ -166,7 +166,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
     # Deduplicate: giữ answer mới nhất cho mỗi question_number
     deduped: dict[str, dict] = {}
     for r in answer_rows:
-        qn = r["question_number"]
+        qn = f"{r.get('attempt_number', 1)}:{r['question_number']}"
         if qn not in deduped or r.get("created_at", "") > deduped[qn].get("created_at", ""):
             deduped[qn] = r
     answer_rows = list(deduped.values())
@@ -197,6 +197,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
             qn      = row["question_number"]
             q_type  = row["question_type"]
             audio_p = BASE_DIR / row["audio_path"]
+            attempt_number = int(row.get("attempt_number", 1) or 1)
 
             # ── 1. ElevenLabs STT ───────────────────────────────
             transcript = ""
@@ -290,9 +291,9 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                 conn.execute("""
                     UPDATE answers
                     SET transcript=?, ai_level=?, ai_feedback=?, notes=?, question_text=?
-                    WHERE interview_id=? AND question_number=?
+                    WHERE interview_id=? AND question_number=? AND attempt_number=?
                 """, (transcript, ai_level, ai_feedback, combined_notes.strip(),
-                      question, interview_id, qn))
+                      question, interview_id, qn, attempt_number))
 
             print(f"[Eval] {interview_id} câu {qn} [{q_type}] → {ai_level or 'định tính'}")
 
@@ -304,7 +305,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                 ).fetchone()
                 ans_rows = conn.execute("""
                     SELECT question_number, question_type, transcript, ai_level, ai_feedback
-                    FROM answers WHERE interview_id=? ORDER BY question_number
+                    FROM answers WHERE interview_id=? ORDER BY attempt_number, question_number
                 """, (interview_id,)).fetchall()
 
             summary_lines = []

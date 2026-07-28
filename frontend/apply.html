@@ -6,6 +6,10 @@
 <title>PAI HR — Nộp đơn ứng tuyển</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet"/>
+<link href="/ui/pai-theme.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
+<script src="/ui/pai-dropdowns.js" defer></script>
 <style>
   body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
   @keyframes spin { to{transform:rotate(360deg)} }
@@ -55,87 +59,84 @@
   .jd-body p { font-size:.8rem;color:#6b7280;margin:.25rem 0; }
 </style>
 </head>
-<body class="bg-[#f0f3f8] min-h-screen">
+<body class="min-h-screen text-[#191b23] antialiased overflow-x-hidden">
 
-<!-- ── HEADER ─────────────────────────────────────────── -->
-<header class="bg-[#0d1b35] text-white px-5 py-3.5 flex items-center gap-3 sticky top-0 z-50 shadow-lg">
-  <div class="w-8 h-8 bg-[#0051d5] rounded-lg flex items-center justify-center font-extrabold">P</div>
-  <div>
-    <p class="font-bold text-sm leading-none">PAI HR · CT Group</p>
-    <p class="text-white/40 text-xs">Tuyển dụng AI</p>
+<nav class="hidden md:flex bg-[#0d1b35] text-[#dbe1ff] shadow-md w-full sticky top-0 z-40 justify-between items-center px-12 py-3">
+  <div class="text-xl font-bold text-white flex items-center gap-2">
+    <span class="w-9 h-9 rounded-xl bg-[#0051d5] text-white flex items-center justify-center">P</span>
+    PAI Recruitment
   </div>
-  <div class="ml-auto hidden md:flex items-center gap-1.5 text-xs text-white/40">
-    <span class="material-symbols-outlined text-sm">verified</span>
-    Ứng tuyển 100% trực tuyến
+  <div class="flex gap-8 items-center text-sm font-semibold">
+    <span class="text-[#b4c5ff] border-b-2 border-[#b4c5ff] pb-1">Applications</span>
   </div>
-</header>
+</nav>
 
-<!-- ── HERO ───────────────────────────────────────────── -->
-<div class="bg-[#0d1b35] text-white px-5 pt-8 pb-6 text-center">
-  <p class="text-[.68rem] font-bold tracking-[.18em] text-[#93c5fd] uppercase mb-1.5">Cơ hội nghề nghiệp</p>
-  <h1 class="text-xl md:text-2xl font-extrabold mb-2 leading-tight">Tìm việc làm phù hợp với bạn</h1>
-  <p class="text-white/50 text-xs max-w-xs mx-auto mb-5">Nộp CV · Phỏng vấn AI 15 phút · Kết quả trong 24 giờ</p>
+<main class="w-full max-w-[1280px] mx-auto px-4 md:px-5 py-8 pb-28 md:pb-12 flex flex-col lg:flex-row gap-5 relative">
+  <div class="flex-1 flex flex-col gap-6 transition-all duration-300" id="job-list-container">
+    <section class="bg-white/85 backdrop-blur rounded-xl p-6 shadow-sm border border-[#e5e7eb] relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-64 h-64 bg-[#0051d5]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
+      <div class="relative z-10 flex flex-col gap-4">
+        <div>
+          <h1 class="text-2xl md:text-[32px] leading-tight font-bold text-[#191b23] mb-1">Khám phá cơ hội nghề nghiệp</h1>
+          <p class="text-sm text-[#434654] leading-6">Hệ thống tuyển dụng thông minh được hỗ trợ bởi AI, kết nối nhân tài với các vị trí phù hợp nhất tại CT Group.</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 mt-1">
+          <div class="relative flex-1">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#737686]">search</span>
+            <input id="search-input" type="text" placeholder="Tìm kiếm vị trí, kỹ năng..."
+              class="w-full bg-[#f9fafb] border border-[#e5e7eb] rounded-xl py-3 pl-10 pr-4 text-sm text-[#191b23] focus:outline-none focus:border-[#003ca3] focus:ring-1 focus:ring-[#003ca3]/20 transition-all"
+              oninput="filterJobs()"/>
+          </div>
+          <div class="relative w-full sm:w-56">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#737686]">category</span>
+            <select id="cat-filter" onchange="filterJobs()"
+              class="w-full bg-[#f9fafb] border border-[#e5e7eb] rounded-xl py-3 pl-10 pr-8 text-sm text-[#191b23] focus:outline-none focus:border-[#003ca3] focus:ring-1 focus:ring-[#003ca3]/20 appearance-none">
+              <option value="">Tất cả lĩnh vực</option>
+            </select>
+          </div>
+          <button onclick="filterJobs()" class="bg-[#003ca3] text-white font-bold rounded-xl px-6 py-3 hover:bg-[#0051d5] transition flex items-center justify-center gap-2">
+            Tìm kiếm
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#003ca3] text-xs font-bold border border-[#003ca3]/10 flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]">auto_awesome</span> Đề xuất bởi AI
+          </button>
+          <button onclick="document.getElementById('cat-filter').value=''; filterJobs();" class="px-3 py-1.5 rounded-full bg-[#ededf8] text-[#434654] text-xs font-bold border border-[#e5e7eb]">Tất cả</button>
+          <div class="flex gap-2 flex-wrap" id="top-level-btns">
+            <button class="lv-btn" data-lv="Entry" onclick="selectLevel('Entry')">Entry</button>
+            <button class="lv-btn active" data-lv="Junior" onclick="selectLevel('Junior')">Junior</button>
+            <button class="lv-btn" data-lv="Mid" onclick="selectLevel('Mid')">Mid</button>
+            <button class="lv-btn" data-lv="Senior" onclick="selectLevel('Senior')">Senior</button>
+            <button class="lv-btn" data-lv="Manager" onclick="selectLevel('Manager')">Manager</button>
+            <button class="lv-btn" data-lv="Director" onclick="selectLevel('Director')">Director</button>
+          </div>
+          <div id="level-badge" class="ml-auto text-xs hidden md:flex items-center gap-1.5 text-[#0051d5] font-semibold">
+            <span class="material-symbols-outlined text-sm">badge</span>
+            <span id="level-badge-text">Junior</span>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <!-- Search + Category -->
-  <div class="flex items-center justify-center gap-2 flex-wrap">
-    <div class="relative">
-      <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[1.1rem]">search</span>
-      <input id="search-input" type="text" placeholder="Tìm vị trí, kỹ năng..."
-        class="pl-8 pr-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-[#0051d5]"
-        oninput="filterJobs()"/>
+    <div class="flex items-center justify-between">
+      <p class="text-xs text-[#737686]"><span id="job-count" class="font-bold text-[#191b23]">—</span> vị trí đang tuyển</p>
+      <p class="hidden md:flex items-center gap-1 text-xs text-[#737686]"><span class="material-symbols-outlined text-sm">verified</span> Ứng tuyển 100% trực tuyến</p>
     </div>
-    <select id="cat-filter" onchange="filterJobs()"
-      class="py-2 px-3 rounded-xl bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0051d5]">
-      <option value="">Tất cả lĩnh vực</option>
-    </select>
-  </div>
-</div>
 
-<!-- ── LEVEL PICKER ───────────────────────────────────── -->
-<div class="bg-white border-b border-gray-200 shadow-sm sticky top-[57px] z-40">
-  <div class="max-w-7xl mx-auto px-5 py-3 flex items-center gap-2 flex-wrap">
-    <p class="text-xs font-bold text-gray-500 mr-1 shrink-0">Cấp bậc ứng tuyển <span class="text-red-500">*</span></p>
-    <div class="flex gap-2 flex-wrap" id="top-level-btns">
-      <button class="lv-btn" data-lv="Entry"    onclick="selectLevel('Entry')">Entry</button>
-      <button class="lv-btn active" data-lv="Junior" onclick="selectLevel('Junior')">Junior</button>
-      <button class="lv-btn" data-lv="Mid"      onclick="selectLevel('Mid')">Mid</button>
-      <button class="lv-btn" data-lv="Senior"   onclick="selectLevel('Senior')">Senior</button>
-      <button class="lv-btn" data-lv="Manager"  onclick="selectLevel('Manager')">Manager</button>
-      <button class="lv-btn" data-lv="Director" onclick="selectLevel('Director')">Director</button>
-    </div>
-    <div id="level-badge" class="ml-auto text-xs hidden md:flex items-center gap-1.5 text-[#0051d5] font-semibold">
-      <span class="material-symbols-outlined text-sm">badge</span>
-      <span id="level-badge-text">Junior</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── MAIN ───────────────────────────────────────────── -->
-<div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row gap-5">
-
-  <!-- Flat job list -->
-  <div id="job-list-container" class="flex-1 min-w-0">
-    <p class="text-xs text-gray-400 mb-3">
-      <span id="job-count" class="font-bold text-gray-700">—</span> vị trí đang tuyển
-    </p>
-    <div id="job-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+    <section id="job-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div class="col-span-2 text-center py-12 text-gray-400 text-sm">
         <span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...
       </div>
-    </div>
+    </section>
   </div>
 
-  <!-- Detail panel -->
-  <div id="detail-panel" class="hidden w-full md:w-[420px] shrink-0">
-    <button onclick="closeDetail()" class="md:hidden flex items-center gap-1 text-sm font-semibold text-gray-600 mb-3 hover:text-blue-600 transition">
+  <aside id="detail-panel" class="hidden lg:flex w-full lg:w-[400px] xl:w-[480px] bg-white/85 border border-[#e5e7eb] rounded-xl shadow-lg flex-col h-[calc(100vh-140px)] sticky top-24 overflow-hidden shrink-0 glass-panel">
+    <button onclick="closeDetail()" class="lg:hidden flex items-center gap-1 text-sm font-semibold text-gray-600 m-3 hover:text-blue-600 transition">
       <span class="material-symbols-outlined text-base">arrow_back</span> Quay lại danh sách
     </button>
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-md md:sticky md:top-[108px] max-h-none md:max-h-[calc(100vh-7rem)] overflow-y-auto">
-      <div id="detail-content"></div>
-    </div>
-  </div>
-
-</div>
+    <div id="detail-content" class="flex-1 overflow-y-auto"></div>
+  </aside>
 
 <!-- ── SUCCESS ─────────────────────────────────────────── -->
 <div id="success-screen" class="hidden fixed inset-0 z-50 bg-white flex items-center justify-center p-6">
@@ -253,22 +254,27 @@ function renderJobs() {
     return;
   }
   document.getElementById('job-list').innerHTML = filteredJobs.map(j => `
-    <div class="job-card bg-white rounded-xl p-4 ${selectedJob?.id===j.id?'selected':''}"
+    <div class="job-card bg-white border border-[#e5e7eb] rounded-xl p-6 shadow-sm hover:shadow-[0_-4px_10px_rgba(0,81,213,0.1)] hover:-translate-y-[1px] transition-all cursor-pointer group flex flex-col gap-4 ${selectedJob?.id===j.id?'selected':''}"
       onclick="selectJob('${j.id}')" id="card-${j.id}">
-      <div class="flex items-start gap-3">
-        <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-          <span class="material-symbols-outlined text-[#0051d5] text-base">${catIcon(j.category)}</span>
+      <div class="flex justify-between items-start">
+        <div class="w-12 h-12 bg-[#f3f3fe] rounded-lg flex items-center justify-center border border-[#e5e7eb]/70">
+          <span class="material-symbols-outlined text-[#003ca3] text-2xl">${catIcon(j.category)}</span>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="font-bold text-gray-900 text-sm leading-snug truncate">${cleanTitle(j.title)}</p>
-          <p class="text-gray-400 text-[.7rem] mt-0.5 truncate">${j.category}</p>
-        </div>
-        <span class="material-symbols-outlined text-gray-300 text-lg shrink-0 mt-0.5">chevron_right</span>
+        <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-[11px] font-bold">Toàn thời gian</span>
       </div>
-      <div class="flex gap-1.5 mt-2.5 flex-wrap">
-        <span class="tag">Full-time</span>
-        <span class="tag">HCM</span>
-        <span class="tag">AI Interview</span>
+      <div>
+        <h3 class="text-lg font-semibold text-[#191b23] group-hover:text-[#003ca3] transition-colors line-clamp-1">${cleanTitle(j.title)}</h3>
+        <p class="text-sm text-[#434654] mt-1 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[16px]">business</span> ${j.category}
+        </p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <span class="px-2 py-1 rounded bg-[#ededf8] text-[#434654] text-[11px] font-bold">AI Interview</span>
+        <span class="px-2 py-1 rounded bg-[#eff6ff] text-[#003ca3] text-[11px] font-bold">Phù hợp ${selectedLevel}</span>
+      </div>
+      <div class="mt-auto pt-3 border-t border-[#e5e7eb] flex justify-between items-center text-[#434654] text-sm">
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">location_on</span> TP.HCM</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> Mới cập nhật</span>
       </div>
     </div>`).join('');
 }
@@ -310,31 +316,38 @@ function renderDetail(job) {
   const jdHtml = job.jd_content ? parseMarkdown(job.jd_content) : '';
 
   document.getElementById('detail-content').innerHTML = `
-    <div class="bg-[#0d1b35] text-white p-5 rounded-t-2xl">
+    <div class="p-6 border-b border-[#e5e7eb] bg-white/70 flex justify-between items-start sticky top-0 z-10 backdrop-blur-md">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <p class="text-[.68rem] text-[#93c5fd] font-bold uppercase tracking-wider mb-1">${job.category||''}</p>
-          <h2 class="text-base font-extrabold leading-snug">${title}</h2>
+          <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#eff6ff] text-[#003ca3] text-[11px] font-bold mb-2 border border-[#003ca3]/10">
+            <span class="material-symbols-outlined text-[14px]">auto_awesome</span> Điểm phù hợp AI: Cao
+          </span>
+          <h2 class="text-2xl font-bold leading-snug text-[#191b23]">${title}</h2>
+          <p class="text-sm text-[#434654] flex items-center gap-2 mt-1">
+            <span class="material-symbols-outlined text-[16px]">location_on</span> TP. Hồ Chí Minh
+            <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
+            <span>${job.category||''}</span>
+          </p>
         </div>
-        <button onclick="closeDetail()" class="text-white/40 hover:text-white">
+        <button onclick="closeDetail()" class="text-[#434654] hover:bg-[#ededf8] rounded-full p-1.5">
           <span class="material-symbols-outlined text-xl">close</span>
         </button>
       </div>
-      <div class="flex gap-1.5 mt-3 flex-wrap">
-        <span class="text-[.68rem] px-2 py-1 bg-white/10 rounded-full">📍 TP. Hồ Chí Minh</span>
-        <span class="text-[.68rem] px-2 py-1 bg-white/10 rounded-full">⏰ Full-time</span>
-        <span class="text-[.68rem] px-2 py-1 bg-white/10 rounded-full">🤖 AI Interview</span>
-        <span class="text-[.68rem] px-2 py-1 bg-[#0051d5]/60 rounded-full font-bold" id="jd-level-tag">${selectedLevel}</span>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div class="flex flex-col gap-3">
+        <h4 class="text-sm font-bold text-[#191b23] border-b border-[#e5e7eb] pb-1">Mô tả công việc</h4>
+        ${jdHtml ? `<div class="jd-body">${jdHtml}</div>` : '<p class="text-gray-400 text-sm">Không có mô tả.</p>'}
       </div>
-    </div>
 
-    <div class="p-4 border-b border-gray-100">
-      ${jdHtml ? `<div class="jd-body">${jdHtml}</div>` : '<p class="text-gray-400 text-sm">Không có mô tả.</p>'}
-    </div>
-
-    <div class="p-4">
-      <h3 class="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
-        <span class="material-symbols-outlined text-[#0051d5] text-base">edit_document</span>
+      <div class="bg-[#f3f3fe] rounded-xl p-6 border border-[#e5e7eb]/80 relative overflow-hidden">
+      <div class="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-white/70 backdrop-blur-sm rounded-full border border-[#e5e7eb] shadow-sm z-10">
+        <div class="w-2 h-2 rounded-full bg-[#003ca3]"></div>
+        <span class="text-[10px] font-bold text-[#434654]">AI Form Assist</span>
+      </div>
+      <h3 class="font-bold text-[#191b23] text-sm mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[#003ca3] text-base">description</span>
         Thông tin ứng tuyển
       </h3>
 
@@ -383,6 +396,7 @@ function renderDetail(job) {
       <p class="text-center text-[.65rem] text-gray-400 mt-2.5">
         Bằng cách nộp đơn, bạn đồng ý cho CT Group xử lý thông tin để đánh giá ứng viên.
       </p>
+      </div>
     </div>`;
 }
 

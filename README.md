@@ -51,6 +51,7 @@ Khi dùng CTPAI qua ngrok, `.env` cần dạng:
 PROCTORING_API_URL=https://service.ctpai.vn/detection/rule-engine/api/v1
 PROCTORING_API_KEY=...
 PROCTORING_EMBED_PUBLIC_BASE=https://service.ctpai.vn/detection/
+PROCTORING_ALERT_THRESHOLD_SECONDS=2
 PROCTORING_WEBHOOK_SECRET=change-me-to-a-long-random-webhook-secret
 PROCTORING_WEBHOOK_REQUIRE_SECRET=true
 PUBLIC_WEBHOOK_DOMAIN=https://your-ngrok-domain.ngrok-free.dev

@@ -43,6 +43,7 @@ INTERVIEW_URL   = os.environ.get("INTERVIEW_URL", _default_interview_url)
 PROCTORING_API_URL = os.environ.get("PROCTORING_API_URL", "http://127.0.0.1:8003/api/v1")
 PROCTORING_API_KEY = os.environ.get("PROCTORING_API_KEY", "")
 PROCTORING_EMBED_PUBLIC_BASE = os.environ.get("PROCTORING_EMBED_PUBLIC_BASE", "https://service.ctpai.vn/detection/")
+PROCTORING_ALERT_THRESHOLD_SECONDS = float(os.environ.get("PROCTORING_ALERT_THRESHOLD_SECONDS", "2"))
 PROCTORING_WEBHOOK_SECRET = os.environ.get("PROCTORING_WEBHOOK_SECRET", "")
 PROCTORING_WEBHOOK_REQUIRE_SECRET = os.environ.get("PROCTORING_WEBHOOK_REQUIRE_SECRET", "true").lower() not in {"0", "false", "no"}
 PUBLIC_WEBHOOK_DOMAIN = os.environ.get("PUBLIC_WEBHOOK_DOMAIN", f"http://{_detect_local_ip()}:{_server_port}")

@@ -39,6 +39,7 @@ async def update_settings(request: Request, x_admin_key: str = Header(...)):
 def admin_list_interviews(
     status: str = None,
     position_id: str = None,
+    level: str = None,
     limit: int = 100,
     offset: int = 0,
     x_admin_key: str = Header(None),
@@ -50,6 +51,9 @@ def admin_list_interviews(
         where.append("i.status = ?");      params.append(status)
     if position_id:
         where.append("i.position_id = ?"); params.append(position_id)
+    if level:
+        where.append("(i.level = ? OR i.position_id LIKE ?)")
+        params.extend([level, f"{level}_%"])
 
     clause = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -219,11 +223,11 @@ def admin_get_proctoring_logs(
                     """
                     SELECT id, session_id, alert_type, snapshot_id, timestamp, created_at
                     FROM proctoring_alerts
-                    WHERE session_id=?
+                    WHERE session_id=? OR session_id LIKE ?
                     ORDER BY created_at DESC
                     LIMIT 100
                     """,
-                    (resolved_app_id,),
+                    (resolved_app_id, f"{resolved_app_id}:%"),
                 ).fetchall()
             ]
 

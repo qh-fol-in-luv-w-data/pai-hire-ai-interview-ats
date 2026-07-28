@@ -4,19 +4,68 @@
   <meta charset="UTF-8">
   <title>Báo Cáo Đánh Giá Ứng Viên</title>
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet"/>
+  <link href="/ui/pai-theme.css" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
+  <script src="/ui/pai-dropdowns.js" defer></script>
   <style>
+    body.pai-print-page header {
+      background: #fff !important;
+      color: #111827 !important;
+      border-bottom: 1px solid #d1d5db !important;
+      box-shadow: none !important;
+    }
+    body.pai-print-page header h1,
+    body.pai-print-page header p,
+    body.pai-print-page header span {
+      color: #111827 !important;
+    }
     @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body {
+        background: #fff !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
       .no-print { display: none !important; }
       .page-break { page-break-before: always; }
       .avoid-break { page-break-inside: avoid; }
+      #report-content {
+        max-width: none !important;
+        width: 100% !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+      #report-content * {
+        color: #000 !important;
+        box-shadow: none !important;
+      }
+      #report-content .bg-\[\#eff6ff\]\/60,
+      #report-content .bg-\[\#f3f3fe\],
+      #report-content .bg-\[\#eff6ff\],
+      #report-content .bg-\[\#ededf8\] {
+        background: #fff !important;
+      }
+      #report-content .rounded-xl,
+      #report-content .rounded-lg,
+      #report-content .rounded-full {
+        border-radius: 0 !important;
+      }
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans p-8">
+<body class="pai-print-page bg-[#faf8ff] text-[#191b23] font-sans min-h-screen">
+  <nav class="hidden md:flex justify-between items-center w-full px-12 py-3 bg-[#0d1b35] shadow-md text-white no-print">
+    <div class="text-xl font-bold">PAI Recruitment</div>
+    <div class="flex gap-8 text-sm font-semibold text-white/60"><span>Applications</span><span>Interviews</span><span class="text-[#b4c5ff] border-b-2 border-[#b4c5ff] pb-1">Reports</span></div>
+  </nav>
   
   <div id="loading" class="text-center py-20 text-gray-500">Đang tải báo cáo...</div>
-  <div id="report-content" class="max-w-4xl mx-auto bg-white p-10 shadow-lg hidden"></div>
+  <main class="py-8 px-4 md:px-0">
+    <div id="report-content" class="max-w-5xl mx-auto bg-white rounded-xl md:rounded-none p-8 md:p-12 border border-[#e5e7eb] shadow-lg hidden"></div>
+  </main>
 
   <script>
     const API_BASE = window.location.origin;
@@ -28,6 +77,78 @@
       localStorage.removeItem('pai_admin_key');
     }
     let ADMIN_KEY = sessionStorage.getItem('pai_admin_key');
+
+    const AI_LEVEL_SCORE = {'nắm vững': 10, 'am hiểu': 7.5, 'có biết qua': 5, 'không biết': 0};
+
+    function levelScore(level) {
+      return AI_LEVEL_SCORE[String(level || '').toLowerCase()] ?? null;
+    }
+
+    function clampScore(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 0;
+      return Math.max(0, Math.min(10, n));
+    }
+
+    function buildCompetencyRows(d) {
+      const groups = d.groups || {};
+      const rows = Object.entries(groups).map(([label, answers]) => {
+        const scores = (answers || []).map(a => levelScore(a.ai_level)).filter(v => v !== null);
+        const score = scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : Number(d.avg_score || 0);
+        return { label, score: clampScore(score), count: (answers || []).length };
+      }).filter(r => r.count);
+
+      if (rows.length) return rows;
+      return [
+        { label: 'Tổng hợp', score: clampScore(d.avg_score), count: 1 },
+        { label: 'Giao tiếp', score: clampScore(d.avg_score), count: 1 },
+        { label: 'Phù hợp vị trí', score: clampScore(d.avg_score), count: 1 }
+      ];
+    }
+
+    function buildRadarSvg(rows) {
+      const size = 240;
+      const center = 120;
+      const radius = 84;
+      const items = rows.slice(0, 6);
+      while (items.length < 3) items.push({ label: `Tiêu chí ${items.length + 1}`, score: 0, count: 0 });
+      const points = items.map((r, i) => {
+        const angle = -Math.PI / 2 + (Math.PI * 2 * i / items.length);
+        const rr = radius * (clampScore(r.score) / 10);
+        return `${center + Math.cos(angle) * rr},${center + Math.sin(angle) * rr}`;
+      }).join(' ');
+      const axes = items.map((r, i) => {
+        const angle = -Math.PI / 2 + (Math.PI * 2 * i / items.length);
+        const x = center + Math.cos(angle) * radius;
+        const y = center + Math.sin(angle) * radius;
+        const lx = center + Math.cos(angle) * (radius + 25);
+        const ly = center + Math.sin(angle) * (radius + 25);
+        const label = String(r.label || '').replace(/</g, '&lt;').slice(0, 14);
+        return `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}" stroke="#c3c6d7" stroke-width="1"/><text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="10" font-weight="700" fill="#515e7c">${label}</text>`;
+      }).join('');
+      return `
+        <svg viewBox="0 0 ${size} ${size}" class="w-72 max-w-full h-auto" role="img" aria-label="Biểu đồ năng lực AI">
+          <polygon points="120,36 192.7,78 192.7,162 120,204 47.3,162 47.3,78" fill="none" stroke="#e1e2ed" stroke-width="1"/>
+          <circle cx="${center}" cy="${center}" r="28" fill="none" stroke="#e1e2ed"/>
+          <circle cx="${center}" cy="${center}" r="56" fill="none" stroke="#e1e2ed"/>
+          <circle cx="${center}" cy="${center}" r="84" fill="none" stroke="#c3c6d7"/>
+          ${axes}
+          <polygon points="${points}" fill="rgba(0,81,213,.18)" stroke="#003ca3" stroke-width="3"/>
+          <circle cx="${center}" cy="${center}" r="3" fill="#003ca3"/>
+        </svg>`;
+    }
+
+    function buildSummaryCounts(summary) {
+      const entries = Object.entries(summary || {});
+      const total = entries.reduce((s, [, v]) => s + Number(v || 0), 0) || 1;
+      return entries.map(([label, count]) => {
+        const pct = Math.round((Number(count || 0) / total) * 100);
+        return `<div>
+          <div class="flex justify-between mb-1"><span class="text-xs font-bold text-[#515e7c]">${label}</span><span class="text-xs font-bold text-[#003ca3]">${count}</span></div>
+          <div class="w-full bg-[#e7e7f3] rounded-full h-2"><div class="bg-[#0051d5] h-2 rounded-full" style="width:${pct}%"></div></div>
+        </div>`;
+      }).join('');
+    }
 
     async function loadReport() {
       const params = new URLSearchParams(window.location.search);
@@ -50,23 +171,26 @@
         document.title = `Bao_Cao_${(d.candidate_name||'Ung_Vien').replace(/\s+/g,'_')}.pdf`;
         
         const overallHtml = (d.overall_strengths || d.overall_weaknesses || d.overall_competencies) ? `
-          <div class="mt-8 border border-gray-400 p-6 avoid-break">
-            <h2 class="text-lg font-bold text-gray-900 uppercase mb-4 border-b border-gray-400 pb-2">Đánh Giá Tổng Quan</h2>
-            ${d.overall_strengths ? `<div class="mb-4"><h3 class="font-bold text-gray-800">Điểm mạnh:</h3><p class="text-sm whitespace-pre-wrap mt-1 text-gray-700 leading-relaxed">${d.overall_strengths}</p></div>` : ''}
-            ${d.overall_weaknesses ? `<div class="mb-4"><h3 class="font-bold text-gray-800">Điểm yếu cần cải thiện:</h3><p class="text-sm whitespace-pre-wrap mt-1 text-gray-700 leading-relaxed">${d.overall_weaknesses}</p></div>` : ''}
-            ${d.overall_competencies ? `<div><h3 class="font-bold text-gray-800">Năng lực nổi trội:</h3><p class="text-sm whitespace-pre-wrap mt-1 text-gray-700 leading-relaxed">${d.overall_competencies}</p></div>` : ''}
+          <div class="space-y-4">
+            ${d.overall_strengths ? `<div><h4 class="text-xs font-black text-emerald-700 uppercase mb-1">Điểm mạnh</h4><p class="text-sm whitespace-pre-wrap text-[#191b23] leading-7">${d.overall_strengths}</p></div>` : ''}
+            ${d.overall_weaknesses ? `<div><h4 class="text-xs font-black text-red-700 uppercase mb-1">Điểm cần cải thiện</h4><p class="text-sm whitespace-pre-wrap text-[#191b23] leading-7">${d.overall_weaknesses}</p></div>` : ''}
+            ${d.overall_competencies ? `<div><h4 class="text-xs font-black text-[#003ca3] uppercase mb-1">Năng lực nổi trội</h4><p class="text-sm whitespace-pre-wrap text-[#191b23] leading-7">${d.overall_competencies}</p></div>` : ''}
           </div>
         ` : '';
 
-        let detailsHtml = '<h2 class="text-lg font-bold text-gray-800 uppercase mt-8 mb-4 border-b border-gray-300 pb-2">Chi Tiết Từng Phần</h2>';
+        const competencyRows = buildCompetencyRows(d);
+        const radarSvg = buildRadarSvg(competencyRows);
+        const summaryCountsHtml = buildSummaryCounts(d.summary);
+
+        let detailsHtml = '';
         const qtMap = { 'General': 'Câu hỏi Chung', 'Technical': 'Chuyên Môn', 'Soft Skill': 'Kỹ năng Mềm', 'Experience': 'Kinh Nghiệm' };
         
         for (const qt in d.groups) {
-          detailsHtml += `<h3 class="text-md font-bold text-gray-700 uppercase mt-6 mb-3 bg-gray-100 p-2 rounded">${qtMap[qt] || qt}</h3>`;
+          detailsHtml += `<h3 class="text-md font-bold text-[#515e7c] uppercase mt-6 mb-3 bg-[#f3f3fe] p-2 rounded">${qtMap[qt] || qt}</h3>`;
           d.groups[qt].forEach((a, i) => {
             const scBadge = a.ai_level ? `<span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-bold ml-2">Đánh giá: ${a.ai_level}</span>` : '';
             detailsHtml += `
-              <div class="mb-6 avoid-break pl-4 border-l-2 border-gray-400">
+              <div class="mb-6 avoid-break border border-[#e5e7eb] rounded-xl overflow-hidden hover:shadow-[0_-4px_10px_rgba(0,81,213,0.1)] transition-all"><div class="bg-white p-5">
                 <p class="font-bold text-gray-800 text-sm mb-2">Câu ${a.question_number}: ${a.question_text}</p>
                 <div class="text-sm text-gray-600 mb-2">
                   <span class="font-semibold text-gray-700">Trả lời:</span> 
@@ -76,7 +200,7 @@
                   <span class="font-semibold text-gray-700 flex items-center mb-1">Nhận xét: ${scBadge}</span>
                   <span class="whitespace-pre-wrap text-gray-600">${a.ai_feedback || '(Không có)'}</span>
                 </div>
-              </div>
+              </div></div>
             `;
           });
         }
@@ -84,25 +208,91 @@
         const scoreColor = 'text-gray-900';
 
         document.getElementById('report-content').innerHTML = `
-          <div class="flex justify-between items-end border-b-2 border-gray-800 pb-4 mb-6">
+          <header class="border-b border-[#e5e7eb] pb-6 mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
             <div>
-              <h1 class="text-3xl font-black text-gray-900 uppercase">BÁO CÁO PHỎNG VẤN ỨNG VIÊN</h1>
+              <h1 class="text-3xl font-black text-[#191b23] mb-2">Báo Cáo Đánh Giá Ứng Viên</h1>
+              <p class="text-sm text-[#515e7c]">Vị trí: ${(d.position||'').replace(/_/g,' ')}</p>
+              <p class="text-xs text-[#737686] mt-1">Mã phỏng vấn: ${ivId} | Ngày: ${d.submitted_at ? d.submitted_at.substring(0,10) : ''}</p>
             </div>
-            <div class="text-right">
-              <p class="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-1">Điểm Trung Bình</p>
-              <p class="text-3xl font-bold text-gray-900">${d.avg_score}/10</p>
+            <div class="flex items-center gap-4 bg-[#f3f3fe] px-6 py-4 rounded-lg border border-[#c3c6d7]">
+              <div class="flex flex-col items-center">
+                <span class="text-[11px] text-[#515e7c] uppercase tracking-wider font-bold">Điểm Tổng Hợp</span>
+                <span class="text-2xl text-[#003ca3] font-black">${d.avg_score}/10</span>
+              </div>
+              <div class="w-px h-10 bg-[#c3c6d7]"></div>
+              <div class="flex flex-col items-center">
+                <span class="text-[11px] text-[#515e7c] uppercase tracking-wider font-bold">Trạng thái</span>
+                <span class="text-xs text-emerald-700 font-bold px-3 py-1 bg-emerald-500/10 rounded-full mt-1">${d.status || '—'}</span>
+              </div>
             </div>
-          </div>
+          </header>
 
-          <div class="grid grid-cols-2 gap-4 text-sm bg-white p-4 rounded border border-gray-300 avoid-break">
-            <div><span class="text-gray-600">Ứng viên:</span> <span class="font-bold text-gray-900 text-base">${d.candidate_name || 'Ẩn danh'}</span></div>
-            <div><span class="text-gray-600">Vị trí:</span> <span class="font-semibold text-gray-900">${(d.position||'').replace(/_/g,' ')}</span></div>
-            <div><span class="text-gray-600">Ngày nộp:</span> <span class="font-semibold text-gray-900">${d.submitted_at ? d.submitted_at.substring(0,10) : ''}</span></div>
-            <div><span class="text-gray-600">Trạng thái:</span> <span class="font-semibold text-gray-900">${d.status}</span></div>
-          </div>
+          <section class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+            <div class="md:col-span-1 space-y-6">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-full bg-[#dbe1ff] text-[#003ca3] flex items-center justify-center font-black text-2xl border-2 border-[#0051d5]/20">${(d.candidate_name || 'U').trim().charAt(0).toUpperCase()}</div>
+                <div>
+                  <h2 class="text-xl font-bold text-[#191b23]">${d.candidate_name || 'Ẩn danh'}</h2>
+                  <p class="text-sm text-[#515e7c]">${(d.position||'').replace(/_/g,' ')}</p>
+                </div>
+              </div>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between border-b border-[#e5e7eb] pb-2"><span class="text-[#515e7c]">Ngày nộp:</span><span class="font-semibold">${d.submitted_at ? d.submitted_at.substring(0,10) : ''}</span></div>
+                <div class="flex justify-between border-b border-[#e5e7eb] pb-2"><span class="text-[#515e7c]">Số nhóm câu:</span><span class="font-semibold">${Object.keys(d.groups || {}).length}</span></div>
+                <div class="flex justify-between border-b border-[#e5e7eb] pb-2"><span class="text-[#515e7c]">Điểm TB:</span><span class="font-semibold">${d.avg_score}/10</span></div>
+              </div>
+              <div>
+                <p class="text-[11px] text-[#515e7c] uppercase tracking-wider font-bold mb-2">Kỹ năng chính (AI trích xuất)</p>
+                <div class="flex flex-wrap gap-2">
+                  ${competencyRows.slice(0, 5).map(r => `<span class="px-2 py-1 rounded-full bg-[#eff6ff] text-[#003ca3] text-xs font-bold">${r.label}</span>`).join('')}
+                </div>
+              </div>
+            </div>
 
-          ${overallHtml}
-          ${detailsHtml}
+            <div class="md:col-span-2 p-6 rounded-xl border border-[#dbe1ff] bg-[#eff6ff]/60">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="material-symbols-outlined text-[#003ca3]">psychology</span>
+                <h3 class="text-sm text-[#003ca3] font-black uppercase">Đánh Giá Tổng Quan từ AI</h3>
+              </div>
+              ${overallHtml || `<p class="text-sm leading-7 text-[#191b23]">Báo cáo được tổng hợp từ phần trả lời phỏng vấn, transcript và nhận xét AI theo từng câu hỏi.</p>`}
+            </div>
+          </section>
+
+          <section class="mb-10">
+            <h3 class="text-xl font-bold text-[#191b23] border-b border-[#e5e7eb] pb-3 mb-6 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[#515e7c]">radar</span> Chi Tiết Năng Lực
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              <div class="space-y-5">
+                ${competencyRows.map((row) => {
+                  const score = clampScore(row.score);
+                  return `<div><div class="flex justify-between mb-1"><span class="text-sm font-bold">${row.label}</span><span class="text-sm font-bold text-[#003ca3]">${score.toFixed(1)}/10</span></div><div class="w-full bg-[#e7e7f3] rounded-full h-2"><div class="bg-[#003ca3] h-2 rounded-full" style="width:${score*10}%"></div></div><p class="text-[11px] text-[#737686] mt-1">${row.count} câu hỏi</p></div>`;
+                }).join('')}
+                ${summaryCountsHtml ? `<div class="pt-4 border-t border-[#e5e7eb] space-y-3">${summaryCountsHtml}</div>` : ''}
+              </div>
+              <div class="flex justify-center">
+                <div class="bg-white border border-[#e5e7eb] rounded-xl p-5 shadow-sm">
+                  <div class="text-center mb-3">
+                    <p class="text-[11px] text-[#515e7c] uppercase tracking-wider font-black">AI Summary Radar</p>
+                    <p class="text-xs text-[#737686]">Tính theo điểm AI từng nhóm câu hỏi</p>
+                  </div>
+                  ${radarSvg}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 class="text-xl font-bold text-[#191b23] border-b border-[#e5e7eb] pb-3 mb-6 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[#515e7c]">question_answer</span> Chi Tiết Trả Lời & Phân Tích AI
+            </h3>
+            ${detailsHtml}
+          </section>
+
+          <footer class="mt-10 pt-6 border-t border-[#e5e7eb] flex justify-between items-center text-[#515e7c] text-sm">
+            <div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">verified_user</span> Được tạo tự động bởi PAI Recruitment Engine</div>
+            <div>Trang 1/1</div>
+          </footer>
         `;
         
         document.getElementById('loading').classList.add('hidden');
