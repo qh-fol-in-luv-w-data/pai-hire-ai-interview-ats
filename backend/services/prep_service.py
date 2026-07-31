@@ -159,7 +159,10 @@ async def _create_prep(position_id: str, app_ref: str,
             if src_intro.exists():
                 shutil.copy2(src_intro, dst_intro)
             else:
-                await _tts(INTRO_TEMPLATE.format(title=job_title), dst_intro)
+                try:
+                    await _tts(INTRO_TEMPLATE.format(title=job_title), dst_intro)
+                except Exception as e:
+                    print(f"[Prep] Intro TTS error: {e}")
 
         if gen_audio_dir and gen_audio_dir.is_dir():
             for n, src_name in _GEN_AUDIO_NAMES.items():
@@ -176,7 +179,10 @@ async def _create_prep(position_id: str, app_ref: str,
         for k, text in q_texts.items():
             dst = QUESTION_AUDIO_DIR / audio_map[k]
             if not dst.exists():
-                await _tts(text, dst)
+                try:
+                    await _tts(text, dst)
+                except Exception as e:
+                    print(f"[Prep] Q{k} TTS error: {e}")
         
         print(f"[Prep] Hoàn tất chuẩn bị audio cho {prep_id}")
     except Exception as e:

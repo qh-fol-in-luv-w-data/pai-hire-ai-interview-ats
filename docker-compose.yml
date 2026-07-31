@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    container_name: pai_hire_app
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./outputs:/app/outputs
+      - ./ats_phongvan.db:/app/ats_phongvan.db
+      - ./JDs:/app/JDs
+      - ./JDs_Detailed:/app/JDs_Detailed
+      - ./Generated_Questions:/app/Generated_Questions
+      - ./Generated_Audio:/app/Generated_Audio
+    env_file:
+      - .env
+    environment:
+      - PORT=8080
+
+  localtunnel:
+    image: node:20-alpine
+    restart: always
+    command: sh -c "npx -y localtunnel --port 8080 --local-host app --subdomain paihire-ctpai-webhook-1234"
+    depends_on:
+      - app

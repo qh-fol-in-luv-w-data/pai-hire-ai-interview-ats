@@ -135,6 +135,7 @@ def init_db():
             ("is_reapplicant", "BOOL DEFAULT 0"),
             ("prev_app_id",    "TEXT"),
             ("level",          "TEXT DEFAULT 'Junior'"),
+            ("interview_config", "TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE cv_applications ADD COLUMN {col} {typedef}")
@@ -144,6 +145,15 @@ def init_db():
             conn.execute("ALTER TABLE interview_prep ADD COLUMN scope TEXT")
         except Exception:
             pass
+        for col, typedef in [
+            ("q07_text", "TEXT"),
+            ("q08_text", "TEXT"),
+            ("generated_questions", "TEXT"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE interview_prep ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
         # New tables
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS incidents (

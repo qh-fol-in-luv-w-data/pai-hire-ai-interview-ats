@@ -32,6 +32,23 @@ async def create_interview_prep(
     app_ref:     str = Form(None),
     level:       str = Form("Junior"),
 ):
+    from backend.routers.api_v1 import parse_slot_datetime
+    
+    # Check if app_ref has an expired slot
+    if app_ref:
+        with db() as conn:
+            slot = conn.execute("SELECT * FROM interview_slots WHERE app_id=? ORDER BY created_at DESC LIMIT 1", (app_ref,)).fetchone()
+            if slot and slot["start_time"] and slot["end_time"]:
+                now_utc = datetime.now(timezone.utc)
+                try:
+                    end_dt = parse_slot_datetime(slot["end_time"])
+                    if now_utc > end_dt:
+                        raise HTTPException(403, "Khung giờ phỏng vấn đã kết thúc.")
+                except HTTPException as e:
+                    raise e
+                except Exception:
+                    pass
+
     # Nếu app_ref đã có prep sẵn → trả luôn, không gen lại
     if app_ref:
         with db() as conn:
@@ -111,7 +128,22 @@ async def evaluate_step(
     question_number: str = Form(""),
     history: str = Form("[]"),
     follow_up_limit: int = Form(5),
+    app_ref: str = Form(None),
 ):
+    from backend.routers.api_v1 import parse_slot_datetime
+    if app_ref:
+        with db() as conn:
+            slot = conn.execute("SELECT * FROM interview_slots WHERE app_id=? ORDER BY created_at DESC LIMIT 1", (app_ref,)).fetchone()
+            if slot and slot["start_time"] and slot["end_time"]:
+                now_utc = datetime.now(timezone.utc)
+                try:
+                    end_dt = parse_slot_datetime(slot["end_time"])
+                    if now_utc > end_dt:
+                        raise HTTPException(403, "Khung giờ phỏng vấn đã kết thúc.")
+                except HTTPException as e:
+                    raise e
+                except Exception:
+                    pass
     # 1. Save temp audio
     req_id = uuid.uuid4().hex[:8]
     audio_bytes, audio_ext = await read_upload_limited(
@@ -265,6 +297,21 @@ async def submit_interview(
     level        = form.get("level", "Junior")
     reiv         = form.get("reiv")
     cv_file      = form.get("cv_file")
+    
+    from backend.routers.api_v1 import parse_slot_datetime
+    if app_ref:
+        with db() as conn:
+            slot = conn.execute("SELECT * FROM interview_slots WHERE app_id=? ORDER BY created_at DESC LIMIT 1", (app_ref,)).fetchone()
+            if slot and slot["start_time"] and slot["end_time"]:
+                now_utc = datetime.now(timezone.utc)
+                try:
+                    end_dt = parse_slot_datetime(slot["end_time"])
+                    if now_utc > end_dt:
+                        raise HTTPException(403, "Khung giờ phỏng vấn đã kết thúc, không thể nộp bài.")
+                except HTTPException as e:
+                    raise e
+                except Exception:
+                    pass
     tab_switches = int(form.get("tab_switches", 0) or 0)
     time_spent_raw = form.get("time_spent", "{}")
     try:

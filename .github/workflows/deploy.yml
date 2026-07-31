@@ -1,0 +1,31 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main # Chạy action khi có code mới đẩy lên nhánh main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            # Di chuyển vào thư mục dự án
+            cd /home/${{ secrets.SERVER_USERNAME }}/pai-hire
+            
+            # Kéo code mới nhất từ nhánh main
+            git pull origin main
+            
+            # Chạy file script deploy để build lại Docker
+            bash deploy.sh

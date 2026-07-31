@@ -479,6 +479,26 @@ def api_get_report(
         "interviews": interviews_out,
     })
 
+@router.get("/debug-slots")
+def debug_slots():
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM interview_slots").fetchall()
+        now_utc = datetime.now(timezone.utc)
+        results = []
+        for r in rows:
+            d = dict(r)
+            if d["start_time"] and d["end_time"]:
+                try:
+                    start_dt = parse_slot_datetime(d["start_time"])
+                    end_dt = parse_slot_datetime(d["end_time"])
+                    d["now_utc"] = now_utc.isoformat()
+                    d["is_expired"] = now_utc > end_dt
+                    d["is_not_started"] = now_utc < start_dt
+                except Exception as e:
+                    d["error"] = str(e)
+            results.append(d)
+        return results
+
 
 # ─────────────────────────────────────────────────────────────
 # Helper nội bộ — validate slot token (dùng bởi trang phỏng vấn)

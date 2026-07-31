@@ -121,18 +121,7 @@
 
 <main class="pt-[80px] pb-12 px-4 md:px-5 max-w-[1280px] mx-auto min-h-screen">
 
-<!-- ── PROCTORING CAMERA ────────────────────────────────── -->
-<div id="webcam-container" class="hidden fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[180px] h-[135px] sm:w-[320px] sm:h-[240px] z-[9000] bg-[#2e3038] rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 group">
-  <video id="webcam-video" autoplay muted playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
-  <div class="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/60 backdrop-blur-md px-2 py-1 text-[10px] font-bold text-white">
-    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-    AI Monitoring Active
-  </div>
-  <button type="button" onclick="hideProctoringBox()" title="Ẩn ô camera debug" class="absolute right-2 top-2 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90">
-    <span class="material-symbols-outlined text-sm">close</span>
-  </button>
-  <iframe id="proctoring-iframe" title="AI proctoring camera" allow="camera; microphone; autoplay" class="hidden w-full h-full border-0"></iframe>
-</div>
+<!-- PROCTORING CAMERA MOVED TO SIDEBAR -->
 
 <!-- ── STEP 1: Setup ─────────────────────────────────────── -->
 <div id="step-1">
@@ -342,16 +331,6 @@
         </div>
         <div class="mt-4 w-full bg-[#e1e2ed] rounded-full h-2">
           <div class="bg-[#0051d5] h-2 rounded-full" id="side-progress-bar" style="width:0%"></div>
-        </div>
-      </div>
-      <div class="bg-[#2e3038] rounded-2xl overflow-hidden aspect-[4/3] shadow-lg border-2 border-white/20 relative hidden md:block">
-        <div class="absolute inset-0 flex items-center justify-center text-white/50 text-sm">
-          <span class="material-symbols-outlined mr-2">videocam</span> AI Monitoring
-        </div>
-        <div class="absolute inset-0 border-2 border-[#0051d5]/60 rounded-2xl pointer-events-none"></div>
-        <div class="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-bold px-2 py-1 rounded flex items-center gap-1 backdrop-blur-md">
-          <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-          Active
         </div>
       </div>
     </aside>
@@ -631,6 +610,12 @@ function proctoringAlertLabel(alertType) {
   const key = String(alertType || '').toUpperCase();
   const labels = {
     MULTI_FACE: 'Phát hiện nhiều khuôn mặt trong khung hình.',
+    NO_FACE: 'Không tìm thấy khuôn mặt trong khung hình.',
+    SPOOF: 'Cảnh báo: Phát hiện dùng ảnh giả mạo hoặc màn hình.',
+    SPOOFING: 'Cảnh báo: Phát hiện dùng ảnh giả mạo hoặc màn hình.',
+    LOOKING_AWAY: 'Cảnh báo: Bạn đang nhìn hướng khác.',
+    GAZE: 'Cảnh báo: Bạn đang nhìn hướng khác.',
+    PHONE: 'Cảnh báo: Phát hiện sử dụng điện thoại.',
   };
   return labels[key] || `Cảnh báo camera: ${alertType || 'không xác định'}.`;
 }
@@ -639,6 +624,12 @@ function proctoringAlertShortLabel(alertType) {
   const key = String(alertType || '').toUpperCase();
   const labels = {
     MULTI_FACE: 'Nhiều mặt',
+    NO_FACE: 'Không thấy mặt',
+    SPOOF: 'Ảnh giả',
+    SPOOFING: 'Ảnh giả',
+    LOOKING_AWAY: 'Nhìn hướng khác',
+    GAZE: 'Nhìn hướng khác',
+    PHONE: 'Dùng điện thoại',
   };
   return labels[key] || (alertType || 'Camera');
 }
@@ -711,13 +702,15 @@ async function pollProctoringAlerts() {
     if (!proctoringPollPrimed) {
       proctoringPollPrimed = true;
     }
-    if (!alerts.length) return;
-
+    const validAlerts = alerts.filter(a => String(a.alert_type || '').toUpperCase() !== 'TIME_LAPSE');
+    
     proctoringLastAlertId = Math.max(proctoringLastAlertId, ...alerts.map(a => Number(a.id) || 0));
     saveInterviewState();
 
-    alerts.forEach(showProctoringWarning);
-    alerts.forEach(alert => {
+    if (!validAlerts.length) return;
+
+    validAlerts.forEach(showProctoringWarning);
+    validAlerts.forEach(alert => {
       logIncident('proctoring_alert', `${alert.alert_type || 'unknown'}${alert.snapshot_id ? ` snapshot=${alert.snapshot_id}` : ''}`);
     });
   } catch(e) {
@@ -1571,9 +1564,16 @@ async function processAnswer(qn, isPushback = false) {
     }
     form.append('history', JSON.stringify(historyArray));
     form.append('follow_up_limit', allowFollowUp ? followUpLimit : 0);
+    if (REF) form.append('app_ref', REF);
     
     const res = await fetch(`${API_BASE}/interview/evaluate-step`, { method: 'POST', body: form });
     const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || 'Lỗi xử lý câu trả lời.');
+      if (res.status === 403) window.location.reload();
+      statusEl.innerHTML = oldStatus;
+      return;
+    }
     
     statusEl.innerHTML = oldStatus;
     
@@ -1805,6 +1805,11 @@ async function prepInterview() {
     const r = await fetch(`${API_BASE}/interview/prep`, { method: 'POST', body, signal: controller.signal });
     clearTimeout(timeout);
     const data = await r.json();
+    if (!r.ok) {
+      alert(data.detail || 'Lỗi khi chuẩn bị phỏng vấn.');
+      window.location.reload();
+      throw new Error(data.detail || 'Prep API error');
+    }
     PREP_ID         = data.prep_id || '';
     PREP_QUESTIONS  = data.questions || {};
     INTRO_AUDIO_URL = data.intro_audio || '';
@@ -2252,5 +2257,16 @@ submitInterview = async function() {
   }
 };
 </script>
+  <div id="webcam-container" class="hidden w-[280px] sm:w-[480px] aspect-video z-[9000] fixed bottom-4 right-4 bg-[#2e3038] rounded-2xl overflow-hidden shadow-2xl border-2 border-[#0051d5]/60 group transition-all duration-300">
+    <video id="webcam-video" autoplay muted playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
+    <div class="absolute inset-0 flex items-center justify-center text-white/50 text-sm pointer-events-none" id="webcam-placeholder">
+      <span class="material-symbols-outlined mr-2">videocam</span> AI Monitoring
+    </div>
+    <div class="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-bold px-2 py-1 rounded flex items-center gap-1 backdrop-blur-md">
+      <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+      Active
+    </div>
+    <iframe id="proctoring-iframe" title="AI proctoring camera" allow="camera; microphone; autoplay" class="hidden w-full h-full border-0 absolute inset-0" scrolling="no" style="overflow: hidden;"></iframe>
+  </div>
 </body>
 </html>
