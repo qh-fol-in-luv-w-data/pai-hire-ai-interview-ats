@@ -45,6 +45,7 @@ async def add_security_headers(request, call_next):
 
 app.mount("/audio", StaticFiles(directory=str(QUESTION_AUDIO_DIR)), name="audio")
 app.mount("/ui", StaticFiles(directory=str(FRONTEND_DIR)), name="ui")
+app.mount("/outputs", StaticFiles(directory=str(BASE_DIR / "outputs")), name="outputs")
 
 app.include_router(admin.router)
 app.include_router(feedback.router)
@@ -99,6 +100,10 @@ def interview_page():
 def apply_page():
     return (FRONTEND_DIR / "apply.html").read_text(encoding="utf-8")
 
+@app.get("/apply/{job_id}", response_class=HTMLResponse)
+def apply_job_page(job_id: str):
+    return (FRONTEND_DIR / "apply.html").read_text(encoding="utf-8")
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page():
     return (FRONTEND_DIR / "admin.html").read_text(encoding="utf-8")
@@ -111,5 +116,10 @@ def admin_login_page():
 def candidate_reply_page():
     return HTMLResponse(
         (FRONTEND_DIR / "candidate_reply.html").read_text(encoding="utf-8"),
-        headers={"Cache-Control": "no-store"},
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Robots-Tag": "noindex, noarchive, nosnippet",
+        },
     )

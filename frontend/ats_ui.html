@@ -1194,6 +1194,25 @@
   let recordingChunks = [];
   let activeRecordingQ = null;
 
+  function getSupportedAudioMimeType() {
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+    return [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4;codecs=mp4a.40.2',
+      'audio/mp4',
+    ].find(type => MediaRecorder.isTypeSupported(type)) || '';
+  }
+
+  function audioExtensionForBlob(blob) {
+    const type = (blob && blob.type ? blob.type : '').toLowerCase();
+    if (type.includes('mp4') || type.includes('aac')) return 'm4a';
+    if (type.includes('ogg')) return 'ogg';
+    if (type.includes('wav')) return 'wav';
+    if (type.includes('mpeg') || type.includes('mp3')) return 'mp3';
+    return 'webm';
+  }
+
   // ── Upload ─────────────────────────────────────────────
   function handleFileUpload(e) {
     const file = e.target.files[0];
@@ -1402,10 +1421,12 @@
     }
 
     recordingChunks = [];
-    mediaRecorder = new MediaRecorder(mediaStream);
+    const audioMimeType = getSupportedAudioMimeType();
+    mediaRecorder = new MediaRecorder(mediaStream, audioMimeType ? { mimeType: audioMimeType } : undefined);
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordingChunks.push(e.data); };
     mediaRecorder.onstop = () => {
-      const blob = new Blob(recordingChunks, { type: 'audio/webm' });
+      const recordedType = mediaRecorder.mimeType || recordingChunks[0]?.type || audioMimeType || 'audio/webm';
+      const blob = new Blob(recordingChunks, { type: recordedType });
       answers[qn] = blob;
       onAnswerSaved(qn);
     };
@@ -1501,7 +1522,7 @@
     // Append audio blobs based on QUESTION_TYPES
     QUESTION_TYPES.forEach(q => {
       const blob = answers[q.n];
-      if (blob) form.append(`answer_${q.n}`, blob, `answer_${q.n}.webm`);
+      if (blob) form.append(`answer_${q.n}`, blob, `answer_${q.n}.${audioExtensionForBlob(blob)}`);
     });
 
     try {

@@ -14,7 +14,7 @@
   body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
   @keyframes spin { to{transform:rotate(360deg)} }
   .spin { animation: spin .8s linear infinite; display:inline-block; }
-  @keyframes slideIn { from:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+  @keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
   .slide-in { animation: slideIn .2s ease-out forwards; }
 
   .job-card { transition: border-color .12s, box-shadow .12s, transform .12s; border: 1.5px solid #e5e7eb; cursor: pointer; }
@@ -71,9 +71,9 @@
   </div>
 </nav>
 
-<main class="w-full max-w-[1280px] mx-auto px-4 md:px-5 py-8 pb-28 md:pb-12 flex flex-col lg:flex-row gap-5 relative">
+<main class="w-full max-w-[1280px] mx-auto px-4 md:px-5 py-8 pb-28 flex flex-col gap-5 relative">
   <div class="flex-1 flex flex-col gap-6 transition-all duration-300" id="job-list-container">
-    <section class="bg-white/85 backdrop-blur rounded-xl p-6 shadow-sm border border-[#e5e7eb] relative overflow-hidden">
+    <section class="bg-white/95 backdrop-blur rounded-xl p-6 shadow-sm border border-[#e5e7eb] relative overflow-hidden sticky top-20 z-30">
       <div class="absolute top-0 right-0 w-64 h-64 bg-[#0051d5]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
       <div class="relative z-10 flex flex-col gap-4">
         <div>
@@ -124,18 +124,17 @@
       <p class="hidden md:flex items-center gap-1 text-xs text-[#737686]"><span class="material-symbols-outlined text-sm">verified</span> Ứng tuyển 100% trực tuyến</p>
     </div>
 
-    <section id="job-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <section id="job-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <div class="col-span-2 text-center py-12 text-gray-400 text-sm">
         <span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...
       </div>
     </section>
   </div>
 
-  <aside id="detail-panel" class="hidden lg:flex w-full lg:w-[400px] xl:w-[480px] bg-white/85 border border-[#e5e7eb] rounded-xl shadow-lg flex-col h-[calc(100vh-140px)] sticky top-24 overflow-hidden shrink-0 glass-panel">
-    <button onclick="closeDetail()" class="lg:hidden flex items-center gap-1 text-sm font-semibold text-gray-600 m-3 hover:text-blue-600 transition">
-      <span class="material-symbols-outlined text-base">arrow_back</span> Quay lại danh sách
-    </button>
-    <div id="detail-content" class="flex-1 overflow-y-auto"></div>
+  <aside id="detail-panel" class="hidden fixed inset-0 z-[100] bg-gray-900/60 backdrop-blur-sm overflow-y-auto flex-col items-center py-6 px-4">
+    <div class="w-full max-w-4xl bg-white rounded-2xl shadow-2xl relative overflow-hidden flex flex-col min-h-[90vh]">
+      <div id="detail-content" class="flex flex-col h-full"></div>
+    </div>
   </aside>
 
 <!-- ── SUCCESS ─────────────────────────────────────────── -->
@@ -228,10 +227,34 @@ async function loadJobs() {
 
     filteredJobs = allJobs;
     renderJobs();
+    openJobFromUrl();
   } catch(e) {
     document.getElementById('job-list').innerHTML =
       '<div class="col-span-2 text-center py-8 text-red-400 text-sm">Không thể tải danh sách. Thử lại sau.</div>';
   }
+}
+
+function openJobFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const lv = params.get('level') || params.get('lv');
+  if (lv && lv !== selectedLevel) {
+    selectedLevel = lv;
+    document.querySelectorAll('#top-level-btns .lv-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.lv === lv);
+    });
+    document.getElementById('level-badge').classList.remove('hidden');
+    document.getElementById('level-badge-text').textContent = lv;
+  }
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const pathJob = pathParts[0] === 'apply' && pathParts.length > 1 ? decodeURIComponent(pathParts.slice(1).join('/')) : '';
+  const jobId = pathJob || params.get('job') || params.get('pos');
+  if (jobId) selectJob(jobId);
+}
+
+function isApplyPageMode() {
+  const params = new URLSearchParams(location.search);
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  return Boolean(params.get('job') || params.get('pos') || (pathParts[0] === 'apply' && pathParts.length > 1));
 }
 
 function filterJobs() {
@@ -255,7 +278,7 @@ function renderJobs() {
   }
   document.getElementById('job-list').innerHTML = filteredJobs.map(j => `
     <div class="job-card bg-white border border-[#e5e7eb] rounded-xl p-6 shadow-sm hover:shadow-[0_-4px_10px_rgba(0,81,213,0.1)] hover:-translate-y-[1px] transition-all cursor-pointer group flex flex-col gap-4 ${selectedJob?.id===j.id?'selected':''}"
-      onclick="selectJob('${j.id}')" id="card-${j.id}">
+      onclick="goApplyJob('${j.id}')" id="card-${j.id}">
       <div class="flex justify-between items-start">
         <div class="w-12 h-12 bg-[#f3f3fe] rounded-lg flex items-center justify-center border border-[#e5e7eb]/70">
           <span class="material-symbols-outlined text-[#003ca3] text-2xl">${catIcon(j.category)}</span>
@@ -279,6 +302,12 @@ function renderJobs() {
     </div>`).join('');
 }
 
+function goApplyJob(jobId) {
+  const url = new URL(`/apply/${encodeURIComponent(jobId)}`, location.origin);
+  url.searchParams.set('level', selectedLevel);
+  location.href = url.toString();
+}
+
 // ── Select job ────────────────────────────────────────────
 async function selectJob(jobId) {
   selectedJob = allJobs.find(j => j.id === jobId);
@@ -288,14 +317,18 @@ async function selectJob(jobId) {
   document.getElementById('card-' + jobId)?.classList.add('selected');
 
   const panel = document.getElementById('detail-panel');
-  panel.classList.remove('hidden');
+  const pageMode = isApplyPageMode();
+  if (pageMode) {
+    document.getElementById('job-list-container').classList.add('hidden');
+    panel.className = 'flex flex-col w-full max-w-5xl mx-auto';
+    panel.firstElementChild.className = 'w-full bg-white rounded-2xl shadow-sm border border-[#e5e7eb] relative overflow-hidden flex flex-col min-h-[calc(100vh-130px)]';
+    document.title = `${cleanTitle(selectedJob.title || '')} — Ứng tuyển`;
+  } else {
+    panel.className = 'fixed inset-0 z-[100] bg-gray-900/60 backdrop-blur-sm overflow-y-auto flex flex-col items-center py-6 px-4';
+    panel.firstElementChild.className = 'w-full max-w-4xl bg-white rounded-2xl shadow-2xl relative overflow-hidden flex flex-col min-h-[90vh]';
+  }
   document.getElementById('detail-content').innerHTML =
     '<div class="p-5 text-center text-gray-400 text-sm py-10"><span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...</div>';
-
-  if (window.innerWidth < 768) {
-    document.getElementById('job-list-container').classList.add('hidden');
-    window.scrollTo({top: 0, behavior: 'smooth'});
-  }
 
   try {
     const r = await fetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}?level=${selectedLevel}`);
@@ -305,15 +338,10 @@ async function selectJob(jobId) {
   }
 }
 
-function closeDetail() {
-  document.getElementById('detail-panel').classList.add('hidden');
-  document.getElementById('job-list-container').classList.remove('hidden');
-  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
-}
-
 function renderDetail(job) {
   const title  = cleanTitle(job.title || '');
   const jdHtml = job.jd_content ? parseMarkdown(job.jd_content) : '';
+  const pageMode = isApplyPageMode();
 
   document.getElementById('detail-content').innerHTML = `
     <div class="p-6 border-b border-[#e5e7eb] bg-white/70 flex justify-between items-start sticky top-0 z-10 backdrop-blur-md">
@@ -327,10 +355,13 @@ function renderDetail(job) {
             <span class="material-symbols-outlined text-[16px]">location_on</span> TP. Hồ Chí Minh
             <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
             <span>${job.category||''}</span>
+            <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
+            <span class="font-bold text-[#0051d5] flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">payments</span> 15.000.000 - 30.000.000 VNĐ</span>
           </p>
         </div>
-        <button onclick="closeDetail()" class="text-[#434654] hover:bg-[#ededf8] rounded-full p-1.5">
-          <span class="material-symbols-outlined text-xl">close</span>
+        <button onclick="closeDetail()" class="${pageMode ? 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#ededf8] text-[#434654] text-xs font-bold hover:bg-[#dfe3f2]' : 'text-[#434654] hover:bg-[#ededf8] rounded-full p-1.5'}">
+          <span class="material-symbols-outlined ${pageMode ? 'text-base' : 'text-xl'}">${pageMode ? 'arrow_back' : 'close'}</span>
+          ${pageMode ? '<span>Danh sách việc làm</span>' : ''}
         </button>
       </div>
     </div>
@@ -353,18 +384,18 @@ function renderDetail(job) {
 
       <div class="space-y-2.5">
         <div>
-          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">Họ tên đầy đủ <span class="text-red-500">*</span></label>
+          <label for="apply-name" class="block text-[.7rem] font-bold text-gray-500 mb-1 cursor-pointer">Họ tên đầy đủ <span class="text-red-500">*</span></label>
           <input id="apply-name" type="text" placeholder="Nguyễn Văn A"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
         </div>
         <div>
-          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">Email <span class="text-red-500">*</span></label>
+          <label for="apply-email" class="block text-[.7rem] font-bold text-gray-500 mb-1 cursor-pointer">Email <span class="text-red-500">*</span></label>
           <input id="apply-email" type="email" placeholder="email@example.com"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
           <p class="text-[.68rem] text-gray-400 mt-1">Kết quả & link phỏng vấn gửi về đây</p>
         </div>
         <div>
-          <label class="block text-[.7rem] font-bold text-gray-500 mb-1">Số điện thoại</label>
+          <label for="apply-phone" class="block text-[.7rem] font-bold text-gray-500 mb-1 cursor-pointer">Số điện thoại</label>
           <input id="apply-phone" type="tel" placeholder="0901 234 567"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
         </div>
@@ -401,9 +432,18 @@ function renderDetail(job) {
 }
 
 function closeDetail() {
+  if (isApplyPageMode()) {
+    location.href = '/apply';
+    return;
+  }
   document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('detail-panel').classList.remove('flex');
   document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
   selectedJob = null;
+  const url = new URL(location.href);
+  url.searchParams.delete('job');
+  url.searchParams.delete('pos');
+  history.replaceState(null, '', url.toString());
 }
 
 // ── Markdown parser ──────────────────────────────────────
@@ -492,9 +532,6 @@ function showErr(msg) {
 
 // ── Boot ─────────────────────────────────────────────────
 loadJobs();
-const _p = new URLSearchParams(location.search);
-if (_p.get('lv')) selectLevel(_p.get('lv'));
-if (_p.get('pos')) setTimeout(() => selectJob(_p.get('pos')), 800);
 </script>
 </body>
 </html>

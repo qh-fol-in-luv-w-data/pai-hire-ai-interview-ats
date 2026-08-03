@@ -25,6 +25,13 @@ CONTENT_TYPE_EXTENSIONS = {
     "audio/mp4": ".m4a",
     "audio/ogg": ".ogg",
 }
+EXTENSION_CONTENT_TYPES = {
+    ".webm": "audio/webm",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+}
 TEMP_FILE_SECRET = os.environ.get("TEMP_FILE_SECRET") or os.environ.get("ADMIN_KEY", "")
 
 
@@ -56,6 +63,10 @@ async def read_upload_limited(
     if len(data) > max_bytes:
         raise HTTPException(413, f"{field_name} vượt quá giới hạn {max_bytes // (1024 * 1024)}MB")
     return data, ext
+
+
+def media_content_type_for_path(path: Path) -> str:
+    return EXTENSION_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
 
 
 def _temp_file_token(filename: str) -> str:

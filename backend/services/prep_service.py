@@ -3,10 +3,49 @@ import uuid
 import re
 import json
 from backend.database import db
-from backend.services.document_service import extract_cv_text, get_all_jobs
-from backend.config import CV_QUESTIONS_PROMPT, QUESTION_AUDIO_DIR, OPENAI_API_KEY, BASE_DIR, INTRO_TEMPLATE, _GEN_AUDIO_NAMES, QUESTIONS_BANK, _DEFAULT_EXPERIENCE
+from backend.services.document_service import extract_cv_text, get_all_jobs, get_jd_content, resolve_job_id
+from backend.config import QUESTION_AUDIO_DIR, OPENAI_API_KEY, BASE_DIR, INTRO_TEMPLATE, _GEN_AUDIO_NAMES, QUESTIONS_BANK, _DEFAULT_EXPERIENCE
 from backend.services.ai_service import _tts
-from backend.config import CV_QUESTIONS_PROMPT,  _parse_q0306, _find_position_files
+from backend.config import CV_QUESTIONS_PROMPT, _parse_q0306, _find_position_files
+
+DEFAULT_PART_1_LIMIT = 11
+DEFAULT_PART_2_LIMIT = 7
+DEFAULT_FOLLOW_UP_LIMIT = 5
+MAX_PART_1_LIMIT = 11
+MAX_PART_2_LIMIT = 13
+MAX_FOLLOW_UP_LIMIT = 5
+
+
+def _bounded_int(value, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(maximum, parsed))
+
+
+def normalize_interview_config(config: dict | None) -> dict:
+    config = config or {}
+    return {
+        "PART_1_DEFAULT": _bounded_int(
+            config.get("PART_1_DEFAULT"),
+            DEFAULT_PART_1_LIMIT,
+            1,
+            MAX_PART_1_LIMIT,
+        ),
+        "PART_2_GENERATED": _bounded_int(
+            config.get("PART_2_GENERATED"),
+            DEFAULT_PART_2_LIMIT,
+            0,
+            MAX_PART_2_LIMIT,
+        ),
+        "PART_3_FOLLOW_UP": _bounded_int(
+            config.get("PART_3_FOLLOW_UP"),
+            DEFAULT_FOLLOW_UP_LIMIT,
+            0,
+            MAX_FOLLOW_UP_LIMIT,
+        ),
+    }
 
 
 def _question_type_for_prep(n: str, text: str) -> str:
@@ -20,6 +59,45 @@ def _allow_follow_up_for_prep(n: str, text: str) -> bool:
     return _question_type_for_prep(n, text) in {"Technical", "Experience"}
 
 
+_TECH_QUESTION_TERMS = (
+    "api", "backend", "frontend", "framework", "database", "sql", "python",
+    "javascript", "typescript", "react", "node", "docker", "kubernetes",
+    "cloud", "aws", "server", "system design", "microservice", "deploy",
+    "code", "coding", "lập trình", "phần mềm", "cơ sở dữ liệu", "thuật toán",
+)
+_TECH_JD_TERMS = (
+    "developer", "engineer", "frontend", "backend", "fullstack", "devops",
+    "data", "ai/ml", "automation tester", "qa/qc", "system admin",
+    "công nghệ thông tin", "lập trình", "phần mềm", "dữ liệu",
+)
+
+
+def _question_relevant_to_jd(question: str, jd_text: str) -> bool:
+    text = (question or "").lower()
+    jd = (jd_text or "").lower()
+    if not text.strip():
+        return False
+    jd_is_tech = any(term in jd for term in _TECH_JD_TERMS)
+    asks_old_tech = any(term in text for term in _TECH_QUESTION_TERMS)
+    if asks_old_tech and not jd_is_tech:
+        return False
+    return True
+
+
+def _jd_gap_question(position: str, jd_text: str) -> str:
+    jd_hint = "yêu cầu quan trọng nhất trong JD"
+    jd_lines = [line.strip("-*• \t") for line in (jd_text or "").splitlines() if line.strip()]
+    for line in jd_lines:
+        if len(line) >= 24:
+            jd_hint = line[:180]
+            break
+    return (
+        f"Vị trí {position} cần đáp ứng {jd_hint}. "
+        "Trong CV của bạn, kinh nghiệm nào liên quan trực tiếp nhất đến yêu cầu này; "
+        "nếu chưa có kinh nghiệm đúng vai trò, bạn sẽ bù đắp khoảng trống như thế nào?"
+    )
+
+
 async def _create_prep(position_id: str, app_ref: str,
                        level: str = "Junior") -> dict:
     """
@@ -29,24 +107,39 @@ async def _create_prep(position_id: str, app_ref: str,
     now     = time.strftime("%Y-%m-%dT%H:%M:%S")
     prep_id = "PREP-" + uuid.uuid4().hex[:10].upper()
 
-    limit_p1 = 11
-    limit_p2 = 7
-    limit_p3 = 5
+    limits = normalize_interview_config(None)
+    limit_p1 = limits["PART_1_DEFAULT"]
+    limit_p2 = limits["PART_2_GENERATED"]
+    limit_p3 = limits["PART_3_FOLLOW_UP"]
     if app_ref:
         with db() as conn:
             row = conn.execute("SELECT interview_config FROM cv_applications WHERE id=?", (app_ref,)).fetchone()
             if row and row["interview_config"]:
                 try:
-                    cfg = json.loads(row["interview_config"])
-                    limit_p1 = int(cfg.get("PART_1_DEFAULT", limit_p1))
-                    limit_p2 = int(cfg.get("PART_2_GENERATED", limit_p2))
-                    limit_p3 = int(cfg.get("PART_3_FOLLOW_UP", limit_p3))
+                    cfg = normalize_interview_config(json.loads(row["interview_config"]))
+                    limit_p1 = cfg["PART_1_DEFAULT"]
+                    limit_p2 = cfg["PART_2_GENERATED"]
+                    limit_p3 = cfg["PART_3_FOLLOW_UP"]
                 except:
                     pass
 
+    app_job_id = ""
+    if app_ref:
+        with db() as conn:
+            app_row = conn.execute(
+                "SELECT job_id FROM cv_applications WHERE id=?", (app_ref,)
+            ).fetchone()
+        if app_row and app_row["job_id"]:
+            app_job_id = app_row["job_id"]
+
+    canonical_job_id, resolved_level = resolve_job_id(app_job_id or position_id)
+    jd_lookup_id = canonical_job_id or app_job_id or position_id
     jobs      = get_all_jobs()
-    job       = next((j for j in jobs if j["id"] == position_id), None)
+    job       = next((j for j in jobs if j["id"] == jd_lookup_id), None)
     job_title = job["title"] if job else position_id.replace("_", " ")
+    jd_text   = get_jd_content(jd_lookup_id)
+    if not jd_text and canonical_job_id and canonical_job_id != position_id:
+        jd_text = get_jd_content(position_id)
 
     md_path, gen_audio_dir = _find_position_files(position_id)
     q_texts = _parse_q0306(md_path) if md_path else {}
@@ -83,15 +176,16 @@ async def _create_prep(position_id: str, app_ref: str,
                 try:
                     from openai import AsyncOpenAI
                     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-                    
+
                     num_gen = limit_p2
                     start_idx = len(q_texts) + 1
                     json_format = ", ".join([f'"q{str(i+start_idx).zfill(2)}": "câu hỏi thứ {i+1}"' for i in range(num_gen)])
                     json_format = f"{{{json_format}}}"
-                    
+
                     prompt = CV_QUESTIONS_PROMPT.format(
                         position=job_title,
-                        level=level,
+                        level=level or resolved_level,
+                        jd_text=jd_text[:5000],
                         cv_text=cv_text[:4000],
                         num_gen=num_gen,
                         json_format=json_format
@@ -100,13 +194,14 @@ async def _create_prep(position_id: str, app_ref: str,
                         model="gpt-4o",
                         messages=[{"role": "user", "content": prompt}],
                         temperature=0.3,
-                        max_tokens=600,
+                        max_tokens=max(1000, num_gen * 180),
+                        response_format={"type": "json_object"},
                     )
                     raw = resp.choices[0].message.content.strip()
                     raw = re.sub(r"^```(?:json)?\s*", "", raw)
                     raw = re.sub(r"\s*```$", "", raw)
                     parsed = json.loads(raw)
-                    
+
                     # Robust parsing: take all string values from parsed dict/list
                     ai_texts = []
                     if isinstance(parsed, dict):
@@ -117,7 +212,14 @@ async def _create_prep(position_id: str, app_ref: str,
                         for item in parsed:
                             if isinstance(item, str): ai_texts.append(item)
                             elif isinstance(item, dict) and "text" in item: ai_texts.append(item["text"])
-                            
+
+                    ai_texts = [
+                        text for text in ai_texts
+                        if _question_relevant_to_jd(text, jd_text)
+                    ]
+                    while len(ai_texts) < num_gen:
+                        ai_texts.append(_jd_gap_question(job_title, jd_text))
+
                     for i, text in enumerate(ai_texts[:num_gen]):
                         generated_qs[str(i + start_idx).zfill(2)] = text
 
@@ -126,8 +228,14 @@ async def _create_prep(position_id: str, app_ref: str,
 
     if not generated_qs and limit_p2 > 0:
         start_idx = len(q_texts) + 1
-        if limit_p2 >= 1: generated_qs[str(start_idx).zfill(2)] = _DEFAULT_EXPERIENCE["q07"]
-        if limit_p2 >= 2: generated_qs[str(start_idx + 1).zfill(2)] = _DEFAULT_EXPERIENCE["q08"]
+        fallback_texts = [
+            _DEFAULT_EXPERIENCE["q07"],
+            _DEFAULT_EXPERIENCE["q08"],
+        ]
+        while len(fallback_texts) < limit_p2:
+            fallback_texts.append(_jd_gap_question(job_title, jd_text))
+        for i, text in enumerate(fallback_texts[:limit_p2]):
+            generated_qs[str(start_idx + i).zfill(2)] = text
 
     for k, v in generated_qs.items():
         q_texts[k] = v
@@ -211,16 +319,19 @@ def _prep_from_row(row) -> dict:
     pos     = row["position_id"]
     app_ref = row["app_ref"]
     
-    limit_p1 = 11
-    limit_p3 = 5
+    limits = normalize_interview_config(None)
+    limit_p1 = limits["PART_1_DEFAULT"]
+    limit_p2 = limits["PART_2_GENERATED"]
+    limit_p3 = limits["PART_3_FOLLOW_UP"]
     if app_ref:
         with db() as conn:
             cfg_row = conn.execute("SELECT interview_config FROM cv_applications WHERE id=?", (app_ref,)).fetchone()
             if cfg_row and cfg_row["interview_config"]:
                 try:
-                    cfg = json.loads(cfg_row["interview_config"])
-                    limit_p1 = int(cfg.get("PART_1_DEFAULT", limit_p1))
-                    limit_p3 = int(cfg.get("PART_3_FOLLOW_UP", limit_p3))
+                    cfg = normalize_interview_config(json.loads(cfg_row["interview_config"]))
+                    limit_p1 = cfg["PART_1_DEFAULT"]
+                    limit_p2 = cfg["PART_2_GENERATED"]
+                    limit_p3 = cfg["PART_3_FOLLOW_UP"]
                 except:
                     pass
 
@@ -261,6 +372,11 @@ def _prep_from_row(row) -> dict:
     if not generated_qs:
         if row_dict.get("q07_text"): generated_qs["07"] = row_dict["q07_text"]
         if row_dict.get("q08_text"): generated_qs["08"] = row_dict["q08_text"]
+
+    if len(generated_qs) > limit_p2:
+        generated_qs = dict(
+            sorted(generated_qs.items(), key=lambda item: int(item[0]) if str(item[0]).isdigit() else 999)[:limit_p2]
+        )
         
     for k, v in generated_qs.items():
         q_texts[k] = v
@@ -286,4 +402,3 @@ def _prep_from_row(row) -> dict:
         },
         "follow_up_limit": limit_p3
     }
-

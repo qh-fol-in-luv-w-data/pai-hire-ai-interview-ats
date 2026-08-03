@@ -17,9 +17,14 @@ services:
     environment:
       - PORT=8080
 
-  localtunnel:
-    image: node:20-alpine
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: pai_hire_ngrok
     restart: always
-    command: sh -c "npx -y localtunnel --port 8080 --local-host app --subdomain paihire-ctpai-webhook-1234"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http app:8080
+    ports:
+      - "4040:4040"
     depends_on:
       - app

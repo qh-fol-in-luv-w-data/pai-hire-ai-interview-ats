@@ -5,6 +5,7 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>PAI HR — Admin Dashboard</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -113,10 +114,13 @@
         }
     
         .status-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .s-pending { background: #fef3c7; color: #b45309; }
         .s-pending_review { background: #f3f4f6; color: #4b5563; }
         .s-passed { background: #d1fae5; color: #047857; }
         .s-failed { background: #fee2e2; color: #b91c1c; }
-        .s-pending_hr_approval_pass, .s-pending_hr_approval_fail { background: #fef3c7; color: #d97706; border: 1px dashed #d97706; }
+        .s-error { background: #f3f4f6; color: #4b5563; }
+        .s-waiting_for_reply_passed, .s-waiting_for_reply_failed { background: #dbeafe; color: #1d4ed8; border: 1px dashed #60a5fa; }
+        .s-pending_hr_approval_passed, .s-pending_hr_approval_failed { background: #fef3c7; color: #d97706; border: 1px dashed #d97706; }
 
     </style>
 </head>
@@ -414,7 +418,7 @@
       
       <div class="space-y-6">
         <div>
-          <label class="block text-sm font-semibold mb-2">Điểm Pass CV (Mặc định: 6.0)</label>
+          <label class="block text-sm font-semibold mb-2">Điểm Pass CV (Mặc định: 3.0/5)</label>
           <div class="flex items-center gap-4">
             <input type="number" step="0.1" id="cfg-cv-pass-score" class="w-32 border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-secondary bg-surface-container-low font-medium">
             <span class="text-xs text-outline">Hệ thống AI sẽ đánh giá "Đạt" nếu tổng điểm CV >= mức này.</span>
@@ -539,15 +543,23 @@ let currentIvId = '';
 
 const STATUS_LABEL = {
   pending_review: 'Chờ xem xét',
-  pending_hr_approval_passed: 'Chờ HR duyệt cuối (Pass)',
-  pending_hr_approval_failed: 'Chờ HR duyệt cuối (Fail)',
-  waiting_for_reply_passed: 'Chờ phản hồi Email (AI Pass)',
-  waiting_for_reply_failed: 'Chờ phản hồi Email (AI Fail)',
+  pending:        'Đang chờ xử lý',
+  pending_hr_approval_passed: 'Chờ HR duyệt cuối (Đạt)',
+  pending_hr_approval_failed: 'Chờ HR duyệt cuối (Không đạt)',
+  waiting_for_reply_passed: 'Chờ ứng viên phản hồi (CV đạt)',
+  waiting_for_reply_failed: 'Chờ ứng viên phản hồi (CV chưa đạt)',
+  waiting_for_interview: 'Chờ phỏng vấn',
+  submitted:      'Đã nộp bài',
+  scheduled:      'Đã lên lịch',
   evaluated:      'Hệ thống đã đánh giá',
   passed:         'Đạt',
   failed:         'Không đạt',
+  error:          'Lỗi',
   reviewing:      'Đang xem xét',
 };
+function statusLabel(status) {
+  return STATUS_LABEL[status] || status || '—';
+}
 const AI_COLORS = {
   'nắm vững':    'ai-nắm-vững',
   'am hiểu':     'ai-am-hiểu',
@@ -604,6 +616,45 @@ function escapeAdminText(value) {
     "'": '&#39;',
   }[ch]));
 }
+
+const nativeAdminAlert = window.alert.bind(window);
+
+async function showAdminDialog({
+  icon = 'info',
+  title = 'Thông báo',
+  text = '',
+  html = '',
+  confirmButtonText = 'Đã hiểu',
+  timer = null,
+} = {}) {
+  if (window.Swal) {
+    return Swal.fire({
+      icon,
+      title,
+      text: html ? undefined : text,
+      html: html || undefined,
+      timer: timer || undefined,
+      confirmButtonText,
+      buttonsStyling: false,
+      customClass: {
+        popup: 'rounded-3xl px-2 py-3 shadow-2xl',
+        title: 'text-gray-900 font-extrabold text-2xl',
+        htmlContainer: 'text-gray-600 text-sm leading-relaxed',
+        confirmButton: 'px-5 py-3 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 transition',
+      },
+    });
+  }
+  nativeAdminAlert(text || html.replace(/<[^>]+>/g, ' ') || title);
+}
+
+window.alert = (message = 'Thông báo') => {
+  showAdminDialog({
+    icon: 'info',
+    title: 'Thông báo',
+    text: String(message),
+    confirmButtonText: 'Đã hiểu',
+  });
+};
 
 // ── Init ──────────────────────────────────────────────────
 async function init() {
@@ -687,7 +738,7 @@ async function loadSettings() {
   try {
     const r = await apiFetch('/admin/settings');
     const data = await r.json();
-    document.getElementById('cfg-cv-pass-score').value = data.cv_pass_score || '6.0';
+    document.getElementById('cfg-cv-pass-score').value = data.cv_pass_score || '3.0';
   } catch(e) {
     console.error(e);
   }
@@ -699,7 +750,7 @@ async function saveSettings(event) {
   btn.innerHTML = '<span class="material-symbols-outlined text-sm">refresh</span> Đang lưu...';
   try {
     const payload = {
-      cv_pass_score: document.getElementById('cfg-cv-pass-score').value || '6.0'
+      cv_pass_score: document.getElementById('cfg-cv-pass-score').value || '3.0'
     };
     const r = await fetch('/admin/settings', {
       method: 'POST',
@@ -745,7 +796,7 @@ async function loadDashboard() {
       statusChart.innerHTML = Object.entries(statusCount).map(([s,c]) => `
         <div>
           <div class="flex justify-between text-xs mb-1">
-            <span class="font-semibold text-gray-700">${STATUS_LABEL[s]||s}</span>
+            <span class="font-semibold text-gray-700">${statusLabel(s)}</span>
             <span class="text-outline">${c} (${Math.round(c/total*100)}%)</span>
           </div>
           <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -863,7 +914,7 @@ function renderInterviewTable() {
           </td>
           <td class="px-4 py-3"><span class="level-tag">${iv.level||'—'}</span></td>
           <td class="px-4 py-3">${score}</td>
-          <td class="px-4 py-3"><span class="status-pill s-${iv.status||'pending_review'}">${STATUS_LABEL[iv.status]||iv.status||'—'}</span></td>
+          <td class="px-4 py-3"><span class="status-pill s-${iv.status||'pending_review'}">${statusLabel(iv.status)}</span></td>
           <td class="px-4 py-3 text-outline text-xs">${date}</td>
           <td class="px-4 py-3">
             <button onclick="event.stopPropagation();openModal('${iv.id}')" class="text-secondary hover:underline text-xs font-semibold mr-2">Chi tiết</button>
@@ -897,7 +948,7 @@ function renderSmallTable(containerId, list) {
           <td class="px-4 py-2.5 text-on-surface-variant text-xs">${pos}</td>
           <td class="px-4 py-2.5 font-bold ${iv.avg_score>=7.5?'text-emerald-600':iv.avg_score>=5?'text-amber-600':'text-red-500'}">${score}</td>
           <td class="px-4 py-2.5">
-            <span class="status-pill s-${iv.status||'pending_review'}">${STATUS_LABEL[iv.status]||'—'}</span>
+            <span class="status-pill s-${iv.status||'pending_review'}">${statusLabel(iv.status)}</span>
             <button onclick="downloadCandidateReport(event, '${iv.id}')" title="Tải báo cáo đánh giá" class="ml-2 text-primary hover:text-primary-dark transition-colors" style="vertical-align: middle;">
               <span class="material-symbols-outlined text-base">download</span>
             </button>
@@ -953,7 +1004,7 @@ function renderApplicationTable() {
         ${list.map(app => {
           const reTag = app.is_reapplicant ? '<span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold ml-1">Tái ứng</span>' : '';
           const date  = (app.applied_at||'').substring(0,10);
-          const score = app.cv_score != null ? `<span class="font-bold ${app.cv_score>=6.0?'text-emerald-600':app.cv_score>=5?'text-amber-600':'text-red-500'}">${app.cv_score.toFixed?.(1)||app.cv_score}</span>` : '—';
+        const score = app.cv_score != null ? `<span class="font-bold ${app.cv_score>=3.0?'text-emerald-600':app.cv_score>=2.5?'text-amber-600':'text-red-500'}">${app.cv_score.toFixed?.(1)||app.cv_score}</span>` : '—';
           return `<tr class="border-b border-outline-variant hover:bg-surface-container-low cursor-pointer" onclick="openAppModal('${app.id}')">
             <td class="px-4 py-3">
               <p class="font-semibold text-on-surface">${app.name||'—'}${reTag}</p>
@@ -961,7 +1012,7 @@ function renderApplicationTable() {
             </td>
             <td class="px-4 py-3 text-gray-600 text-xs">${(app.job_id||'').replace(/_/g,' ')}</td>
             <td class="px-4 py-3">${score}</td>
-            <td class="px-4 py-3"><span class="status-pill s-${app.status||'pending_review'}">${app.status||'—'}</span></td>
+            <td class="px-4 py-3"><span class="status-pill s-${app.status||'pending_review'}">${statusLabel(app.status)}</span></td>
             <td class="px-4 py-3 text-outline text-xs">${date}</td>
             <td class="px-4 py-3">
               ${app.cv_path ? `<a href="${API_BASE}/admin/cv/${app.id}" target="_blank" class="text-secondary hover:underline text-xs font-semibold flex items-center gap-1"><span class="material-symbols-outlined text-sm">download</span>CV</a>` : '<span class="text-gray-300 text-xs">—</span>'}
@@ -989,7 +1040,7 @@ async function openAppModal(appId) {
     const pos = (app.job_id||'').replace(/_/g,' ');
     const date = (app.applied_at||'').substring(0,16).replace('T',' ');
     document.getElementById('modal-subtitle').textContent = `${pos} · ${app.level||'Junior'} · Nộp lúc ${date}`;
-    document.getElementById('modal-status-badge').innerHTML = `<span class="status-pill s-${app.status||'pending'}">${app.status||'—'}</span>`;
+    document.getElementById('modal-status-badge').innerHTML = `<span class="status-pill s-${app.status||'pending'}">${statusLabel(app.status)}</span>`;
 
     let bdHtml = '<p class="text-gray-500 text-sm text-center py-4">Chưa có điểm chi tiết</p>';
     if (app.score_breakdown) {
@@ -1000,12 +1051,48 @@ async function openAppModal(appId) {
       const renderList = (items, empty = 'Không có') => Array.isArray(items) && items.length
         ? `<ul class="list-disc pl-5 space-y-1">${items.map(x => `<li>${typeof x === 'string' ? x : JSON.stringify(x)}</li>`).join('')}</ul>`
         : `<span class="text-gray-400">${empty}</span>`;
+      const defaultCvWeights = {
+        c1_technical_skills: 0.20,
+        c2_experience: 0.20,
+        c3_education: 0.10,
+        c4_industry: 0.10,
+        c5_career_path: 0.10,
+        c6_achievements: 0.10,
+        c7_soft_skills: 0.05,
+        c8_language_cv: 0.05,
+        c9_stability: 0.05,
+        c10_ai_overall: 0.05,
+      };
+      const cvWeights = {...defaultCvWeights, ...(b.criteria_weights || {})};
+      const fmtWeighted = value => {
+        const n = Number(value || 0);
+        return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/,'').replace(/\.$/,'');
+      };
+      const criterionLine = (idx, key, label, last = false) => {
+        const rawScore = Number(c[key] || 0);
+        const weight = Number(cvWeights[key] ?? 0);
+        const weightedScore = rawScore * weight;
+        const weightedMax = 5 * weight;
+        return `
+          <li class="flex flex-col ${last ? '' : 'border-b border-gray-100 pb-2'}">
+            <div class="flex justify-between gap-3">
+              <span>${idx}. ${label}:</span>
+              <span class="font-bold text-primary">${rawScore}/5</span>
+            </div>
+            <div class="mt-1 flex justify-between text-[11px] text-gray-500">
+              <span>Điểm trọng số (${fmtWeighted(rawScore)} × ${fmtWeighted(weight)})</span>
+              <span class="font-bold text-gray-700">${fmtWeighted(weightedScore)}/${fmtWeighted(weightedMax)}</span>
+            </div>
+            ${r_rs[key] ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs[key]}</p>` : ''}
+          </li>
+        `;
+      };
       
       bdHtml = `
       <div class="space-y-6">
         <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant text-center">
           <p class="text-sm font-semibold text-outline">TỔNG ĐIỂM CV</p>
-          <p class="text-4xl font-black ${app.cv_score>=6.0?'text-emerald-600':'text-red-500'} mt-1">${app.cv_score}/10</p>
+          <p class="text-4xl font-black ${app.cv_score>=3.0?'text-emerald-600':'text-red-500'} mt-1">${app.cv_score}/5</p>
           ${b.score_cap_reason ? `<p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">${b.score_cap_reason}</p>` : ''}
         </div>
         
@@ -1057,46 +1144,16 @@ async function openAppModal(appId) {
         <div class="bg-white border border-outline-variant rounded-xl p-4">
           <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2">CHI TIẾT 10 TIÊU CHÍ (Theo Khung đánh giá)</h4>
           <ul class="space-y-3 text-sm">
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>1. Kỹ năng chuyên môn:</span> <span class="font-bold text-primary">${c.c1_technical_skills||0}/2.0</span></div>
-              ${r_rs.c1_technical_skills ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c1_technical_skills}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>2. Kinh nghiệm làm việc:</span> <span class="font-bold text-primary">${c.c2_experience||0}/2.0</span></div>
-              ${r_rs.c2_experience ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c2_experience}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>3. Học vấn & Chứng chỉ:</span> <span class="font-bold text-primary">${c.c3_education||0}/1.0</span></div>
-              ${r_rs.c3_education ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c3_education}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>4. Phù hợp ngành nghề:</span> <span class="font-bold text-primary">${c.c4_industry||0}/1.0</span></div>
-              ${r_rs.c4_industry ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c4_industry}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>5. Lộ trình phát triển:</span> <span class="font-bold text-primary">${c.c5_career_path||0}/1.0</span></div>
-              ${r_rs.c5_career_path ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c5_career_path}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>6. Thành tích nổi bật:</span> <span class="font-bold text-primary">${c.c6_achievements||0}/1.0</span></div>
-              ${r_rs.c6_achievements ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c6_achievements}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>7. Kỹ năng mềm/Lãnh đạo:</span> <span class="font-bold text-primary">${c.c7_soft_skills||0}/0.5</span></div>
-              ${r_rs.c7_soft_skills ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c7_soft_skills}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>8. Ngoại ngữ & Form CV:</span> <span class="font-bold text-primary">${c.c8_language_cv||0}/0.5</span></div>
-              ${r_rs.c8_language_cv ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c8_language_cv}</p>` : ''}
-            </li>
-            <li class="flex flex-col border-b border-gray-100 pb-2">
-              <div class="flex justify-between"><span>9. Mức độ ổn định:</span> <span class="font-bold text-primary">${c.c9_stability||0}/0.5</span></div>
-              ${r_rs.c9_stability ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c9_stability}</p>` : ''}
-            </li>
-            <li class="flex flex-col">
-              <div class="flex justify-between"><span>10. Điểm cộng AI:</span> <span class="font-bold text-primary">${c.c10_ai_overall||0}/0.5</span></div>
-              ${r_rs.c10_ai_overall ? `<p class="text-[11px] text-gray-500 italic mt-0.5 pr-4">${r_rs.c10_ai_overall}</p>` : ''}
-            </li>
+            ${criterionLine(1, 'c1_technical_skills', 'Kỹ năng chuyên môn')}
+            ${criterionLine(2, 'c2_experience', 'Kinh nghiệm làm việc')}
+            ${criterionLine(3, 'c3_education', 'Học vấn & Chứng chỉ')}
+            ${criterionLine(4, 'c4_industry', 'Phù hợp ngành nghề')}
+            ${criterionLine(5, 'c5_career_path', 'Lộ trình phát triển')}
+            ${criterionLine(6, 'c6_achievements', 'Thành tích nổi bật')}
+            ${criterionLine(7, 'c7_soft_skills', 'Kỹ năng mềm/Lãnh đạo')}
+            ${criterionLine(8, 'c8_language_cv', 'Ngoại ngữ & Form CV')}
+            ${criterionLine(9, 'c9_stability', 'Mức độ ổn định')}
+            ${criterionLine(10, 'c10_ai_overall', 'Điểm cộng AI', true)}
           </ul>
         </div>
       `;
@@ -1134,10 +1191,57 @@ async function openAppModal(appId) {
       
       if (b.reply_analysis) {
         const ra = b.reply_analysis;
+        const scoreAdj = ra.score_adjustment ?? null;
+        const inferredAfter = Number(app.cv_score);
+        const inferredAdj = Number(scoreAdj || 0);
+        const scoreAfter = ra.score_after ?? ra.after_score ?? (Number.isFinite(inferredAfter) ? inferredAfter : null);
+        const scoreBefore = ra.score_before ?? ra.before_score ?? (
+          Number.isFinite(Number(scoreAfter)) && Number.isFinite(inferredAdj) ? Number(scoreAfter) - inferredAdj : null
+        );
+        const fmtReplyScore = v => {
+          const n = Number(v);
+          if (!Number.isFinite(n)) return '—';
+          return n.toFixed(2).replace(/0+$/,'').replace(/\.$/,'');
+        };
+        const adjNum = Number(scoreAdj || 0);
+        const adjClass = adjNum > 0 ? 'text-emerald-600' : adjNum < 0 ? 'text-red-600' : 'text-gray-600';
+        const adjText = Number.isFinite(adjNum) ? `${adjNum > 0 ? '+' : ''}${fmtReplyScore(adjNum)}` : '—';
+        const adjReason = ra.score_adjustment_reason || ra.adjustment_reason || ra.score_reason || (
+          adjNum > 0
+            ? 'Ứng viên bổ sung thêm minh chứng tốt nên điểm được cộng.'
+            : adjNum < 0
+              ? 'Phản hồi chưa làm rõ được nghi vấn nên điểm bị trừ.'
+              : 'Phản hồi không làm thay đổi đáng kể điểm CV ban đầu.'
+        );
         bdHtml += `
         <div class="bg-white border border-outline-variant rounded-xl p-4 mt-4">
           <h4 class="font-bold text-xs text-primary mb-3 border-b pb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">robot_2</span> AI ĐÁNH GIÁ PHẢN HỒI</h4>
           <div class="text-sm text-gray-700 mb-3 whitespace-pre-wrap">${ra.summary || ra.evaluation || '—'}</div>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <div class="text-[11px] font-bold text-gray-500 uppercase">Trước khi trả lời</div>
+              <div class="text-lg font-black text-gray-800">${fmtReplyScore(scoreBefore)}/5</div>
+              <div class="text-[11px] text-gray-500 mt-1">${ra.decision_before || 'Chờ bổ sung'}</div>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <div class="text-[11px] font-bold text-gray-500 uppercase">Điểm điều chỉnh</div>
+              <div class="text-lg font-black ${adjClass}">${adjText}</div>
+              <div class="text-[11px] text-gray-500 mt-1">Theo chất lượng phản hồi</div>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <div class="text-[11px] font-bold text-gray-500 uppercase">Sau khi trả lời</div>
+              <div class="text-lg font-black text-primary">${fmtReplyScore(scoreAfter)}/5</div>
+              <div class="text-[11px] text-gray-500 mt-1">${ra.decision_after || ra.recommendation || '—'}</div>
+            </div>
+            <div class="rounded-lg border ${ra.recommendation === 'Phê duyệt' ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'} p-3">
+              <div class="text-[11px] font-bold uppercase ${ra.recommendation === 'Phê duyệt' ? 'text-emerald-700' : 'text-red-700'}">Quyết định AI</div>
+              <div class="text-lg font-black ${ra.recommendation === 'Phê duyệt' ? 'text-emerald-700' : 'text-red-700'}">${ra.recommendation || '—'}</div>
+            </div>
+          </div>
+          <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900 leading-relaxed">
+            <div class="font-black uppercase text-[11px] text-blue-700 mb-1">Lý do cộng/trừ điểm</div>
+            ${adjReason}
+          </div>
           
           <div class="grid grid-cols-2 gap-4 mt-2">
             <div class="bg-emerald-50 p-3 rounded border border-emerald-100">
@@ -1148,9 +1252,6 @@ async function openAppModal(appId) {
               <h5 class="text-xs font-bold text-red-700 mb-1">Cần lưu ý (Red Flags)</h5>
               <div class="text-xs text-red-800 space-y-1 whitespace-pre-wrap">${Array.isArray(ra.concerns || ra.red_flags) ? `<ul class="list-disc pl-4">${(ra.concerns || ra.red_flags).map(s => `<li>${s}</li>`).join('')}</ul>` : (ra.concerns || ra.red_flags || 'Không có')}</div>
             </div>
-          </div>
-          <div class="mt-3 font-bold text-sm">
-            AI Đề xuất: <span class="${ra.recommendation === 'Phê duyệt' ? 'text-emerald-600' : 'text-red-500'}">${ra.recommendation}</span>
           </div>
         </div>
         `;
@@ -1389,16 +1490,26 @@ function renderModal(iv, evaluations = [], appId = null) {
   const tabColor = tabSw === 0 ? 'bg-emerald-100 text-emerald-700' : tabSw <= 2 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
   const tabIcon = tabSw === 0 ? '✅' : tabSw <= 2 ? '⚠️' : '🚨';
   document.getElementById('modal-status-badge').innerHTML = `
-    <span class="status-pill s-${iv.status}">${STATUS_LABEL[iv.status]||iv.status}</span>
+    <span class="status-pill s-${iv.status}">${statusLabel(iv.status)}</span>
     <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${tabColor}" title="Số lần chuyển tab trong lúc phỏng vấn">
       ${tabIcon} Out tab: ${tabSw} lần
     </span>
   `;
 
-  // Compute avg score
-  const scorable = (iv.answers||[]).filter(a => a.ai_level && a.ai_level !== 'định tính');
   const scoreMap = {'nắm vững':10,'am hiểu':7.5,'có biết qua':5,'không biết':0};
-  const avgScore = scorable.length ? (scorable.reduce((s,a)=>s+(scoreMap[a.ai_level]||0),0)/scorable.length).toFixed(1) : null;
+  function groupedInterviewScores(answers) {
+    const groups = new Map();
+    (answers || []).forEach(a => {
+      if (!a.ai_level || scoreMap[a.ai_level] == null) return;
+      const baseQn = String(a.question_number || '').split('.')[0];
+      const key = `${a.attempt_number || 1}:${baseQn}`;
+      const score = scoreMap[a.ai_level];
+      if (!groups.has(key) || score > groups.get(key)) groups.set(key, score);
+    });
+    return Array.from(groups.values());
+  }
+  const groupedScores = groupedInterviewScores(iv.answers || []);
+  const avgScore = groupedScores.length ? (groupedScores.reduce((s,v)=>s+v,0)/groupedScores.length).toFixed(1) : null;
 
 
   // HOD questions
@@ -1656,10 +1767,12 @@ function renderModal(iv, evaluations = [], appId = null) {
     'Soft Skill': 'Kỹ năng mềm',
   };
   const answersHtml = answersList.map(a => {
-    const aiClass = AI_COLORS[a.ai_level] || (a.ai_level ? '' : 'ai-định-tính');
-    const aiLabel = a.ai_level || 'Định tính';
+    const needsRecheck = !a.ai_level && /lỗi xử lý AI|chưa phân tích được/i.test(a.ai_feedback || '');
+    const aiClass = needsRecheck ? 'bg-amber-100 text-amber-700' : (AI_COLORS[a.ai_level] || (a.ai_level ? '' : 'ai-định-tính'));
+    const aiLabel = needsRecheck ? 'Cần chấm lại' : (a.ai_level || 'Định tính');
     const typeClass = TYPE_COLOR[a.question_type] || 'bg-gray-100 text-gray-600';
     const hasTranscript = a.transcript && a.transcript.trim();
+    const isFollowUp = String(a.question_number || '').includes('.');
     const ts = a.time_spent || 0;
     const tsLabel = ts > 0 ? (ts >= 60 ? `${Math.floor(ts/60)}m ${ts%60}s` : `${ts}s`) : '';
     const scoreValue = a.ai_level && scoreMap[a.ai_level] != null ? `${scoreMap[a.ai_level]}/10` : '—';
@@ -1671,13 +1784,14 @@ function renderModal(iv, evaluations = [], appId = null) {
           <div>
             <div class="flex flex-wrap items-center gap-2 mb-2">
               <span class="text-[11px] px-2 py-0.5 rounded-full ${typeClass} font-bold">${answerTypeLabel[a.question_type] || escapeAdminText(a.question_type || '—')}</span>
+              ${isFollowUp ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">Câu đào sâu</span>' : ''}
               ${tsLabel ? `<span class="text-[11px] text-secondary flex items-center gap-1 font-semibold"><span class="material-symbols-outlined text-[14px]">timer</span>${tsLabel}</span>` : ''}
             </div>
             <p class="text-[15px] font-bold text-on-surface leading-relaxed">${escapeAdminText(a.question_text || '—')}</p>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          ${a.ai_level ? `<span class="status-pill ${aiClass}">${aiLabel}</span>` : '<span class="status-pill ai-định-tính">Định tính</span>'}
+          <span class="status-pill ${aiClass}">${aiLabel}</span>
           <span class="px-2.5 py-1 rounded-full bg-primary-container/10 text-primary font-bold text-xs border border-primary-fixed-dim">${scoreValue}</span>
           ${a.audio_path ? `<a href="${API_BASE}/outputs/${a.audio_path.replace(/.*outputs\//,'')}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-blue text-primary border border-primary-fixed-dim font-bold text-xs hover:bg-primary-container/10 transition"><span class="material-symbols-outlined text-[16px]">headphones</span>Nghe</a>` : ''}
         </div>
@@ -1696,7 +1810,10 @@ function renderModal(iv, evaluations = [], appId = null) {
     </article>`;
   }).join('');
 
-  document.getElementById('modal-body').innerHTML = `
+    const videoLink = iv.video_path ? `<a href="${API_BASE}/outputs/${iv.video_path.replace(/.*outputs\//,'')}" target="_blank" class="px-4 py-2 bg-primary text-white rounded-lg font-bold text-sm hover:bg-primary/90 flex items-center gap-2 w-fit mb-4"><span class="material-symbols-outlined">videocam</span> Xem Video Phỏng vấn</a>` : '';
+
+    document.getElementById('modal-body').innerHTML = `
+    ${videoLink}
     <!-- Info strip -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div class="bg-surface-container-low rounded-xl p-3 text-center">
@@ -1737,7 +1854,7 @@ function renderModal(iv, evaluations = [], appId = null) {
             <span class="material-symbols-outlined text-secondary">question_answer</span>
             Kết quả trả lời phỏng vấn
           </h3>
-          <p class="text-xs text-secondary mt-1">${answersList.filter(a=>!String(a.question_number || '').includes('.')).length} câu hỏi · transcript và nhận xét AI</p>
+          <p class="text-xs text-secondary mt-1">${answersList.length} câu trả lời${answersList.some(a=>String(a.question_number || '').includes('.')) ? ' · có câu đào sâu' : ''} · transcript và nhận xét AI</p>
         </div>
         <span class="px-3 py-1 rounded-full bg-primary-container/10 text-primary font-label-sm text-label-sm border border-primary-fixed-dim">AI Summary</span>
       </div>
@@ -1790,13 +1907,32 @@ async function sendResultEmail() {
     if (r.ok) {
       msg.className = 'text-xs mt-2 font-semibold text-emerald-600';
       msg.textContent = `✓ ${d.msg}`;
+      await showAdminDialog({
+        icon: 'success',
+        title: 'Email kết quả đã gửi',
+        text: d.msg || 'Email kết quả phỏng vấn đã được gửi cho ứng viên.',
+        confirmButtonText: 'Hoàn tất',
+        timer: 3500,
+      });
     } else {
       msg.className = 'text-xs mt-2 font-semibold text-red-500';
       msg.textContent = `Lỗi: ${d.detail || d.msg}`;
+      await showAdminDialog({
+        icon: 'error',
+        title: 'Không gửi được email kết quả',
+        text: d.detail || d.msg || 'Hệ thống gặp lỗi khi gửi email.',
+        confirmButtonText: 'Đóng',
+      });
     }
   } catch(e) {
     msg.className = 'text-xs mt-2 font-semibold text-red-500';
     msg.textContent = `Lỗi: ${e.message}`;
+    await showAdminDialog({
+      icon: 'error',
+      title: 'Lỗi mạng',
+      text: e.message || 'Không thể kết nối tới máy chủ.',
+      confirmButtonText: 'Đóng',
+    });
   }
 }
 
@@ -1921,11 +2057,11 @@ function hrApprove(appId) {
           </div>
           <div>
             <label class="block text-sm font-semibold mb-1">Số câu AI tạo từ CV/JD (Phần 2) - Tối đa 13</label>
-            <input type="number" id="cfg-p2" value="7" min="1" max="13" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
+            <input type="number" id="cfg-p2" value="7" min="0" max="13" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
           </div>
           <div>
-            <label class="block text-sm font-semibold mb-1">Số câu hỏi Đào sâu (Phần 3) - Tối đa 12</label>
-            <input type="number" id="cfg-p3" value="5" min="1" max="12" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
+            <label class="block text-sm font-semibold mb-1">Số câu hỏi Đào sâu (Phần 3) - Tối đa 5</label>
+            <input type="number" id="cfg-p3" value="5" min="0" max="5" class="w-full border rounded-lg px-3 py-2 outline-none focus:border-secondary">
           </div>
         </div>
         <div class="p-4 bg-gray-50 border-t flex justify-end gap-3">
@@ -1945,7 +2081,7 @@ function hrApprove(appId) {
           </div>
         </div>
         <div id="questions-preview-list" class="flex-1 overflow-y-auto p-6 space-y-2 text-sm"></div>
-        <div class="p-4 bg-gray-50 border-t flex justify-between items-center gap-3">
+        <div id="preview-actions" class="hidden p-4 bg-gray-50 border-t flex justify-between items-center gap-3">
           <button id="btn-regen" class="px-4 py-2 text-secondary border border-secondary rounded-lg text-sm font-bold hover:bg-secondary/10 flex items-center gap-1.5">
             <span class="material-symbols-outlined text-base">refresh</span> Tạo lại
           </button>
@@ -1978,9 +2114,13 @@ function hrApprove(appId) {
   };
 
   async function loadPreview() {
-    let p1 = Math.min(parseInt(document.getElementById('cfg-p1').value)||11, 11);
-    let p2 = Math.min(parseInt(document.getElementById('cfg-p2').value)||7, 13);
-    let p3 = Math.min(parseInt(document.getElementById('cfg-p3').value)||5, 12);
+    const clamp = (value, fallback, min, max) => {
+      const parsed = parseInt(value, 10);
+      return Math.max(min, Math.min(Number.isFinite(parsed) ? parsed : fallback, max));
+    };
+    let p1 = clamp(document.getElementById('cfg-p1').value, 11, 1, 11);
+    let p2 = clamp(document.getElementById('cfg-p2').value, 7, 0, 13);
+    let p3 = clamp(document.getElementById('cfg-p3').value, 5, 0, 5);
     configData = { PART_1_DEFAULT: p1, PART_2_GENERATED: p2, PART_3_FOLLOW_UP: p3 };
 
     document.getElementById('step-config').classList.add('hidden');
@@ -1989,8 +2129,11 @@ function hrApprove(appId) {
 
     const list = document.getElementById('questions-preview-list');
     const subtitle = document.getElementById('preview-subtitle');
+    const actions = document.getElementById('preview-actions');
     list.innerHTML = '<div class="text-center py-8 text-gray-400"><span class="spin inline-block mr-2">↻</span> Đang tạo câu hỏi bằng AI...</div>';
     subtitle.textContent = '';
+    actions.classList.add('hidden');
+    actions.classList.remove('flex');
 
     try {
       const r = await fetch(`/admin/applications/${appId}/generate_prep`, {
@@ -2016,13 +2159,22 @@ function hrApprove(appId) {
           </div>
         </div>
       `).join('');
+      actions.classList.remove('hidden');
+      actions.classList.add('flex');
     } catch(e) {
       list.innerHTML = '<div class="text-center text-red-500 py-8">Lỗi khi tạo câu hỏi</div>';
+      // Show regen button only on error so they can try again
+      actions.classList.remove('hidden');
+      actions.classList.add('flex');
+      document.getElementById('btn-confirm-send').style.display = 'none'; // Hide send email if error
     }
   }
 
   document.getElementById('cfg-next').onclick = loadPreview;
-  document.getElementById('btn-regen').onclick = loadPreview;
+  document.getElementById('btn-regen').onclick = () => {
+    document.getElementById('btn-confirm-send').style.display = 'flex'; // Restore for next attempt
+    loadPreview();
+  };
 
     document.getElementById('btn-confirm-send').onclick = async () => {
     document.getElementById('btn-confirm-send').textContent = 'Đang gửi...';
@@ -2032,12 +2184,22 @@ function hrApprove(appId) {
       const validUntil = document.getElementById('cfg-end').value;
       if (!isUnlimited) {
         if (!validFrom || !validUntil) {
-          alert('Vui lòng chọn giờ bắt đầu và giờ kết thúc.');
+          await showAdminDialog({
+            icon: 'warning',
+            title: 'Thiếu khung giờ phỏng vấn',
+            text: 'Vui lòng chọn đầy đủ giờ bắt đầu và giờ kết thúc trước khi gửi email mời phỏng vấn.',
+            confirmButtonText: 'Chọn lại',
+          });
           document.getElementById('btn-confirm-send').innerHTML = '<span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email';
           return;
         }
         if (new Date(validUntil).getTime() <= new Date(validFrom).getTime()) {
-          alert('Giờ kết thúc phải sau giờ bắt đầu. Vui lòng kiểm tra lại lịch phỏng vấn.');
+          await showAdminDialog({
+            icon: 'warning',
+            title: 'Khung giờ chưa hợp lệ',
+            text: 'Giờ kết thúc phải sau giờ bắt đầu. Vui lòng kiểm tra lại lịch phỏng vấn trước khi gửi email.',
+            confirmButtonText: 'Sửa lịch',
+          });
           document.getElementById('btn-confirm-send').innerHTML = '<span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email';
           return;
         }
@@ -2050,10 +2212,35 @@ function hrApprove(appId) {
       });
       if(r.ok) {
         document.body.removeChild(modal);
-        alert('Đã duyệt & gửi email mời phỏng vấn!');
+        await showAdminDialog({
+          icon: 'success',
+          title: 'Email mời phỏng vấn đã gửi',
+          html: `
+            Hồ sơ đã được duyệt và email mời phỏng vấn đã được gửi cho ứng viên.<br><br>
+            <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-left">
+              <p class="font-bold text-emerald-800 mb-1">Trạng thái mới</p>
+              <p class="text-emerald-700">Ứng viên có thể mở link phỏng vấn theo khung giờ đã cấu hình.</p>
+            </div>
+          `,
+          confirmButtonText: 'Xem hồ sơ',
+        });
         openAppModal(appId); loadApplications();
-      } else alert('Lỗi khi duyệt');
-    } catch(e) { alert('Lỗi mạng'); }
+      } else {
+        await showAdminDialog({
+          icon: 'error',
+          title: 'Không gửi được email',
+          text: 'Hệ thống chưa duyệt/gửi email thành công. Vui lòng thử lại hoặc kiểm tra cấu hình email.',
+          confirmButtonText: 'Đóng',
+        });
+      }
+    } catch(e) {
+      await showAdminDialog({
+        icon: 'error',
+        title: 'Lỗi mạng',
+        text: e.message || 'Không thể kết nối tới máy chủ. Vui lòng thử lại.',
+        confirmButtonText: 'Đóng',
+      });
+    }
   };
 }
 
@@ -2098,7 +2285,7 @@ async function loadInterviewForApp(appId) {
         if(interview) {
             const score = interview.avg_score != null ? Number(interview.avg_score).toFixed(1) : null;
             const scoreTone = score == null ? 'text-outline' : score >= 7.5 ? 'text-emerald-600' : score >= 5 ? 'text-amber-600' : 'text-red-500';
-            const statusLabel = STATUS_LABEL[interview.status] || interview.status || '—';
+            const interviewStatusText = statusLabel(interview.status);
             const submitted = interview.submitted_at ? interview.submitted_at.substring(0, 10) : '—';
             const pos = (interview.position_id || '').replace(/_/g, ' ');
             container.innerHTML = `
@@ -2124,7 +2311,7 @@ async function loadInterviewForApp(appId) {
                         </div>
                         <div class="bg-surface-container-low border border-outline-variant rounded-lg p-3">
                             <p class="text-[11px] text-secondary uppercase tracking-wider font-bold mb-1">Trạng thái</p>
-                            <span class="status-pill s-${interview.status || 'pending_review'}">${statusLabel}</span>
+                            <span class="status-pill s-${interview.status || 'pending_review'}">${interviewStatusText}</span>
                         </div>
                         <div class="bg-surface-container-low border border-outline-variant rounded-lg p-3">
                             <p class="text-[11px] text-secondary uppercase tracking-wider font-bold mb-1">Điểm AI</p>

@@ -21,6 +21,7 @@ from backend.security import (
     ALLOWED_CV_EXTENSIONS,
     MAX_AUDIO_UPLOAD_BYTES,
     MAX_CV_UPLOAD_BYTES,
+    media_content_type_for_path,
     read_upload_limited,
     signed_temp_file_url,
 )
@@ -31,6 +32,7 @@ async def create_interview_prep(
     position_id: str = Form(...),
     app_ref:     str = Form(None),
     level:       str = Form("Junior"),
+    force:       bool = Form(False),
 ):
     from backend.routers.api_v1 import parse_slot_datetime
     
@@ -50,7 +52,7 @@ async def create_interview_prep(
                     pass
 
     # Nếu app_ref đã có prep sẵn → trả luôn, không gen lại
-    if app_ref:
+    if app_ref and not force:
         with db() as conn:
             existing = conn.execute(
                 "SELECT * FROM interview_prep WHERE app_ref=? ORDER BY created_at DESC LIMIT 1",
@@ -164,7 +166,7 @@ async def evaluate_step(
                 r = await hx.post(
                     "https://api.elevenlabs.io/v1/speech-to-text",
                     headers={"xi-api-key": ELEVENLABS_API_KEY},
-                    files={"file": (in_audio_path.name, f, "audio/webm")},
+                    files={"file": (in_audio_path.name, f, media_content_type_for_path(in_audio_path))},
                     data={"model_id": "scribe_v2", "language_code": "vi"},
                 )
         transcript = r.json().get("text", "").strip()
@@ -214,17 +216,19 @@ NHIỆM VỤ CỦA BẠN:
    - QUAN TRỌNG: Nếu đoạn STT thô có dấu hiệu là ảo giác do nhiễu tạp âm hoặc im lặng (ví dụ: "Tôi tên Nguyễn Văn A", "Cảm ơn các bạn đã theo dõi", "Subtitles by...", hoặc các câu hoàn toàn vô nghĩa không liên quan), hãy trả về chuỗi rỗng "" cho normalized_transcript.
    - TUYỆT ĐỐI KHÔNG TỰ BỊA RA NỘI DUNG MỚI hoặc thay đổi ý nghĩa của ứng viên.
 
-2. Đánh giá câu trả lời và Quyết định follow-up:
-   - `follow_up_limit` chỉ là GIỚI HẠN TỐI ĐA, KHÔNG phải số câu bắt buộc phải hỏi đủ.
-   - Mặc định ưu tiên trả về "PASS" nếu câu trả lời đã trả lời đúng trọng tâm, có đủ ý chính để đánh giá, hoặc không còn điểm nghi vấn đáng đào sâu.
-   - Chỉ đặt follow-up khi có THIẾU SÓT/RỦI RO RÕ RÀNG ảnh hưởng đến đánh giá, ví dụ: thiếu ví dụ thực tế cho năng lực cốt lõi, thiếu số liệu/kết quả trong thành tích quan trọng, mâu thuẫn với CV/JD, trả lời né tránh, hoặc nói "không biết/chưa có kinh nghiệm" ở yêu cầu trọng yếu.
-   - Không hỏi follow-up chỉ vì câu trả lời chưa thật dài, chưa hoàn hảo về diễn đạt, hoặc đã đủ hiểu để chấm điểm.
-   - Nếu đã từng hỏi follow-up mà ứng viên trả lời thêm đủ để đánh giá, trả về "PASS"; không cố hỏi tiếp.
+2. Đánh giá câu trả lời và Quyết định follow-up theo hướng khai thác sâu:
+   - `follow_up_limit` là giới hạn tối đa. Khi câu trả lời còn thiếu bằng chứng quan trọng, hãy dùng follow-up để kiểm chứng, không PASS quá sớm.
+   - TUYỆT ĐỐI trả về "PASS" nếu ứng viên KHÔNG TRẢ LỜI, trả lời QUÁ NGẮN (chỉ "Dạ", "Vâng", "Không biết"), hoặc đoạn STT hoàn toàn vô nghĩa do lỗi ghi âm. Không hỏi follow-up nếu không có thông tin nền tảng gì để đào sâu.
+   - Với câu trả lời có nội dung nhưng còn thiếu 1 trong các điểm sau, ưu tiên hỏi follow-up: ví dụ/case cụ thể, vai trò cá nhân, số liệu/kết quả, công cụ/hệ thống đã dùng, cách kiểm soát rủi ro/sai sót, nguyên nhân gốc rễ, bài học hoặc tác động tới doanh nghiệp.
+   - Nếu ứng viên kể chung chung theo kiểu "tôi phụ trách/quản lý/theo dõi/phối hợp" nhưng chưa nói làm thế nào, đo bằng gì, kết quả ra sao, hãy hỏi đào sâu.
+   - Nếu câu trả lời đã có ví dụ và kết quả nhưng thiếu số liệu hoặc thiếu phần ứng viên trực tiếp làm, vẫn nên hỏi 1 follow-up để xác minh.
+   - Chỉ PASS khi câu trả lời đã đủ rõ để đánh giá khắt khe: có bối cảnh, hành động cá nhân, phương pháp, minh chứng và kết quả hoặc giới hạn/rủi ro.
 
 3. Nếu thật sự cần hỏi follow-up, câu hỏi phải:
-   - Ngắn gọn (dưới 25 từ), trực tiếp, không có câu mở đầu xã giao.
-   - Yêu cầu ứng viên CHO VÍ DỤ CỤ THỂ, CON SỐ, hoặc TÌNH HUỐNG thực tế.
-   - Bắt đầu bằng: "Cụ thể hơn...", "Bạn có thể kể ví dụ...", "Kết quả cụ thể là gì?", "Bạn đã làm gì khi...?" v.v.
+   - Ngắn gọn (dưới 30 từ), trực tiếp, không có câu mở đầu xã giao.
+   - Chỉ hỏi 1 khía cạnh còn yếu nhất, ưu tiên: số liệu/kết quả, vai trò cá nhân, nguyên nhân gốc rễ, công cụ/hệ thống, hoặc kiểm soát rủi ro.
+   - Yêu cầu ứng viên trả lời bằng ví dụ thật, con số, quyết định cụ thể hoặc tình huống thực tế.
+   - Bắt đầu bằng: "Cụ thể hơn...", "Con số/kết quả cụ thể là gì?", "Bạn trực tiếp làm phần nào?", "Bạn kiểm soát rủi ro đó ra sao?" v.v.
 
 BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block code markdown), gồm 4 field:
 {{
@@ -325,6 +329,12 @@ async def submit_interview(
     except:
         pushback_texts = {}
 
+    answer_transcripts_raw = form.get("answer_transcripts", "{}")
+    try:
+        answer_transcripts = json.loads(answer_transcripts_raw)
+    except:
+        answer_transcripts = {}
+
     question_meta_raw = form.get("question_meta", "{}")
     try:
         question_meta = json.loads(question_meta_raw)
@@ -376,6 +386,13 @@ async def submit_interview(
                 cv_path.write_bytes(b"")
     else:
         raise HTTPException(400, "Cần upload CV hoặc cung cấp app_ref")
+    full_video = form.get("full_video")
+    video_path_str = None
+    if isinstance(full_video, UploadFile) and hasattr(full_video, "filename") and full_video.filename:
+        video_bytes = await full_video.read()
+        video_path = session_dir / "full_video.webm"
+        video_path.write_bytes(video_bytes)
+        video_path_str = str(video_path.relative_to(BASE_DIR))
 
     answer_rows = []
     # Lưu các audio tải lên (hỗ trợ động mọi số lượng câu hỏi)
@@ -390,9 +407,13 @@ async def submit_interview(
                 qn = qn_raw
                 question_number = qn
 
-            q_meta = question_meta.get(qn, {}) if isinstance(question_meta, dict) else {}
+            q_meta = {}
+            if isinstance(question_meta, dict):
+                q_meta = question_meta.get(qn_raw) or question_meta.get(qn) or {}
             original_qn = str(q_meta.get("original_n") or qn).split("_", 1)[0]
             q_type = q_meta.get("type") or QUESTIONS_BANK.get(original_qn, {}).get("type", "General")
+            if q_type == "FollowUp":
+                q_type = QUESTIONS_BANK.get(original_qn, {}).get("type", "Technical")
 
             audio_bytes, audio_ext = await read_upload_limited(
                 upload,
@@ -407,12 +428,18 @@ async def submit_interview(
             q_text = pushback_texts.get(key.replace("answer_", ""), None)
             if q_text is None:
                 q_text = q_meta.get("text")
+            if not q_text and "_" in qn_raw:
+                q_text = f"Câu hỏi đào sâu cho câu {qn}"
+            transcript_text = ""
+            if isinstance(answer_transcripts, dict):
+                transcript_text = str(answer_transcripts.get(qn_raw) or answer_transcripts.get(qn) or "").strip()
 
             answer_rows.append({
                 "interview_id":    interview_id,
                 "question_number": question_number,
                 "question_type":   q_type,
                 "question_text":   q_text,
+                "transcript":      transcript_text,
                 "audio_path":      str(audio_path.relative_to(BASE_DIR)),
                 "created_at":      now,
                 "attempt_number":  1,
@@ -438,15 +465,15 @@ async def submit_interview(
             reiv_rows = [{**r, "interview_id": reiv, "attempt_number": next_attempt} for r in answer_rows]
             conn.executemany("""
                 INSERT INTO answers
-                    (interview_id, question_number, question_type, question_text, audio_path, created_at, time_spent, attempt_number)
-                VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at, :time_spent, :attempt_number)
+                    (interview_id, question_number, question_type, question_text, transcript, audio_path, created_at, time_spent, attempt_number)
+                VALUES (:interview_id, :question_number, :question_type, :question_text, :transcript, :audio_path, :created_at, :time_spent, :attempt_number)
             """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in reiv_rows])
 
 
             # Cập nhật interview gốc
             conn.execute(
-                "UPDATE interviews SET status='submitted', submitted_at=?, prep_id=COALESCE(?, prep_id) WHERE id=?",
-                (now, prep_id or None, reiv),
+                "UPDATE interviews SET status='submitted', submitted_at=?, prep_id=COALESCE(?, prep_id), video_path=COALESCE(?, video_path) WHERE id=?",
+                (now, prep_id or None, video_path_str, reiv),
             )
 
         print(f"[✓] Re-interview {reiv} | attempt={next_attempt} | {len(answer_rows)} answers added")
@@ -465,18 +492,18 @@ async def submit_interview(
 
         conn.execute("""
             INSERT INTO interviews
-                (id, candidate_id, position_id, cv_filename, cv_path, prep_id, level, submitted_at, tab_switches, status, reinterview_scope)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, candidate_id, position_id, cv_filename, cv_path, prep_id, level, submitted_at, tab_switches, status, reinterview_scope, video_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             interview_id, candidate_id, position_id,
-            cv_filename, str(cv_path.relative_to(BASE_DIR)), prep_id, level, now, tab_switches, "submitted", '[]'
+            cv_filename, str(cv_path.relative_to(BASE_DIR)), prep_id, level, now, tab_switches, "submitted", '[]', video_path_str
         ))
 
 
         conn.executemany("""
             INSERT INTO answers
-                (interview_id, question_number, question_type, question_text, audio_path, created_at, time_spent, attempt_number)
-            VALUES (:interview_id, :question_number, :question_type, :question_text, :audio_path, :created_at, :time_spent, :attempt_number)
+                (interview_id, question_number, question_type, question_text, transcript, audio_path, created_at, time_spent, attempt_number)
+            VALUES (:interview_id, :question_number, :question_type, :question_text, :transcript, :audio_path, :created_at, :time_spent, :attempt_number)
         """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in answer_rows])
 
     print(f"[✓] {interview_id} | candidate={candidate_id} | position={position_id}")
@@ -558,12 +585,24 @@ def list_interviews(status: str = None, position_id: str = None, limit: int = 50
                    i.status, i.submitted_at,
                    c.name as candidate_name,
                    COUNT(a.id) as answer_count,
-                   ROUND(AVG(CASE a.ai_level
-                     WHEN 'nắm vững'    THEN 10.0
-                     WHEN 'am hiểu'     THEN 7.5
-                     WHEN 'có biết qua' THEN 5.0
-                     WHEN 'không biết'  THEN 0.0
-                     ELSE NULL END), 1) as avg_score
+                   (
+                     SELECT ROUND(AVG(best_score), 1)
+                     FROM (
+                       SELECT MAX(CASE ax.ai_level
+                         WHEN 'nắm vững'    THEN 10.0
+                         WHEN 'am hiểu'     THEN 7.5
+                         WHEN 'có biết qua' THEN 5.0
+                         WHEN 'không biết'  THEN 0.0
+                         ELSE NULL END) AS best_score
+                       FROM answers ax
+                       WHERE ax.interview_id = i.id
+                       GROUP BY ax.attempt_number,
+                         CASE
+                           WHEN instr(ax.question_number, '.') > 0 THEN substr(ax.question_number, 1, instr(ax.question_number, '.') - 1)
+                           ELSE ax.question_number
+                         END
+                     )
+                   ) as avg_score
             FROM interviews i
             LEFT JOIN answers a ON a.interview_id = i.id
             LEFT JOIN candidates c ON i.candidate_id = c.id
@@ -586,7 +625,7 @@ async def trigger_evaluate(interview_id: str, background: BackgroundTasks,
             raise HTTPException(404, "Không tìm thấy buổi phỏng vấn")
         rows = conn.execute(
             # Lấy tất cả answers — _do_evaluate_interview tự deduplicate theo created_at
-            "SELECT interview_id, question_number, question_type, audio_path, created_at, attempt_number FROM answers WHERE interview_id=? ORDER BY attempt_number, created_at",
+            "SELECT interview_id, question_number, question_type, question_text, transcript, audio_path, created_at, attempt_number FROM answers WHERE interview_id=? ORDER BY attempt_number, created_at",
             (interview_id,)
         ).fetchall()
     answer_rows = [dict(r) for r in rows]
@@ -611,18 +650,29 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
 
     rows = [dict(a) for a in answers]
 
-    # Avg score: chỉ tính Technical + Experience (Soft Skill không xếp mức)
-    scored_levels = [
-        r["ai_level"] for r in rows
-        if r["ai_level"] and r["ai_level"] in LEVEL_ORDER
-    ]
-    scores    = [LEVEL_ORDER[l] for l in scored_levels]
+    # Avg score: gộp follow-up vào câu cha, lấy điểm tốt nhất của mỗi cụm câu.
+    grouped_scores = {}
+    scored_levels = []
+    for r in rows:
+        level = r["ai_level"]
+        if not level or level not in LEVEL_ORDER:
+            continue
+        base_qn = str(r["question_number"] or "").split(".", 1)[0]
+        group_key = f"{r.get('attempt_number', 1)}:{base_qn}"
+        score = LEVEL_ORDER[level]
+        if group_key not in grouped_scores or score > grouped_scores[group_key]["score"]:
+            grouped_scores[group_key] = {"score": score, "level": level}
+
+    scores = [item["score"] for item in grouped_scores.values()]
+    scored_levels = [item["level"] for item in grouped_scores.values()]
     avg_score = round(sum(scores) / len(scores), 2) if scores else 0
     summary   = {l: scored_levels.count(l) for l in LEVEL_ORDER}
 
     groups = {}
     for r in rows:
         qt = r["question_type"] or "Unknown"
+        if qt == "FollowUp":
+            qt = "Technical"
         groups.setdefault(qt, []).append(r)
 
     return {

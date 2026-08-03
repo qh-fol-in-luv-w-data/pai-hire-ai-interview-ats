@@ -254,6 +254,8 @@ select.choices__input[hidden] {
 }
 
 #webcam-container {
+  width: min(800px, calc(100vw - 32px), calc((100vh - 32px) * 4 / 3)) !important;
+  aspect-ratio: 4 / 3 !important;
   border-radius: 16px !important;
   border-color: rgba(255, 255, 255, .16) !important;
   background: rgba(13, 27, 53, .92) !important;
@@ -261,14 +263,14 @@ select.choices__input[hidden] {
 }
 
 #webcam-container.proctoring-box-hidden {
-  width: 1px !important;
-  height: 1px !important;
-  opacity: 0 !important;
+  width: 160px !important;
+  height: 120px !important;
+  opacity: .01 !important;
   pointer-events: none !important;
   border: 0 !important;
   box-shadow: none !important;
-  right: 0 !important;
-  bottom: 0 !important;
+  right: -180px !important;
+  bottom: -140px !important;
 }
 
 #camera-alert-indicator > div,

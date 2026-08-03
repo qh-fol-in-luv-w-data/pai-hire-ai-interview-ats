@@ -49,11 +49,15 @@ async def _analyze_candidate_reply_background(ref: str):
 
     with db() as conn:
         current = conn.execute(
-            "SELECT score_breakdown FROM cv_applications WHERE id=?", (ref,)
+            "SELECT cv_score, score_breakdown FROM cv_applications WHERE id=?", (ref,)
         ).fetchone()
     if not current:
         return
     current_score = json.loads(current["score_breakdown"] or "{}")
+    old_cv_score = current["cv_score"] or 0.0
+    if old_cv_score > 5:
+        old_cv_score = old_cv_score / 2.0
+
     if current_score.get("candidate_reply") != reply_text:
         print(f"[CandidateReply] {ref} analysis skipped; reply changed")
         return
@@ -65,12 +69,33 @@ async def _analyze_candidate_reply_background(ref: str):
         else "pending_hr_approval_failed"
     )
 
+    # Re-score CV
+    score_adj = float(reply_analysis.get("score_adjustment") or 0.0)
+    new_cv_score = old_cv_score + score_adj
+    new_cv_score = max(1.0, min(5.0, new_cv_score))
+    if not reply_analysis.get("score_adjustment_reason"):
+        if score_adj > 0:
+            fallback_reason = "Ứng viên bổ sung câu trả lời tốt hơn kỳ vọng, làm rõ thêm năng lực/kinh nghiệm còn thiếu trong CV."
+        elif score_adj < 0:
+            fallback_reason = "Câu trả lời bổ sung chưa làm rõ được các nghi vấn quan trọng hoặc phát sinh rủi ro so với CV/JD."
+        else:
+            fallback_reason = "Câu trả lời bổ sung không làm thay đổi đáng kể mức độ phù hợp đã đánh giá ban đầu."
+        reply_analysis["score_adjustment_reason"] = reply_analysis.get("evaluation") or reply_analysis.get("summary") or fallback_reason
+    reply_analysis["score_before"] = round(old_cv_score, 2)
+    reply_analysis["score_adjustment"] = round(score_adj, 2)
+    reply_analysis["score_after"] = round(new_cv_score, 2)
+    reply_analysis["decision_before"] = (
+        "CV đạt, cần ứng viên bổ sung" if (row_dict.get("status") or "").endswith("_passed") else "CV chưa đạt, cần ứng viên bổ sung"
+    )
+    reply_analysis["decision_after"] = "Đề xuất phê duyệt" if new_status.endswith("_passed") else "Đề xuất từ chối"
+    current_score["reply_analysis"] = reply_analysis
+
     with db() as conn:
         conn.execute(
-            "UPDATE cv_applications SET score_breakdown=?, status=? WHERE id=?",
-            (json.dumps(current_score, ensure_ascii=False), new_status, ref),
+            "UPDATE cv_applications SET cv_score=?, score_breakdown=?, status=? WHERE id=?",
+            (new_cv_score, json.dumps(current_score, ensure_ascii=False), new_status, ref),
         )
-    print(f"[CandidateReply] {ref} analysis -> {new_status}")
+    print(f"[CandidateReply] {ref} analysis -> {new_status} | CV Score {old_cv_score} -> {new_cv_score}")
 
 
 @router.get("/candidate/questions")
@@ -133,10 +158,18 @@ async def submit_candidate_reply(request: Request, background: BackgroundTasks):
         reply_parts.append(f"Câu {i+1}: {q.get('question_text', '')}\nTrả lời: {ans}")
     reply_text = "\n\n".join(reply_parts)
 
+    pending_score = row_dict.get("cv_score") or 0
+    if pending_score > 5:
+        pending_score = pending_score / 2.0
     score_bd["candidate_reply"] = reply_text
     score_bd["reply_analysis"] = {
         "summary": "Ứng viên đã gửi câu trả lời. Hệ thống đang phân tích tự động.",
         "recommendation": "Đang phân tích",
+        "score_before": pending_score,
+        "score_adjustment": 0,
+        "score_after": pending_score,
+        "decision_before": "Đang chờ ứng viên bổ sung",
+        "decision_after": "Đang phân tích",
     }
     previous_status = row_dict.get("status") or ""
     new_status = "pending_hr_approval_passed" if previous_status.endswith("_passed") else "pending_hr_approval_failed"

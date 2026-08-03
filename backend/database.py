@@ -126,6 +126,7 @@ def init_db():
             ("overall_strengths",  "TEXT"),
             ("overall_weaknesses", "TEXT"),
             ("overall_competencies","TEXT"),
+            ("video_path",         "TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE interviews ADD COLUMN {col} {typedef}")
@@ -229,7 +230,7 @@ def init_db():
             pass
         
         # Initialize default settings
-        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cv_pass_score', '6.0')")
+        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cv_pass_score', '3.0')")
 
     # Migration v5: interview_slots for link validity
     with db() as conn:

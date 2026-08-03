@@ -7,59 +7,56 @@ from pathlib import Path
 from openai import AsyncOpenAI
 from backend.config import SCORE_PROMPT, EVAL_PROMPT, SOFT_SKILL_EVAL_PROMPT, HOD_QUESTIONS_PROMPT,  OPENAI_API_KEY, ELEVENLABS_API_KEY, OUTPUT_DIR, QUESTION_AUDIO_DIR, CV_UPLOAD_DIR, PASS_SCORE, _DEFAULT_EXPERIENCE, BASE_DIR, _find_position_files, _parse_q0306
 from backend.database import db
+from backend.security import media_content_type_for_path
 
 
-SCORE_MAXIMA = {
-    "c1_technical_skills": 2.0,
-    "c2_experience": 2.0,
-    "c3_education": 1.0,
-    "c4_industry": 1.0,
-    "c5_career_path": 1.0,
-    "c6_achievements": 1.0,
-    "c7_soft_skills": 0.5,
-    "c8_language_cv": 0.5,
-    "c9_stability": 0.5,
-    "c10_ai_overall": 0.5,
+def _extract_json_object(raw: str) -> dict:
+    raw = (raw or "").strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+    try:
+        return json.loads(raw)
+    except Exception:
+        match = re.search(r"\{.*\}", raw, flags=re.S)
+        if match:
+            return json.loads(match.group(0))
+        raise
+
+
+SCORE_WEIGHTS = {
+    "c1_technical_skills": 0.20,
+    "c2_experience": 0.20,
+    "c3_education": 0.10,
+    "c4_industry": 0.10,
+    "c5_career_path": 0.10,
+    "c6_achievements": 0.10,
+    "c7_soft_skills": 0.05,
+    "c8_language_cv": 0.05,
+    "c9_stability": 0.05,
+    "c10_ai_overall": 0.05,
 }
 
 
 def normalize_cv_score(score_result: dict) -> tuple[dict, float]:
-    """Clamp AI sub-scores and cap inflated totals when core fit is weak."""
+    """Clamp 1-5 rubric scores and calculate the weighted 1-5 total."""
     c = score_result.setdefault("criteria_scores", {})
     normalized = {}
-    for key, max_value in SCORE_MAXIMA.items():
+    for key in SCORE_WEIGHTS:
         try:
-            value = float(c.get(key, 0) or 0)
+            value = int(round(float(c.get(key, 1) or 1)))
         except Exception:
-            value = 0.0
-        normalized[key] = round(min(max(value, 0.0), max_value), 2)
+            value = 1
+        normalized[key] = min(max(value, 1), 5)
     score_result["criteria_scores"] = normalized
 
-    total = round(sum(normalized.values()), 2)
-    caps = []
-    if normalized["c1_technical_skills"] < 1.2 or normalized["c2_experience"] < 1.2:
-        caps.append(6.5)
-    elif normalized["c1_technical_skills"] < 1.6 or normalized["c2_experience"] < 1.6:
-        caps.append(8.0)
-    if normalized["c4_industry"] < 0.6:
-        caps.append(7.0)
-    if normalized["c6_achievements"] < 0.7:
-        caps.append(8.5)
-    if total >= 9.0 and not (
-        normalized["c1_technical_skills"] >= 1.8
-        and normalized["c2_experience"] >= 1.8
-        and normalized["c4_industry"] >= 0.85
-        and normalized["c6_achievements"] >= 0.85
-        and normalized["c10_ai_overall"] >= 0.45
-    ):
-        caps.append(8.8)
+    raw_weighted_total = score_result.get("weighted_total")
+    try:
+        score_result["ai_weighted_total"] = round(float(raw_weighted_total), 2)
+    except Exception:
+        pass
 
-    if caps:
-        total = round(min(total, min(caps)), 2)
-        score_result["score_cap_applied"] = total
-        score_result["score_cap_reason"] = (
-            "Điểm tổng bị giới hạn vì chưa đủ bằng chứng mạnh ở kỹ năng, kinh nghiệm, ngành hoặc thành tích để đạt nhóm 9+."
-        )
+    weighted_total = sum(score * SCORE_WEIGHTS[key] for key, score in normalized.items())
+    total = round(min(max(weighted_total, 1.0), 5.0), 2)
 
     evidence = score_result.setdefault("evidence", {})
     for key in ("matched_requirements", "missing_requirements", "transferable_strengths", "quantified_achievements"):
@@ -74,6 +71,9 @@ def normalize_cv_score(score_result: dict) -> tuple[dict, float]:
         confidence["level"] = "medium"
     confidence.setdefault("reason", "CV/JD có đủ thông tin cơ bản để đánh giá sơ bộ.")
 
+    score_result["score_scale"] = "1-5_weighted"
+    score_result["criteria_weights"] = SCORE_WEIGHTS
+    score_result["weighted_total"] = total
     score_result["total_score"] = total
     return score_result, total
 
@@ -107,6 +107,8 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
             if row and row["value"]:
                 try:
                     pass_score = float(row["value"])
+                    if pass_score > 5:
+                        pass_score = pass_score / 2
                 except:
                     pass
 
@@ -115,7 +117,7 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=1500,
+            max_tokens=2200,
         )
         raw = resp.choices[0].message.content.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -145,7 +147,7 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
                 "SELECT name, email, job_id FROM cv_applications WHERE id=?", (app_id,)
             ).fetchone()
 
-        print(f"[CV Score] {app_id} → {total}/10 (AI gợi ý: {ai_verdict}) — Chờ ứng viên trả lời")
+        print(f"[CV Score] {app_id} → {total}/5 (AI gợi ý: {ai_verdict}) — Chờ ứng viên trả lời")
 
         if row and deep_qs:
             from backend.services.email_service import send_deep_questions_email
@@ -199,30 +201,35 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
             audio_p = BASE_DIR / row["audio_path"]
             attempt_number = int(row.get("attempt_number", 1) or 1)
 
-            # ── 1. ElevenLabs STT ───────────────────────────────
-            transcript = ""
-            try:
-                import httpx
-                async with httpx.AsyncClient(timeout=60) as hx:
-                    with open(audio_p, "rb") as f:
-                        r = await hx.post(
-                            "https://api.elevenlabs.io/v1/speech-to-text",
-                            headers={"xi-api-key": ELEVENLABS_API_KEY},
-                            files={"file": (audio_p.name, f, "audio/webm")},
-                            data={"model_id": "scribe_v2", "language_code": "vi"},
-                        )
-                transcript = r.json().get("text", "").strip()
-            except Exception as e:
-                print(f"[Eval] STT lỗi câu {qn}: {e}")
+            # ── 1. Transcript/STT ───────────────────────────────
+            # Frontend đã gọi /evaluate-step và có thể gửi transcript chuẩn hơn.
+            # Chỉ STT lại khi chưa có transcript để tránh lần STT thứ hai trả rỗng/lệch.
+            transcript = (row.get("transcript") or "").strip()
+            if not transcript:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=60) as hx:
+                        with open(audio_p, "rb") as f:
+                            r = await hx.post(
+                                "https://api.elevenlabs.io/v1/speech-to-text",
+                                headers={"xi-api-key": ELEVENLABS_API_KEY},
+                                files={"file": (audio_p.name, f, media_content_type_for_path(audio_p))},
+                                data={"model_id": "scribe_v2", "language_code": "vi"},
+                            )
+                    transcript = r.json().get("text", "").strip()
+                except Exception as e:
+                    print(f"[Eval] STT lỗi câu {qn}: {e}")
 
             # ── 2. Xác định câu hỏi ────────────────────────────
             idx = type_count.get(q_type, 0)
             type_count[q_type] = idx + 1
 
-            if prep_data and qn in prep_data.get("questions", {}):
-                question = prep_data["questions"][qn]["text"]
-            elif row.get("question_text"):
+            if row.get("question_text"):
                 question = row["question_text"]
+            elif prep_data and qn in prep_data.get("questions", {}):
+                question = prep_data["questions"][qn]["text"]
+            elif "." in str(qn) and prep_data and str(qn).split(".", 1)[0] in prep_data.get("questions", {}):
+                question = prep_data["questions"][str(qn).split(".", 1)[0]]["text"]
             else:
                 question = ""
 
@@ -241,7 +248,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                             question=question,
                             transcript=transcript,
                         )
-                        max_tok = 350
+                        max_tok = 1400
                     else:
                         # Xếp 4 mức
                         prompt = EVAL_PROMPT.format(
@@ -251,18 +258,17 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                             question=question,
                             transcript=transcript,
                         )
-                        max_tok = 400
+                        max_tok = 1800
 
                     resp = await client.chat.completions.create(
                         model="gpt-4o",
                         messages=[{"role": "user", "content": prompt}],
-                        temperature=0.2,
+                        temperature=0.1,
                         max_tokens=max_tok,
+                        response_format={"type": "json_object"},
                     )
                     raw = resp.choices[0].message.content.strip()
-                    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-                    raw = re.sub(r"\s*```$", "", raw)
-                    ev  = json.loads(raw)
+                    ev  = _extract_json_object(raw)
 
                     if q_type != "Soft Skill":
                         valid = {"nắm vững", "am hiểu", "có biết qua", "không biết"}
@@ -272,6 +278,11 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                     ai_feedback  = ev.get("feedback", "")
                     strengths    = ev.get("strengths", "")
                     improvements = ev.get("improvements", "")
+                    if not ai_feedback:
+                        ai_feedback = (
+                            "AI đã xử lý transcript nhưng không trả về nhận xét chi tiết. "
+                            "Vui lòng xem transcript/audio để HR xác nhận thêm."
+                        )
                     
                     normalized_transcript = ev.get("normalized_transcript", "")
                     if normalized_transcript and len(normalized_transcript) > 5:
@@ -279,8 +290,16 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
 
                 except Exception as e:
                     print(f"[Eval] GPT lỗi câu {qn}: {e}")
-                    if q_type != "Soft Skill":
-                        ai_level = "không biết"
+                    ai_level = None
+                    ai_feedback = (
+                        "Hệ thống chưa phân tích được câu trả lời này do lỗi xử lý AI. "
+                        "Transcript đã được lưu, HR cần nghe lại audio hoặc bấm đánh giá lại."
+                    )
+                    improvements = "Cần đánh giá lại thủ công hoặc chạy lại AI."
+            else:
+                ai_feedback = "Không có transcript đủ rõ để AI chấm điểm câu trả lời này."
+                if q_type != "Soft Skill":
+                    ai_level = "không biết"
 
             # ── 4. Lưu DB ──────────────────────────────────────
             combined_notes = ""
@@ -328,9 +347,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                 max_tokens=500,
             )
             hod_raw = hod_resp.choices[0].message.content.strip()
-            hod_raw = re.sub(r"^```(?:json)?\s*", "", hod_raw)
-            hod_raw = re.sub(r"\s*```$", "", hod_raw)
-            hod_data = json.loads(hod_raw)
+            hod_data = _extract_json_object(hod_raw)
             hod_questions = json.dumps(hod_data.get("questions", []), ensure_ascii=False)
 
             with db() as conn:
@@ -367,9 +384,7 @@ Trả về CHỈ JSON theo định dạng (mỗi phần viết thành 1 đoạn 
                 max_tokens=600,
             )
             overall_raw = overall_resp.choices[0].message.content.strip()
-            overall_raw = re.sub(r"^```(?:json)?\s*", "", overall_raw)
-            overall_raw = re.sub(r"\s*```$", "", overall_raw)
-            overall_data = json.loads(overall_raw)
+            overall_data = _extract_json_object(overall_raw)
 
             with db() as conn:
                 conn.execute(
@@ -424,9 +439,11 @@ async def analyze_candidate_reply(cv_text: str, jd_text: str, deep_questions: li
                         "evaluation": {"type": "string", "description": "Đánh giá chi tiết câu trả lời."},
                         "red_flags": {"type": "array", "items": {"type": "string"}, "description": "Các điểm đáng ngờ hoặc chưa thỏa đáng."},
                         "strengths": {"type": "array", "items": {"type": "string"}, "description": "Các điểm mạnh thể hiện qua câu trả lời."},
-                        "recommendation": {"type": "string", "enum": ["Phê duyệt", "Từ chối"], "description": "Đề xuất cuối cùng."}
+                        "recommendation": {"type": "string", "enum": ["Phê duyệt", "Từ chối"], "description": "Đề xuất cuối cùng."},
+                        "score_adjustment": {"type": "number", "description": "Mức điểm cộng/trừ (từ -1.0 đến 1.0) cho CV gốc."},
+                        "score_adjustment_reason": {"type": "string", "description": "Lý do cụ thể vì sao cộng/trừ/giữ nguyên điểm sau khi đọc câu trả lời."}
                     },
-                    "required": ["evaluation", "red_flags", "strengths", "recommendation"]
+                    "required": ["evaluation", "red_flags", "strengths", "recommendation", "score_adjustment", "score_adjustment_reason"]
                 }
             }
         }

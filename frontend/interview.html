@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link href="/ui/pai-theme.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
 <script src="/ui/pai-dropdowns.js" defer></script>
@@ -53,15 +54,7 @@
     </div>
     <span class="hidden md:inline-flex text-xs font-bold bg-white/10 text-[#dbe1ff] px-2 py-1 rounded">Session: <span id="header-session-ref" class="ml-1">LOCAL</span></span>
   </div>
-  <nav class="hidden md:flex gap-8 items-center text-sm font-semibold text-[#dbe1ff]">
-    <a class="text-white/55 hover:text-white transition" href="/apply">Applications</a>
-    <a class="text-[#b4c5ff] border-b-2 border-[#b4c5ff] pb-1" href="#">Interviews</a>
-    <a class="text-white/55 hover:text-white transition" href="/admin">Reports</a>
-  </nav>
   <div class="flex items-center gap-3 text-[#dbe1ff]">
-    <div id="camera-alert-indicator" class="hidden flex-col items-end gap-1">
-      <div id="camera-alert-list" class="flex flex-col items-end gap-1"></div>
-    </div>
     <div id="tab-switch-indicator" class="hidden items-center gap-2 px-3 py-1.5 bg-red-600/20 border border-red-500/40 rounded-xl">
       <span class="material-symbols-outlined text-red-400 text-base">tab_close</span>
       <span class="text-red-300 text-xs font-semibold">Out tab: <span id="tab-switch-badge" class="font-black text-red-400">0</span> lần</span>
@@ -73,6 +66,43 @@
 <!-- ── TOAST ─────────────────────────────────────────────── -->
 <div id="toast-bar" class="fixed top-20 left-1/2 -translate-x-1/2 z-[100] opacity-0 pointer-events-none">
   <div id="toast-inner" class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold max-w-sm text-center"></div>
+</div>
+
+<!-- ── CANDIDATE GUIDE MODAL ──────────────────────────────── -->
+<div id="guide-modal" class="fixed inset-0 z-[210] flex items-center justify-center opacity-0 pointer-events-none" style="background:rgba(0,0,0,.62)">
+  <div class="bg-white rounded-2xl p-7 max-w-lg w-full mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+        <span class="material-symbols-outlined text-[#0051d5]">info</span>
+      </div>
+      <div>
+        <p class="font-bold text-gray-900">Hướng dẫn phỏng vấn</p>
+        <p class="text-gray-400 text-xs">Vui lòng đọc trước khi bắt đầu</p>
+      </div>
+    </div>
+    <div class="space-y-3 text-sm text-gray-700 leading-relaxed mb-6">
+      <div class="flex gap-3">
+        <span class="material-symbols-outlined text-[#0051d5] text-[18px] mt-0.5">volume_up</span>
+        <p>Nhấn nút phát để nghe câu hỏi. Nếu audio chưa tải, vui lòng chờ trong giây lát.</p>
+      </div>
+      <div class="flex gap-3">
+        <span class="material-symbols-outlined text-[#0051d5] text-[18px] mt-0.5">mic</span>
+        <p>Bấm <b>Bắt đầu trả lời</b>, nói rõ ràng, sau đó bấm <b>Xong</b>. Hệ thống sẽ chuyển giọng nói thành text.</p>
+      </div>
+      <div class="flex gap-3">
+        <span class="material-symbols-outlined text-[#0051d5] text-[18px] mt-0.5">record_voice_over</span>
+        <p>Chỉ chuyển câu khi text câu trả lời đã hiện ra. Nếu text thiếu hoặc sai nhiều, hãy ghi âm lại.</p>
+      </div>
+      <div class="flex gap-3">
+        <span class="material-symbols-outlined text-[#0051d5] text-[18px] mt-0.5">videocam</span>
+        <p>Luôn bật camera/micro và không rời khỏi tab phỏng vấn trong suốt quá trình làm bài.</p>
+      </div>
+    </div>
+    <button onclick="acceptGuide()"
+      class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition active:scale-[.98]">
+      Đã hiểu, tiếp tục
+    </button>
+  </div>
 </div>
 
 <!-- ── CONSENT MODAL (§22) ───────────────────────────────── -->
@@ -251,15 +281,15 @@
       <span class="material-symbols-outlined text-base">arrow_forward</span>
     </button>
     <p id="start-hint" class="hidden text-center text-xs text-red-500 mt-2 font-medium"></p>
-  </div>
-</div>
-
-<!-- ── PREP LOADING OVERLAY ───────────────────────────────── -->
-<div id="prep-loading" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,.5)">
-  <div class="bg-white rounded-2xl p-8 text-center max-w-xs w-full mx-4 shadow-2xl">
-    <div class="w-14 h-14 border-4 border-[#0051d5] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-    <p class="font-bold text-gray-900 mb-1">Đang chuẩn bị câu hỏi</p>
-    <p class="text-gray-400 text-xs" id="prep-status">Đang phân tích CV và tạo câu hỏi phù hợp...</p>
+    <div id="prep-loading" class="hidden mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-left">
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined animate-spin text-[#0051d5] text-base mt-0.5">sync</span>
+        <div>
+          <p class="font-bold text-sm text-gray-900">Đang chuẩn bị câu hỏi</p>
+          <p class="text-gray-500 text-xs mt-0.5" id="prep-status">Đang đối chiếu JD với CV và tạo câu hỏi phù hợp...</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -322,16 +352,36 @@
     </div>
 
     <aside class="w-full md:w-[320px] flex flex-col gap-5">
-      <div class="bg-white/85 rounded-xl p-5 border border-[#e5e7eb] shadow-sm glass-panel">
-        <div class="font-bold text-sm text-[#191b23] mb-3 border-b border-[#e5e7eb] pb-2">Session Details</div>
-        <div class="space-y-3 text-sm">
-          <div class="flex justify-between gap-3"><span class="text-[#434654]">Ứng viên:</span><span class="font-bold text-right" id="side-candidate-ref">Local</span></div>
-          <div class="flex justify-between gap-3"><span class="text-[#434654]">Role:</span><span class="font-bold text-right" id="side-position-name">—</span></div>
-          <div class="flex justify-between gap-3"><span class="text-[#434654]">Mode:</span><span class="font-bold text-[#003ca3]">AI Interview</span></div>
+      <!-- Info Panel -->
+      <div class="bg-white/95 rounded-xl p-5 border-2 border-[#e5e7eb] shadow-md">
+        <div class="font-bold text-base text-[#191b23] mb-4 border-b border-[#e5e7eb] pb-2 flex items-center gap-2">
+          <span class="material-symbols-outlined text-[#0051d5]">assignment_ind</span>
+          Thông tin phỏng vấn
         </div>
-        <div class="mt-4 w-full bg-[#e1e2ed] rounded-full h-2">
-          <div class="bg-[#0051d5] h-2 rounded-full" id="side-progress-bar" style="width:0%"></div>
+        <div class="space-y-4 text-sm">
+          <div class="flex flex-col gap-1">
+            <span class="text-gray-500 text-xs uppercase font-bold tracking-wider">Ứng viên</span>
+            <span class="font-bold text-gray-900 text-base bg-gray-50 px-3 py-2 rounded-lg border border-gray-100" id="side-candidate-ref">Local</span>
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-gray-500 text-xs uppercase font-bold tracking-wider">Vị trí ứng tuyển</span>
+            <span class="font-bold text-[#0051d5] bg-blue-50 px-3 py-2 rounded-lg border border-blue-100" id="side-position-name">—</span>
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-gray-500 text-xs uppercase font-bold tracking-wider">Hình thức</span>
+            <span class="font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100 flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">smart_toy</span> AI Interview
+            </span>
+          </div>
         </div>
+      </div>
+
+      <!-- System Alerts Panel -->
+      <div id="side-alert-panel" class="hidden bg-red-50 rounded-xl p-5 border-2 border-red-200 shadow-md">
+        <div class="font-bold text-sm text-red-700 mb-3 border-b border-red-200 pb-2 flex items-center gap-2">
+          <span class="material-symbols-outlined text-base">warning</span> Cảnh báo vi phạm
+        </div>
+        <div id="camera-alert-list" class="flex flex-col gap-2"></div>
       </div>
     </aside>
   </div>
@@ -434,24 +484,62 @@
 const API_BASE = location.origin;
 const _params  = new URLSearchParams(location.search);
 const SLOT     = _params.get('slot') || '';
+const JOB_LEVELS = ['Entry', 'Junior', 'Mid', 'Senior', 'Manager', 'Director'];
+
+function splitLevelPosition(raw) {
+  let value = String(raw || '').trim();
+  for (const lv of JOB_LEVELS) {
+    const prefix = `${lv}_`;
+    if (value.startsWith(prefix)) {
+      return { level: lv, position: value.slice(prefix.length) };
+    }
+  }
+  return { level: '', position: value };
+}
 
 let PREP_ID = '';
 let PREP_QUESTIONS = {};
 let INTRO_AUDIO_URL = '';
 
 let REF = _params.get('ref') || '';
-const URL_POS  = (_params.get('pos') || '').replace(/^Junior_/, '');
+const URL_POS_INFO = splitLevelPosition(_params.get('pos') || '');
+const URL_POS  = URL_POS_INFO.position;
 const IV_ID_PARAM = _params.get('iv') || '';
 let REIV = _params.get('reiv') || '';
 let SCOPE = _params.get('scope') || '';
 
-let selectedLevel = _params.get('lv') || 'Junior';
+let selectedLevel = _params.get('lv') || URL_POS_INFO.level || 'Junior';
 let consentAudio  = false;
+let micPermissionGranted = false;
+let guideAccepted = false;
 let surveyRatings = {};
 let surveyNPS     = null;
 
 document.getElementById('header-session-ref').textContent = REF || SLOT || 'LOCAL';
-document.getElementById('side-candidate-ref')?.replaceChildren(document.createTextNode(REF ? 'Theo hồ sơ' : 'Local'));
+let applicationBasic = null;
+let applicationBasicPromise = Promise.resolve(null);
+function loadApplicationBasic(ref) {
+  if (!ref) return Promise.resolve(null);
+  return fetch(`${API_BASE || ''}/api/v1/applications/${ref}/basic`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      applicationBasic = data;
+      if (data && data.name) {
+        document.getElementById('side-candidate-ref').textContent = data.name;
+      } else {
+        document.getElementById('side-candidate-ref').textContent = ref;
+      }
+      return data;
+    }).catch(() => {
+      document.getElementById('side-candidate-ref').textContent = ref;
+      return null;
+    });
+}
+if (REF) {
+  applicationBasicPromise = loadApplicationBasic(REF);
+} else {
+  document.getElementById('side-candidate-ref').textContent = 'Local';
+}
 
 let webcamStream = null;
 let currentInterviewId = '';
@@ -464,6 +552,25 @@ let proctoringPollPrimed = false;
 let proctoringAlertTimer = null;
 let proctoringAlertStates = {};
 let proctoringAlertsToken = '';
+
+function getSupportedAudioMimeType() {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+  return [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/mp4',
+  ].find(type => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function audioExtensionForBlob(blob) {
+  const type = (blob && blob.type ? blob.type : '').toLowerCase();
+  if (type.includes('mp4') || type.includes('aac')) return 'm4a';
+  if (type.includes('ogg')) return 'ogg';
+  if (type.includes('wav')) return 'wav';
+  if (type.includes('mpeg') || type.includes('mp3')) return 'mp3';
+  return 'webm';
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -523,10 +630,12 @@ if (SLOT) {
         window._slotAppId = slotData.app_id;
         window._slotPositionId = slotData.position_id;
         window._slotLevel = slotData.level;
+        applicationBasicPromise = loadApplicationBasic(REF);
         
         // AUTO-START UI cho Slot (giống logic URL_POS)
-        selectedPosition = slotData.position_id;
-        selectedLevel = slotData.level;
+        const slotPosition = splitLevelPosition(slotData.position_id || '');
+        selectedPosition = slotPosition.position;
+        selectedLevel = slotData.level || slotPosition.level || selectedLevel;
         cvUploaded = true;
         
         selectLevel(selectedLevel);
@@ -568,6 +677,37 @@ function showToast(msg, type = 'info', durationMs = 4000) {
   }, durationMs);
 }
 
+const nativeSystemAlert = window.alert.bind(window);
+
+async function showSystemDialog({
+  icon = 'info',
+  title = 'Thông báo',
+  text = '',
+  html = '',
+  confirmButtonText = 'Đã hiểu',
+  footer = '',
+} = {}) {
+  if (window.Swal) {
+    return Swal.fire({
+      icon,
+      title,
+      text: html ? undefined : text,
+      html: html || undefined,
+      footer: footer || undefined,
+      confirmButtonText,
+      buttonsStyling: false,
+      customClass: {
+        popup: 'rounded-3xl px-2 py-3 shadow-2xl',
+        title: 'text-gray-900 font-extrabold text-2xl',
+        htmlContainer: 'text-gray-600 text-sm leading-relaxed',
+        confirmButton: 'px-5 py-3 rounded-xl bg-[#0051d5] text-white font-bold text-sm hover:opacity-90 transition',
+        footer: 'text-xs text-gray-400',
+      },
+    });
+  }
+  nativeSystemAlert(text || html.replace(/<[^>]+>/g, ' ') || title);
+}
+
 // ── Incident logger (§23) ──────────────────────────────────
 async function logIncident(type, description) {
   try {
@@ -581,6 +721,11 @@ async function logIncident(type, description) {
 
 function interviewStateKey(suffix) {
   return `PAI_HR_${REF || REIV || currentInterviewId || selectedPosition || 'local'}_${suffix}`;
+}
+
+function answerStoragePrefix() {
+  const sessionKey = PREP_ID || REIV || currentInterviewId || 'draft';
+  return `ans_${REF || selectedPosition}_${sessionKey}_`;
 }
 
 function saveInterviewState() {
@@ -630,8 +775,19 @@ function proctoringAlertShortLabel(alertType) {
     LOOKING_AWAY: 'Nhìn hướng khác',
     GAZE: 'Nhìn hướng khác',
     PHONE: 'Dùng điện thoại',
+    SCREENSHOT_ATTEMPT: 'Chụp màn hình',
   };
   return labels[key] || (alertType || 'Camera');
+}
+
+function violationAlertIcon(alertType) {
+  const key = String(alertType || '').toUpperCase();
+  const icons = {
+    SCREENSHOT_ATTEMPT: 'screenshot_monitor',
+    TAB_SWITCH: 'tab_close',
+    FULLSCREEN_EXIT: 'fullscreen_exit',
+  };
+  return icons[key] || 'videocam_alert';
 }
 
 function updateProctoringAlertDurations() {
@@ -640,11 +796,11 @@ function updateProctoringAlertDurations() {
 
 function renderProctoringAlertSummary() {
   const states = Object.values(proctoringAlertStates);
-  const header = document.getElementById('camera-alert-indicator');
+  const panel = document.getElementById('side-alert-panel');
   const list = document.getElementById('camera-alert-list');
 
   if (!states.length) {
-    header?.classList.add('hidden');
+    if (panel) panel.classList.add('hidden');
     if (list) list.innerHTML = '';
     return;
   }
@@ -655,19 +811,26 @@ function renderProctoringAlertSummary() {
       label: proctoringAlertShortLabel(state.type || 'UNKNOWN'),
       count: Number(state.count || 0),
       lastSeen: Number(state.lastSeen || 0),
+      icon: violationAlertIcon(state.type || 'UNKNOWN'),
     }))
     .filter(row => row.count > 0)
     .sort((a, b) => b.lastSeen - a.lastSeen);
 
-  if (header) {
-    header.classList.remove('hidden');
-    header.classList.add('flex', 'flex-col');
+  if (!rows.length) {
+    if (panel) panel.classList.add('hidden');
+    if (list) list.innerHTML = '';
+    return;
   }
+
+  if (panel) panel.classList.remove('hidden');
   if (list) {
     list.innerHTML = rows.map(row => `
-      <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-400/40 rounded-xl">
-        <span class="material-symbols-outlined text-amber-300 text-base">videocam_alert</span>
-        <span class="text-amber-100 text-xs font-semibold">${escapeHtml(row.label)}: <span class="font-black text-amber-300">${row.count}</span> lần</span>
+      <div class="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-red-100 shadow-sm">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-red-500 text-sm">${escapeHtml(row.icon)}</span>
+          <span class="text-red-700 text-xs font-semibold">${escapeHtml(row.label)}</span>
+        </div>
+        <span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-md text-xs font-black">${row.count} lần</span>
       </div>
     `).join('');
   }
@@ -682,6 +845,12 @@ function showProctoringWarning(alert) {
     count: 0,
     lastSeen: 0,
   };
+
+  if (now - state.lastSeen < 3000 && state.count > 0) {
+    state.lastSeen = now;
+    return;
+  }
+
   state.count = Number(state.count || 0) + 1;
   state.type = type;
   state.label = proctoringAlertShortLabel(type);
@@ -689,7 +858,8 @@ function showProctoringWarning(alert) {
   proctoringAlertStates[type] = state;
   saveInterviewState();
   renderProctoringAlertSummary();
-  showToast(`Cảnh báo camera: ${state.label} (${state.count} lần)`, 'warning', 6000);
+
+  showToast(`Cảnh báo vi phạm: ${state.label} (Lần ${state.count})`, 'error', 6000);
 }
 
 async function pollProctoringAlerts() {
@@ -757,11 +927,65 @@ function hideProctoringBox() {
 
 
 // ── Consent modal (§22) ──────────────────────────────────
+function showGuideModal() {
+  const modal = document.getElementById('guide-modal');
+  modal.style.opacity = '1';
+  modal.style.pointerEvents = 'auto';
+}
+
+function hideGuideModal() {
+  const modal = document.getElementById('guide-modal');
+  modal.style.opacity = '0';
+  modal.style.pointerEvents = 'none';
+}
+
+function acceptGuide() {
+  guideAccepted = true;
+  hideGuideModal();
+  showConsentModal();
+}
+
 function showConsentModal() {
+  if (!guideAccepted) {
+    showGuideModal();
+    return;
+  }
   const modal = document.getElementById('consent-modal');
   modal.style.opacity = '1';
   modal.style.pointerEvents = 'auto';
 }
+
+async function requestMicrophonePermission() {
+  if (micPermissionGranted) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    await showSystemDialog({
+      icon: 'warning',
+      title: 'Không hỗ trợ microphone',
+      html: 'Trình duyệt hiện tại không hỗ trợ cấp quyền microphone. Vui lòng mở bằng Chrome, Edge hoặc Safari phiên bản mới.',
+      confirmButtonText: 'Đã hiểu',
+    });
+    return false;
+  }
+
+  requestingPermission = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop());
+    micPermissionGranted = true;
+    return true;
+  } catch {
+    await showSystemDialog({
+      icon: 'warning',
+      title: 'Cần quyền microphone',
+      html: 'Vui lòng cấp quyền microphone trước khi bắt đầu phỏng vấn để hệ thống có thể ghi âm câu trả lời.<br><br>Nếu đã bấm chặn, hãy bấm biểu tượng ổ khóa/camera trên thanh địa chỉ và chọn <b>Allow / Cho phép</b>.',
+      confirmButtonText: 'Đã hiểu',
+    });
+    return false;
+  } finally {
+    requestingPermission = false;
+  }
+}
+
 async function acceptConsent() {
   const audioBox = document.getElementById('consent-audio');
   const cameraBox = document.getElementById('consent-camera');
@@ -769,6 +993,9 @@ async function acceptConsent() {
     document.getElementById('consent-error').classList.remove('hidden');
     return;
   }
+
+  const micOk = await requestMicrophonePermission();
+  if (!micOk) return;
 
   consentAudio = true;
   const modal = document.getElementById('consent-modal');
@@ -800,6 +1027,50 @@ const JD_META = {
   '_default':            { title:'Junior Position',           tags:['Junior','Full-time'],                        desc:'Vị trí tuyển dụng cấp độ Junior.' },
 };
 
+function setPositionLabel(title, level = selectedLevel) {
+  const label = `${title || selectedPosition || 'Vị trí ứng tuyển'} · ${level || selectedLevel}`;
+  const interviewName = document.getElementById('interview-position-name');
+  const sidePosition = document.getElementById('side-position-name');
+  const donePosition = document.getElementById('done-position');
+  if (interviewName) interviewName.textContent = label;
+  if (sidePosition) sidePosition.textContent = label;
+  if (donePosition) donePosition.textContent = label;
+}
+
+function applyApplicationBasic(data) {
+  if (!data) return;
+  if (data.name) {
+    document.getElementById('side-candidate-ref').textContent = data.name;
+  }
+  const parsed = splitLevelPosition(data.job_id || '');
+  const appLevel = data.level || parsed.level || selectedLevel;
+  const appPosition = parsed.position || selectedPosition;
+  if (appLevel) {
+    selectedLevel = appLevel;
+    selectLevel(appLevel);
+  }
+  if (appPosition) {
+    selectedPosition = appPosition;
+    const select = document.getElementById('position-select');
+    if (select) select.value = appPosition;
+  }
+  if (data.job_title || appPosition) {
+    setPositionLabel(data.job_title || JD_META[appPosition]?.title || appPosition, selectedLevel);
+  }
+}
+
+async function hydrateApplicationContext() {
+  if (!REF) return null;
+  if (!applicationBasic) {
+    applicationBasicPromise = applicationBasicPromise || loadApplicationBasic(REF);
+    const current = await applicationBasicPromise;
+    if (!current && REF) applicationBasicPromise = loadApplicationBasic(REF);
+  }
+  const data = applicationBasic || await applicationBasicPromise;
+  applyApplicationBasic(data);
+  return data;
+}
+
 let QUESTION_TYPES = [];
 let ALL_QUESTIONS_META = {};
 fetch(`${API_BASE}/interview/questions`)
@@ -822,6 +1093,8 @@ const TYPE_COLOR = {
   'Experience': 'bg-amber-100 text-amber-700',
 };
 const SECTION_LIMITS = { 'General': 240, 'Technical': 360, 'Soft Skill': 300, 'Experience': 360 };
+const FALLBACK_QUESTION_LIMIT = 8;
+const MAX_INTERVIEW_QUESTIONS = 24;
 
 let selectedPosition = '', cvUploaded = false;
 let currentQuestionIndex = 0;
@@ -829,6 +1102,36 @@ let answers = {}, mediaRecorder = null, mediaStream = null;
 let recordingChunks = [], activeRecordingQ = null, recIntervals = {};
 let pushbackHistory = {};
 let followUpLimit = 5;
+
+function applyPreparedQuestionsToCards() {
+  const prepared = PREP_QUESTIONS || {};
+  const allowed = Object.keys(prepared).sort((a, b) => {
+    const na = parseInt(a, 10);
+    const nb = parseInt(b, 10);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return a.localeCompare(b);
+  }).slice(0, MAX_INTERVIEW_QUESTIONS);
+
+  QUESTION_TYPES = allowed.map(n => {
+    const prep = prepared[n] || {};
+    const base = QUESTION_TYPES.find(q => q.n === n) || ALL_QUESTIONS_META[n] || {
+      n,
+      label: `Câu ${n}`,
+      group: 'Prepared',
+      is_dynamic: false,
+      text: '',
+      type: 'General',
+    };
+    return {
+      ...base,
+      n,
+      text: prep.text || base.text || '',
+      audio_url: prep.audio_url || base.audio_url || '',
+      type: prep.type || base.type || 'General',
+      allow_follow_up: prep.allow_follow_up,
+    };
+  });
+}
 
 // ── IndexedDB Auto-save ────────────────────────────────────
 const DB_NAME = 'PAI_HR_Interview';
@@ -850,7 +1153,7 @@ async function saveAnswerLocal(qn, blob) {
   try {
     const db = await initDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(blob, `ans_${REF || selectedPosition}_${qn}`);
+    tx.objectStore(STORE_NAME).put(blob, `${answerStoragePrefix()}${qn}`);
   } catch(e) { console.warn('Failed to auto-save to IndexedDB', e); }
 }
 
@@ -858,7 +1161,7 @@ async function getAnswerLocal(qn) {
   try {
     const db = await initDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
-    const req = tx.objectStore(STORE_NAME).get(`ans_${REF || selectedPosition}_${qn}`);
+    const req = tx.objectStore(STORE_NAME).get(`${answerStoragePrefix()}${qn}`);
     return new Promise(resolve => {
       req.onsuccess = () => resolve(req.result);
       req.onerror   = () => resolve(null);
@@ -873,7 +1176,7 @@ async function clearLocalAnswers() {
     const store = tx.objectStore(STORE_NAME);
     const req = store.getAllKeys();
     req.onsuccess = () => {
-      const prefix = `ans_${REF || selectedPosition}_`;
+      const prefix = answerStoragePrefix();
       req.result.forEach(key => {
         if (typeof key === 'string' && key.startsWith(prefix)) store.delete(key);
       });
@@ -1056,6 +1359,7 @@ function checkCanStart() {
 }
 
 async function startInterview() {
+  await hydrateApplicationContext();
   if (!cvUploaded || !selectedPosition) { checkCanStart(); return; }
   document.getElementById('start-hint').classList.add('hidden');
   if (!consentAudio) { showConsentModal(); return; }
@@ -1094,7 +1398,13 @@ async function startInterview() {
   }
 
   if (REF && !proctoringUrl) {
-    alert(`Không thể bắt đầu phỏng vấn vì camera giám sát chưa sẵn sàng. ${proctoringError}`);
+    await showSystemDialog({
+      icon: 'error',
+      title: 'Camera giám sát chưa sẵn sàng',
+      html: `Không thể bắt đầu phỏng vấn vì phiên giám sát camera chưa khởi tạo thành công.<br><br><span class="text-gray-500">${proctoringError || ''}</span>`,
+      confirmButtonText: 'Thử lại',
+      footer: 'PAI Interview Proctoring',
+    });
     btn.innerHTML = oldHtml;
     btn.disabled = false;
     showConsentModal();
@@ -1143,7 +1453,7 @@ async function _doStartInterview(proctoringUrl) {
       webcamVideo.srcObject = null;
       const iframeUrl = new URL(proctoringUrl, window.location.href);
       iframeUrl.searchParams.set('autostart', 'true');
-      requestingPermission = true;
+      iframeUrl.searchParams.set('debug', '0');
       showToast('Vui lòng cấp quyền camera/micro cho khung giám sát trước khi vào bài.', 'info', 8000);
       proctoringIframe.src = iframeUrl.toString();
       proctoringIframe.classList.remove('hidden');
@@ -1172,26 +1482,40 @@ async function _doStartInterview(proctoringUrl) {
   startProctoringAlertPolling();
 
   const meta = JD_META[selectedPosition] || JD_META['_default'];
-  prepInterview().then(() => {
-    document.getElementById('step-1').classList.add('hidden');
-    document.getElementById('step-2').classList.remove('hidden');
-    document.getElementById('step-badge').textContent = '';
-    document.getElementById('interview-position-name').textContent = `${meta.title} · ${selectedLevel}`;
-    const sidePosition = document.getElementById('side-position-name');
-    if (sidePosition) sidePosition.textContent = `${meta.title} · ${selectedLevel}`;
-
-    if (INTRO_AUDIO_URL) {
-      document.getElementById('intro-audio').src = `${API_BASE}${INTRO_AUDIO_URL}`;
-      document.getElementById('intro-banner').classList.remove('hidden');
+  try {
+    await prepInterview();
+  } catch {
+    antiCheatArmed = false;
+    stopProctoringAlertPolling();
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+      webcamStream = null;
     }
+    proctoringIframe.src = '';
+    proctoringIframe.classList.add('hidden');
+    webcamContainer.classList.add('hidden');
+    showConsentModal();
+    return;
+  }
 
-    renderQuestionDots();
-    renderQuestionCards();
-    initSectionTimers();
-    updateProgress();
-    restoreSavedAnswers();
-    startSectionTimer(QUESTION_TYPES[0].n);
-  });
+  document.getElementById('step-1').classList.add('hidden');
+  document.getElementById('step-2').classList.remove('hidden');
+  document.getElementById('step-badge').textContent = '';
+  const positionTitle = applicationBasic?.job_title || meta.title;
+  setPositionLabel(positionTitle, selectedLevel);
+
+  if (INTRO_AUDIO_URL) {
+    document.getElementById('intro-audio').src = `${API_BASE}${INTRO_AUDIO_URL}`;
+    document.getElementById('intro-banner').classList.remove('hidden');
+  }
+
+  renderQuestionDots();
+  renderQuestionCards();
+  initSectionTimers();
+  updateProgress();
+  restoreSavedAnswers();
+  startSectionTimer(QUESTION_TYPES[0].n);
 };
 
 function renderQuestionDots() {
@@ -1331,7 +1655,7 @@ function nextQuestion(force = false) {
   if (answers[currentQ.n] || force) {
     if (force && !answers[currentQ.n]) {
       // Dummy auto-save if they didn't record anything
-      answers[currentQ.n] = new Blob([], { type:'audio/webm' });
+      answers[currentQ.n] = new Blob([], { type: getSupportedAudioMimeType() || 'audio/webm' });
       saveAnswerLocal(currentQ.n, answers[currentQ.n]);
       const stEl = document.getElementById('status-'+currentQ.n);
       if (stEl) stEl.innerHTML = `<span class="flex items-center gap-1 text-red-600 text-xs font-bold"><span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">error</span>HẾT GIỜ</span>`;
@@ -1432,16 +1756,25 @@ async function startRecord(qn) {
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
+    micPermissionGranted = false;
     requestingPermission = false;
-    alert('Cần cấp quyền microphone để ghi âm.');
+    await showSystemDialog({
+      icon: 'warning',
+      title: 'Cần quyền microphone',
+      html: 'Bạn cần cấp quyền microphone để hệ thống ghi âm câu trả lời.<br><br>Vui lòng bấm biểu tượng ổ khóa/camera trên thanh địa chỉ và chọn <b>Allow / Cho phép</b>.',
+      confirmButtonText: 'Đã hiểu',
+    });
     return;
   }
+  micPermissionGranted = true;
   requestingPermission = false;
   recordingChunks = [];
-  mediaRecorder = new MediaRecorder(mediaStream);
+  const audioMimeType = getSupportedAudioMimeType();
+  mediaRecorder = new MediaRecorder(mediaStream, audioMimeType ? { mimeType: audioMimeType } : undefined);
   mediaRecorder.ondataavailable = e => { if (e.data.size>0) recordingChunks.push(e.data); };
   mediaRecorder.onstop = () => {
-    answers[qn] = new Blob(recordingChunks, { type:'audio/webm' });
+    const recordedType = mediaRecorder.mimeType || recordingChunks[0]?.type || audioMimeType || 'audio/webm';
+    answers[qn] = new Blob(recordingChunks, { type: recordedType });
     onAnswerSaved(qn);
   };
   mediaRecorder.start();
@@ -1569,7 +1902,12 @@ async function processAnswer(qn, isPushback = false) {
     const res = await fetch(`${API_BASE}/interview/evaluate-step`, { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.detail || 'Lỗi xử lý câu trả lời.');
+      await showSystemDialog({
+        icon: 'error',
+        title: 'Không xử lý được câu trả lời',
+        text: data.detail || 'Hệ thống gặp lỗi khi xử lý câu trả lời.',
+        confirmButtonText: res.status === 403 ? 'Tải lại phiên' : 'Đóng',
+      });
       if (res.status === 403) window.location.reload();
       statusEl.innerHTML = oldStatus;
       return;
@@ -1593,7 +1931,13 @@ async function processAnswer(qn, isPushback = false) {
     }
   } catch(e) {
     statusEl.innerHTML = oldStatus;
-    unlockNext(mainQn);
+    logIncident('evaluate_step_network_error', e.message || String(e));
+    await showSystemDialog({
+      icon: 'error',
+      title: 'Không kết nối được server',
+      text: 'Không thể chuyển giọng nói thành text hoặc tạo câu hỏi đào sâu. Vui lòng kiểm tra backend/API rồi ghi âm lại.',
+      confirmButtonText: 'Đã hiểu',
+    });
   }
 }
 
@@ -1785,7 +2129,7 @@ function updateProgress() {
 
 async function prepInterview() {
   document.getElementById('prep-loading').classList.remove('hidden');
-  document.getElementById('prep-status').textContent = 'Đang phân tích CV và tạo câu hỏi phù hợp...';
+  document.getElementById('prep-status').textContent = 'Đang đối chiếu JD với CV và tạo câu hỏi phù hợp...';
 
   // Offline check
   if (!navigator.onLine) {
@@ -1797,6 +2141,7 @@ async function prepInterview() {
     const body = new URLSearchParams({
       position_id: `${selectedLevel}_${selectedPosition}`,
       level: selectedLevel,
+      force: '1',
     });
     if (REF) body.append('app_ref', REF);
 
@@ -1804,9 +2149,15 @@ async function prepInterview() {
     const timeout    = setTimeout(() => controller.abort(), 45000);
     const r = await fetch(`${API_BASE}/interview/prep`, { method: 'POST', body, signal: controller.signal });
     clearTimeout(timeout);
+    document.getElementById('prep-status').textContent = 'Đang nhận câu hỏi và audio từ server...';
     const data = await r.json();
     if (!r.ok) {
-      alert(data.detail || 'Lỗi khi chuẩn bị phỏng vấn.');
+      await showSystemDialog({
+        icon: 'error',
+        title: 'Không chuẩn bị được phỏng vấn',
+        text: data.detail || 'Hệ thống gặp lỗi khi chuẩn bị câu hỏi phỏng vấn.',
+        confirmButtonText: 'Tải lại',
+      });
       window.location.reload();
       throw new Error(data.detail || 'Prep API error');
     }
@@ -1815,37 +2166,25 @@ async function prepInterview() {
     INTRO_AUDIO_URL = data.intro_audio || '';
     if (data.follow_up_limit !== undefined) followUpLimit = data.follow_up_limit;
 
-    // Filter QUESTION_TYPES based on PREP_QUESTIONS
     if (PREP_QUESTIONS && Object.keys(PREP_QUESTIONS).length > 0) {
-      const allowed = Object.keys(PREP_QUESTIONS);
-      QUESTION_TYPES = QUESTION_TYPES.filter(q => allowed.includes(q.n));
-      // Overwrite text and audio
-      QUESTION_TYPES.forEach(q => {
-        if (PREP_QUESTIONS[q.n]) {
-          q.text = PREP_QUESTIONS[q.n].text;
-          q.audio_url = PREP_QUESTIONS[q.n].audio_url;
-          if (PREP_QUESTIONS[q.n].type) q.type = PREP_QUESTIONS[q.n].type;
-        }
-      });
+      applyPreparedQuestionsToCards();
+    } else {
+      QUESTION_TYPES = QUESTION_TYPES.slice(0, FALLBACK_QUESTION_LIMIT);
     }
+    document.getElementById('prep-status').textContent = 'Đã tạo câu hỏi xong. Đang chuyển vào bài phỏng vấn...';
   } catch(e) {
     const isTimeout = e.name === 'AbortError';
     console.warn('Prep failed:', e);
     logIncident(isTimeout ? 'prep_timeout' : 'prep_error', e.message || String(e));
-    showToast(
-      isTimeout ? 'Chuẩn bị câu hỏi mất quá lâu — dùng câu hỏi mặc định.' : 'Không thể kết nối server — dùng câu hỏi mặc định.',
-      'warning', 6000
-    );
-    PREP_QUESTIONS = {
-      '01': { text: 'Bạn hãy giải thích về kiến trúc và các công nghệ chính bạn thường sử dụng.', audio_url: '', type: 'Technical' },
-      '02': { text: 'Kể về một vấn đề kỹ thuật khó khăn bạn từng gặp và cách giải quyết.', audio_url: '', type: 'Technical' },
-      '03': { text: 'Kể về một lần làm việc với người có quan điểm khác bạn.', audio_url: '', type: 'Soft Skill' },
-      '04': { text: 'Bạn làm gì khi nhận nhiều việc cùng lúc với deadline gấp?', audio_url: '', type: 'Soft Skill' },
-      '05': { text: 'Mô tả một dự án bạn tự hào nhất: vai trò và kết quả đạt được.', audio_url: '', type: 'Experience' },
-      '06': { text: 'Kể về một lần bạn mắc sai lầm trong công việc và bài học rút ra.', audio_url: '', type: 'Experience' },
-      '07': { text: 'Bạn đã từng tham gia vào một dự án nào liên quan đến học máy chưa? Nếu có, hãy mô tả vai trò của bạn.', audio_url: '', type: 'Experience' },
-      '08': { text: 'Trong quá khứ, bạn đã có kinh nghiệm làm việc nhóm trong một dự án nào chưa? Hãy chia sẻ một ví dụ cụ thể.', audio_url: '', type: 'Experience' },
-    };
+    await showSystemDialog({
+      icon: 'error',
+      title: 'Không kết nối được server',
+      text: isTimeout
+        ? 'Chuẩn bị câu hỏi mất quá lâu. Vui lòng thử lại khi server sẵn sàng.'
+        : 'Không thể chuẩn bị câu hỏi/audio phỏng vấn. Vui lòng kiểm tra backend/API rồi thử lại.',
+      confirmButtonText: 'Thử lại',
+    });
+    throw e;
   } finally {
     document.getElementById('prep-loading').classList.add('hidden');
   }
@@ -1873,17 +2212,46 @@ async function submitInterview() {
     form.append('cv_file', cvInput.files[0], cvInput.files[0].name);
   }
   QUESTION_TYPES.forEach(q => {
-    if (answers[q.n]) form.append(`answer_${q.n}`, answers[q.n], `answer_${q.n}.webm`);
+    if (answers[q.n]) form.append(`answer_${q.n}`, answers[q.n], `answer_${q.n}.${audioExtensionForBlob(answers[q.n])}`);
   });
   // Append any pushback answers
   Object.keys(answers).forEach(k => {
     if (k.includes('_')) {
-      form.append(`answer_${k}`, answers[k], `answer_${k}.webm`);
+      form.append(`answer_${k}`, answers[k], `answer_${k}.${audioExtensionForBlob(answers[k])}`);
     }
   });
 
   // Append generated pushback texts to save in database
   form.append('pushback_texts', JSON.stringify(pushbackTexts));
+
+  const answerTranscripts = {};
+  Object.entries(sttTexts).forEach(([key, value]) => {
+    answerTranscripts[key] = value || '';
+  });
+  form.append('answer_transcripts', JSON.stringify(answerTranscripts));
+
+  const questionMeta = {};
+  QUESTION_TYPES.forEach(q => {
+    questionMeta[q.n] = {
+      original_n: q.n,
+      type: q.type,
+      label: q.label,
+      text: PREP_QUESTIONS[q.n]?.text || q.text || '',
+    };
+  });
+  Object.entries(pushbackTexts).forEach(([key, text]) => {
+    const mainQn = key.split('_')[0];
+    const mainMeta = questionMeta[mainQn] || {};
+    questionMeta[key] = {
+      original_n: mainQn,
+      type: mainMeta.type || PREP_QUESTIONS[mainQn]?.type || 'Technical',
+      label: 'Follow-up',
+      text: text || '',
+      parent_question: mainQn,
+      parent_text: mainMeta.text || '',
+    };
+  });
+  form.append('question_meta', JSON.stringify(questionMeta));
 
   // Append tab switch count
   form.append('tab_switches', tabSwitchCount);
@@ -1906,7 +2274,7 @@ async function submitInterview() {
     currentInterviewId = data.interview_id || '';
     await clearLocalAnswers();
 
-    document.getElementById('done-position').textContent   = `${JD_META[selectedPosition]?.title || selectedPosition} · ${selectedLevel}`;
+    document.getElementById('done-position').textContent   = `${applicationBasic?.job_title || JD_META[selectedPosition]?.title || selectedPosition} · ${selectedLevel}`;
     document.getElementById('done-session-id').textContent = currentInterviewId;
     document.getElementById('step-2').classList.add('hidden');
     document.getElementById('step-3').classList.remove('hidden');
@@ -2079,29 +2447,31 @@ function stopSectionTimer(qn) {
 // Patch removed
 
 // ── Auto-start từ email link — hiển thị consent modal trước ──
-if (URL_POS) {
-  selectedPosition = URL_POS;
+(async () => {
+  if (!URL_POS && !REF) return;
+  await hydrateApplicationContext();
+  if (URL_POS && !selectedPosition) selectedPosition = URL_POS;
   cvUploaded = true;
 
-  // Level từ URL (HR gửi link đã kèm level) — ẩn bộ chọn level trên Step 1
-  const urlLevel = _params.get('lv');
+  const urlLevel = _params.get('lv') || URL_POS_INFO.level;
   if (urlLevel) {
     selectedLevel = urlLevel;
     selectLevel(urlLevel);
-    // Ẩn level buttons khi đã được xác định từ apply
-    const lb = document.getElementById('level-buttons');
-    if (lb) lb.closest('.mt-4').style.display = 'none';
   }
 
-  // Ẩn nội dung step-1 không cần thiết (chọn CV, chọn vị trí)
+  const select = document.getElementById('position-select');
+  if (select && selectedPosition) select.value = selectedPosition;
+
+  const lb = document.getElementById('level-buttons');
+  if (lb) lb.closest('.mt-4').style.display = 'none';
+
   const step1 = document.getElementById('step-1');
   if (step1) {
     step1.classList.add('hidden');
   }
 
-  // Show consent modal — _doStartInterview() called when accepted
   showConsentModal();
-}
+})();
 
 // Khi đổi level, reload JD nếu đang có vị trí
 document.querySelectorAll('.level-btn').forEach(btn => {
@@ -2111,19 +2481,49 @@ document.querySelectorAll('.level-btn').forEach(btn => {
 });
 
 // ── Anti-cheat: Khoá chuyển tab và copy text ──
-document.head.insertAdjacentHTML('beforeend', '<style> body { user-select: none; -webkit-user-select: none; } input, textarea { user-select: auto; -webkit-user-select: auto; } </style>');
+document.head.insertAdjacentHTML('beforeend', `
+<style>
+  body { user-select: none; -webkit-user-select: none; }
+  input, textarea { user-select: auto; -webkit-user-select: auto; }
+  @keyframes popup-bounce {
+    0% { transform: scale(0.95); opacity: 0; }
+    50% { transform: scale(1.02); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-popup { animation: popup-bounce 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+  @keyframes shimmer-fast { 100% { transform: translateX(200%); } }
+  .shimmer-effect { animation: shimmer-fast 2s infinite; }
+</style>
+`);
 document.body.insertAdjacentHTML('beforeend', `
-<div id="anti-cheat-overlay" class="hidden fixed inset-0 z-[9999] flex-col items-center justify-center bg-gray-900/95 text-white p-6 text-center backdrop-blur-sm">
-  <span class="material-symbols-outlined text-red-500 text-6xl mb-4" style="font-variation-settings:'FILL' 1;">warning</span>
-  <h2 class="text-3xl font-bold text-red-500 mb-2">CẢNH BÁO VI PHẠM</h2>
-  <p class="text-gray-200 text-base mb-4 max-w-lg leading-relaxed">Bạn không được phép chuyển tab hoặc thoát chế độ toàn màn hình trong lúc làm bài phỏng vấn. Hệ thống đã ghi nhận hành vi này của bạn.</p>
-  <div class="mb-6 px-6 py-3 bg-red-900/60 border border-red-500/50 rounded-xl flex items-center gap-3">
-    <span class="material-symbols-outlined text-red-400 text-2xl">tab_close</span>
-    <p class="text-red-200 text-sm">Số lần rời khỏi trang: <span id="overlay-tab-count" class="font-black text-red-400 text-xl">0</span> lần</p>
+<div id="anti-cheat-overlay" class="hidden fixed inset-0 z-[9999] flex-col items-center justify-center bg-black/70 backdrop-blur-md p-6 text-center">
+  <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-900/30 via-transparent to-transparent pointer-events-none"></div>
+  <div class="relative bg-white/10 border border-white/20 p-10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] max-w-xl w-full flex flex-col items-center animate-popup backdrop-blur-xl">
+    <div class="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.4)] animate-pulse">
+      <span class="material-symbols-outlined text-red-500 text-6xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" style="font-variation-settings:'FILL' 1;">warning</span>
+    </div>
+    <h2 class="text-3xl font-extrabold text-white mb-3 tracking-tight">CẢNH BÁO VI PHẠM</h2>
+    <p id="overlay-violation-message" class="text-gray-200 text-base mb-8 max-w-md leading-relaxed font-medium">Bạn không được phép chuyển tab, thoát chế độ toàn màn hình hoặc chụp/lưu màn hình trong lúc phỏng vấn. <span class="text-red-300">Hệ thống đã lưu lại hành vi này!</span></p>
+
+    <div class="mb-8 w-full px-6 py-5 bg-black/40 border border-red-500/40 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-inner">
+      <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Số lần vi phạm</span>
+      <div class="flex items-baseline gap-2 mt-1">
+        <span id="overlay-tab-count" class="font-black text-red-500 text-5xl leading-none drop-shadow-md">0</span>
+        <span class="text-red-400 font-semibold text-lg">lần</span>
+      </div>
+    </div>
+
+    <button onclick="resumeTest()" class="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-b from-red-500 to-red-700 px-8 py-4 font-bold text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] transition-all hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] active:scale-[0.98]">
+      <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:shimmer-effect"></div>
+      <span class="relative flex items-center justify-center gap-2 text-lg">
+        Tôi đã hiểu, Quay lại làm bài
+        <span class="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
+      </span>
+    </button>
   </div>
-  <button onclick="resumeTest()" class="px-8 py-3.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition active:scale-95 shadow-lg">Tôi đã hiểu, Quay lại làm bài</button>
 </div>
 `);
+
 
 document.addEventListener('copy', e => { e.preventDefault(); showToast('Không được phép sao chép nội dung.', 'warning'); });
 document.addEventListener('cut', e => { e.preventDefault(); showToast('Không được phép cắt nội dung.', 'warning'); });
@@ -2168,6 +2568,7 @@ let requestingPermission = false;  // flag để bỏ qua visibilitychange khi t
 let navigationInProgress = false;
 let pendingVisibilityTimer = null;
 let pendingFullscreenTimer = null;
+let lastScreenshotEventAt = 0;
 
 function markNavigationInProgress() {
   navigationInProgress = true;
@@ -2185,9 +2586,26 @@ function shouldIgnoreAntiCheatEvent() {
   return requestingPermission || navigationInProgress || !antiCheatArmed;
 }
 
+function isInterviewStepActive() {
+  const step2 = document.getElementById('step-2');
+  return !!(step2 && !step2.classList.contains('hidden'));
+}
+
 function recordAntiCheatEvent(type, description) {
   tabSwitchCount++;
   logIncident(type, description);
+  if (type === 'screenshot_attempt') {
+    registerViolationAlert('SCREENSHOT_ATTEMPT');
+  }
+  const messageEl = document.getElementById('overlay-violation-message');
+  const messages = {
+    screenshot_attempt: 'Hệ thống phát hiện thao tác chụp, in hoặc lưu màn hình trong lúc phỏng vấn. Hành vi này đã được ghi nhận.',
+    fullscreen_exit: 'Bạn vừa thoát chế độ toàn màn hình trong lúc phỏng vấn. Hành vi này đã được ghi nhận.',
+    tab_switch: 'Bạn vừa rời khỏi trang phỏng vấn hoặc chuyển tab. Hành vi này đã được ghi nhận.',
+  };
+  if (messageEl) {
+    messageEl.innerHTML = `${messages[type] || 'Hệ thống phát hiện hành vi không hợp lệ trong lúc phỏng vấn.'} <span class="text-red-300">Vui lòng quay lại làm bài.</span>`;
+  }
   const countEl = document.getElementById('overlay-tab-count');
   if (countEl) countEl.textContent = tabSwitchCount;
   const badgeEl = document.getElementById('tab-switch-badge');
@@ -2200,11 +2618,51 @@ function recordAntiCheatEvent(type, description) {
   showCheatOverlay();
 }
 
+function registerViolationAlert(type) {
+  const key = String(type || 'UNKNOWN').toUpperCase();
+  const now = Date.now();
+  const state = proctoringAlertStates[key] || {
+    type: key,
+    label: proctoringAlertShortLabel(key),
+    count: 0,
+    lastSeen: 0,
+  };
+  state.count = Number(state.count || 0) + 1;
+  state.lastSeen = now;
+  state.type = key;
+  state.label = proctoringAlertShortLabel(key);
+  proctoringAlertStates[key] = state;
+  saveInterviewState();
+  renderProctoringAlertSummary();
+}
+
 document.addEventListener('keydown', e => {
   const key = (e.key || '').toLowerCase();
   if (key === 'f5' || ((e.ctrlKey || e.metaKey) && key === 'r')) {
     markNavigationInProgress();
+    return;
   }
+  const isScreenshotKey = key === 'printscreen' || key === 'printscrn' || key === 'snapshot';
+  const isBrowserSaveOrPrint = (e.ctrlKey || e.metaKey) && ['p', 's'].includes(key);
+  const isMacScreenshot = e.metaKey && e.shiftKey && ['3', '4', '5'].includes(key);
+  const isWindowsSnipShortcut = e.shiftKey && key === 's' && (e.metaKey || e.ctrlKey);
+  if (isScreenshotKey || isBrowserSaveOrPrint || isMacScreenshot || isWindowsSnipShortcut) {
+    if (shouldIgnoreAntiCheatEvent() || !isInterviewStepActive()) return;
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastScreenshotEventAt < 1200) return;
+    lastScreenshotEventAt = now;
+    recordAntiCheatEvent('screenshot_attempt', `Candidate attempted screenshot/print/save shortcut (${e.key || 'unknown'})`);
+  }
+});
+
+document.addEventListener('keyup', e => {
+  const key = (e.key || '').toLowerCase();
+  if (!['printscreen', 'printscrn', 'snapshot'].includes(key) || shouldIgnoreAntiCheatEvent() || !isInterviewStepActive()) return;
+  const now = Date.now();
+  if (now - lastScreenshotEventAt < 1200) return;
+  lastScreenshotEventAt = now;
+  recordAntiCheatEvent('screenshot_attempt', 'Candidate pressed PrintScreen');
 });
 window.addEventListener('beforeunload', markNavigationInProgress);
 window.addEventListener('pagehide', markNavigationInProgress);
@@ -2257,7 +2715,7 @@ submitInterview = async function() {
   }
 };
 </script>
-  <div id="webcam-container" class="hidden w-[280px] sm:w-[480px] aspect-video z-[9000] fixed bottom-4 right-4 bg-[#2e3038] rounded-2xl overflow-hidden shadow-2xl border-2 border-[#0051d5]/60 group transition-all duration-300">
+  <div id="webcam-container" class="hidden w-[280px] sm:w-[400px] aspect-[4/3] z-[9000] fixed bottom-4 right-4 bg-[#2e3038] rounded-2xl overflow-hidden shadow-2xl border-2 border-[#0051d5]/60 group transition-all duration-300 hover:scale-[1.02]">
     <video id="webcam-video" autoplay muted playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
     <div class="absolute inset-0 flex items-center justify-center text-white/50 text-sm pointer-events-none" id="webcam-placeholder">
       <span class="material-symbols-outlined mr-2">videocam</span> AI Monitoring

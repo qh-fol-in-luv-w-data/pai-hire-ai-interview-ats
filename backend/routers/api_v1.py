@@ -97,6 +97,32 @@ def _cache_key(cv_bytes: bytes, jd_text: str, mode: str) -> str:
 # 1. POST /api/v1/score-cv
 #    Nhận CV file + JD text → chấm điểm + sinh câu hỏi
 # ─────────────────────────────────────────────────────────────
+@router.get("/applications/{app_id}/basic")
+def get_application_basic(app_id: str):
+    with db() as conn:
+        row = conn.execute("SELECT name, email, job_id, level FROM cv_applications WHERE id=?", (app_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Application not found")
+
+    job_title = row["job_id"]
+    try:
+        from backend.services.document_service import get_all_jobs
+        jobs = get_all_jobs()
+        job = next((j for j in jobs if j["id"] == row["job_id"]), None)
+        if job:
+            job_title = job.get("title") or job_title
+    except Exception:
+        pass
+
+    return {
+        "name": row["name"],
+        "email": row["email"],
+        "job_id": row["job_id"],
+        "level": row["level"],
+        "job_title": job_title,
+    }
+
+
 @router.post("/score-cv")
 async def api_score_cv(
     cv_file: UploadFile = File(..., description="File CV (PDF/DOCX)"),
@@ -157,6 +183,8 @@ async def api_score_cv(
         if row and row["value"]:
             try:
                 pass_score = float(row["value"])
+                if pass_score > 5:
+                    pass_score = pass_score / 2
             except Exception:
                 pass
 
@@ -185,7 +213,7 @@ async def api_score_cv(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=1500,
+            max_tokens=2200,
         )
         raw = resp.choices[0].message.content.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -389,16 +417,18 @@ def api_get_report(
             except Exception:
                 pass
 
-        # Lấy interview liên kết (qua interview_prep)
+        # Lấy interview liên kết (qua interview_prep), fallback theo candidate_id/email cho dữ liệu cũ.
         iv_rows = conn.execute("""
-            SELECT i.*, c.name AS cname, c.email AS cemail
-            FROM interview_prep p
-            JOIN interviews i ON i.prep_id = p.id
+            SELECT DISTINCT i.*, c.name AS cname, c.email AS cemail
+            FROM interviews i
+            LEFT JOIN interview_prep p ON i.prep_id = p.id
             LEFT JOIN candidates c ON i.candidate_id = c.id
             WHERE p.app_ref = ?
+               OR i.candidate_id = ?
+               OR c.email = ?
             ORDER BY i.submitted_at DESC
             LIMIT 5
-        """, (app_id,)).fetchall()
+        """, (app_id, app_id, app_dict.get("email"))).fetchall()
 
         interviews_out = []
         for iv in iv_rows:
@@ -425,11 +455,25 @@ def api_get_report(
                 except Exception:
                     pass
 
+            grouped_scores = {}
+            score_map = {"nắm vững": 10.0, "am hiểu": 7.5, "có biết qua": 5.0, "không biết": 0.0}
+            for a in answers:
+                level_name = a["ai_level"]
+                if level_name not in score_map:
+                    continue
+                base_qn = str(a["question_number"] or "").split(".", 1)[0]
+                group_key = f"{a['attempt_number'] or 1}:{base_qn}"
+                score_value = score_map[level_name]
+                if group_key not in grouped_scores or score_value > grouped_scores[group_key]:
+                    grouped_scores[group_key] = score_value
+            interview_avg_score = round(sum(grouped_scores.values()) / len(grouped_scores), 2) if grouped_scores else 0
+
             interviews_out.append({
                 "interview_id": iv_dict["id"],
                 "status": iv_dict["status"],
                 "submitted_at": iv_dict["submitted_at"],
                 "level": iv_dict.get("level"),
+                "avg_score": interview_avg_score,
                 "tab_switches": iv_dict.get("tab_switches", 0),
                 "overall_strengths": iv_dict.get("overall_strengths"),
                 "overall_weaknesses": iv_dict.get("overall_weaknesses"),
@@ -455,6 +499,11 @@ def api_get_report(
     with db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='cv_pass_score'").fetchone()
         current_pass_score = float(row["value"]) if row else PASS_SCORE
+        if current_pass_score > 5:
+            current_pass_score = current_pass_score / 2
+    cv_score = app_dict.get("cv_score") or 0
+    if cv_score > 5:
+        cv_score = cv_score / 2
 
     return JSONResponse({
         "app_id": app_id,
@@ -467,9 +516,9 @@ def api_get_report(
         "level": app_dict.get("level"),
         "applied_at": app_dict.get("applied_at"),
         "status": app_dict.get("status"),
-        "cv_score": app_dict.get("cv_score"),
+        "cv_score": cv_score,
         "pass_threshold": current_pass_score,
-        "verdict": "pass" if (app_dict.get("cv_score") or 0) >= current_pass_score else "fail",
+        "verdict": "pass" if cv_score >= current_pass_score else "fail",
         "criteria_scores": score_breakdown.get("criteria_scores", {}),
         "reasons": score_breakdown.get("reasons", {}),
         "summary": score_breakdown.get("summary", app_dict.get("ai_summary", "")),

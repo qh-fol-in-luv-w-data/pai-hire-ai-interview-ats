@@ -15,12 +15,29 @@ from backend.routers.api_v1 import parse_slot_datetime
 from backend.services.email_service import send_interview_result, send_reinterview_email
 router = APIRouter()
 
+
+def _normalize_cv_score_value(value):
+    if value is None:
+        return None
+    try:
+        score = float(value)
+    except Exception:
+        return value
+    return round(score / 2, 2) if score > 5 else score
+
 @router.get("/admin/settings")
 def get_settings(x_admin_key: str = Header(...)):
     require_admin(x_admin_key)
     with db() as conn:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
         settings = {row["key"]: row["value"] for row in rows}
+    try:
+        cv_pass_score = float(settings.get("cv_pass_score", PASS_SCORE))
+        if cv_pass_score > 5:
+            cv_pass_score = cv_pass_score / 2
+        settings["cv_pass_score"] = str(cv_pass_score)
+    except Exception:
+        settings["cv_pass_score"] = str(PASS_SCORE)
     return JSONResponse(settings)
 
 @router.post("/admin/settings")
@@ -29,6 +46,13 @@ async def update_settings(request: Request, x_admin_key: str = Header(...)):
     body = await request.json()
     with db() as conn:
         for k, v in body.items():
+            if k == "cv_pass_score":
+                try:
+                    v = float(v)
+                    if v > 5:
+                        v = v / 2
+                except Exception:
+                    v = PASS_SCORE
             conn.execute(
                 "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?",
                 (k, str(v), str(v))
@@ -64,12 +88,24 @@ def admin_list_interviews(
                    CASE WHEN i.hod_questions IS NOT NULL AND i.hod_questions != '' THEN 1 ELSE 0 END as has_hod_questions,
                    c.name as candidate_name, c.email as candidate_email,
                    COUNT(a.id) as answer_count,
-                   ROUND(AVG(CASE a.ai_level
-                     WHEN 'nắm vững'    THEN 10.0
-                     WHEN 'am hiểu'     THEN 7.5
-                     WHEN 'có biết qua' THEN 5.0
-                     WHEN 'không biết'  THEN 0.0
-                     ELSE NULL END), 1) as avg_score
+                   (
+                     SELECT ROUND(AVG(best_score), 1)
+                     FROM (
+                       SELECT MAX(CASE ax.ai_level
+                         WHEN 'nắm vững'    THEN 10.0
+                         WHEN 'am hiểu'     THEN 7.5
+                         WHEN 'có biết qua' THEN 5.0
+                         WHEN 'không biết'  THEN 0.0
+                         ELSE NULL END) AS best_score
+                       FROM answers ax
+                       WHERE ax.interview_id = i.id
+                       GROUP BY ax.attempt_number,
+                         CASE
+                           WHEN instr(ax.question_number, '.') > 0 THEN substr(ax.question_number, 1, instr(ax.question_number, '.') - 1)
+                           ELSE ax.question_number
+                         END
+                     )
+                   ) as avg_score
             FROM interviews i
             LEFT JOIN answers a ON a.interview_id = i.id
             LEFT JOIN candidates c ON i.candidate_id = c.id
@@ -175,7 +211,10 @@ def admin_list_applications(
             (*params, limit),
         ).fetchall()
 
-    return {"total": len(rows), "applications": [dict(r) for r in rows]}
+    applications = [dict(r) for r in rows]
+    for app in applications:
+        app["cv_score"] = _normalize_cv_score_value(app.get("cv_score"))
+    return {"total": len(rows), "applications": applications}
 
 
 @router.get("/admin/applications/{app_id}")
@@ -188,6 +227,7 @@ def admin_get_application(app_id: str, x_admin_key: str = Header(None)):
     if not row:
         raise HTTPException(404, "Không tìm thấy đơn ứng tuyển")
     data = dict(row)
+    data["cv_score"] = _normalize_cv_score_value(data.get("cv_score"))
     if data.get("score_breakdown"):
         data["score_breakdown"] = json.loads(data["score_breakdown"])
     return data
@@ -295,18 +335,36 @@ async def admin_analyze_reply(app_id: str, request: Request, x_admin_key: str = 
         jd_text = get_jd_content(row["job_id"])
             
         reply_analysis = await analyze_candidate_reply(cv_text, jd_text, deep_qs, reply_text)
+        old_cv_score = _normalize_cv_score_value(row["cv_score"] or 0.0)
+        score_adj = float(reply_analysis.get("score_adjustment") or 0.0)
+        new_cv_score = max(1.0, min(5.0, old_cv_score + score_adj))
         
         # Save to DB and update status
         score_bd["candidate_reply"] = reply_text
-        score_bd["reply_analysis"] = reply_analysis
         
         # Determine pass/fail from recommendation
         new_status = "pending_hr_approval_passed" if reply_analysis.get("recommendation") == "Phê duyệt" else "pending_hr_approval_failed"
+        if not reply_analysis.get("score_adjustment_reason"):
+            if score_adj > 0:
+                fallback_reason = "Ứng viên bổ sung câu trả lời tốt hơn kỳ vọng, làm rõ thêm năng lực/kinh nghiệm còn thiếu trong CV."
+            elif score_adj < 0:
+                fallback_reason = "Câu trả lời bổ sung chưa làm rõ được các nghi vấn quan trọng hoặc phát sinh rủi ro so với CV/JD."
+            else:
+                fallback_reason = "Câu trả lời bổ sung không làm thay đổi đáng kể mức độ phù hợp đã đánh giá ban đầu."
+            reply_analysis["score_adjustment_reason"] = reply_analysis.get("evaluation") or reply_analysis.get("summary") or fallback_reason
+        reply_analysis["score_before"] = round(old_cv_score, 2)
+        reply_analysis["score_adjustment"] = round(score_adj, 2)
+        reply_analysis["score_after"] = round(new_cv_score, 2)
+        reply_analysis["decision_before"] = (
+            "CV đạt, cần ứng viên bổ sung" if (row["status"] or "").endswith("_passed") else "CV chưa đạt, cần ứng viên bổ sung"
+        )
+        reply_analysis["decision_after"] = "Đề xuất phê duyệt" if new_status.endswith("_passed") else "Đề xuất từ chối"
+        score_bd["reply_analysis"] = reply_analysis
         
         with db() as conn:
             conn.execute(
-                "UPDATE cv_applications SET score_breakdown=?, status=? WHERE id=?",
-                (json.dumps(score_bd, ensure_ascii=False), new_status, app_id)
+                "UPDATE cv_applications SET cv_score=?, score_breakdown=?, status=? WHERE id=?",
+                (new_cv_score, json.dumps(score_bd, ensure_ascii=False), new_status, app_id)
             )
             
         return {"ok": True, "analysis": reply_analysis, "new_status": new_status}
@@ -323,7 +381,8 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
     
     try:
         body = await request.json()
-        interview_config = json.dumps(body.get("config", {}))
+        from backend.services.prep_service import normalize_interview_config
+        interview_config = json.dumps(normalize_interview_config(body.get("config")))
         valid_from = body.get("valid_from")
         valid_until = body.get("valid_until")
         is_unlimited = body.get("is_unlimited", False)
@@ -389,7 +448,7 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
     except:
         body = {}
 
-    from backend.services.prep_service import _create_prep
+    from backend.services.prep_service import _create_prep, normalize_interview_config
     from backend.config import QUESTIONS_BANK
     
     with db() as conn:
@@ -398,7 +457,7 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
             raise HTTPException(404, "Không tìm thấy đơn")
 
     # Save config first so _create_prep respects it
-    config = body.get("config")
+    config = normalize_interview_config(body.get("config"))
     if config:
         with db() as conn:
             conn.execute(
@@ -470,7 +529,11 @@ def admin_stats(x_admin_key: str = Header(None)):
                 SUM(CASE WHEN status='failed'  THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,
                 SUM(CASE WHEN status LIKE 'pending_hr_approval%' THEN 1 ELSE 0 END) AS pending_approval,
-                ROUND(AVG(CASE WHEN cv_score IS NOT NULL THEN cv_score END), 2) AS avg_score
+                ROUND(AVG(CASE
+                    WHEN cv_score IS NOT NULL AND cv_score > 5 THEN cv_score / 2.0
+                    WHEN cv_score IS NOT NULL THEN cv_score
+                    ELSE NULL
+                END), 2) AS avg_score
             FROM cv_applications
         """).fetchone()
     return dict(row)
@@ -701,10 +764,22 @@ def get_prev_interview(app_id: str, x_admin_key: str = Header(None)):
             return {"has_prev": False}
         prev_ivs = conn.execute("""
             SELECT i.id, i.status, i.submitted_at,
-                   ROUND(AVG(CASE a.ai_level
-                     WHEN 'nắm vững' THEN 10.0 WHEN 'am hiểu' THEN 7.5
-                     WHEN 'có biết qua' THEN 5.0 WHEN 'không biết' THEN 0.0
-                     ELSE NULL END), 1) as avg_score
+                   (
+                     SELECT ROUND(AVG(best_score), 1)
+                     FROM (
+                       SELECT MAX(CASE ax.ai_level
+                         WHEN 'nắm vững' THEN 10.0 WHEN 'am hiểu' THEN 7.5
+                         WHEN 'có biết qua' THEN 5.0 WHEN 'không biết' THEN 0.0
+                         ELSE NULL END) AS best_score
+                       FROM answers ax
+                       WHERE ax.interview_id = i.id
+                       GROUP BY ax.attempt_number,
+                         CASE
+                           WHEN instr(ax.question_number, '.') > 0 THEN substr(ax.question_number, 1, instr(ax.question_number, '.') - 1)
+                           ELSE ax.question_number
+                         END
+                     )
+                   ) as avg_score
             FROM interviews i
             LEFT JOIN answers a ON a.interview_id = i.id
             LEFT JOIN candidates c ON i.candidate_id = c.id
