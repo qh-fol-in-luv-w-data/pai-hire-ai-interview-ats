@@ -37,7 +37,7 @@ def extract_cv_text(cv_path: Path) -> str:
 
 
 def get_all_jobs():
-    """Trả danh sách vị trí canonical (chỉ Junior_* — 1 entry/vị trí)."""
+    """Trả danh sách vị trí canonical kèm metadata phong phú cho giao diện VietnamWorks."""
     jobs = []
     if not JDS_DIR.exists():
         return jobs
@@ -46,48 +46,80 @@ def get_all_jobs():
             continue
         cat_label = CATEGORY_LABELS.get(cat_dir.name, cat_dir.name.replace("_", " "))
         for jd_file in sorted(cat_dir.glob("Junior_*.md")):
+            job_title = jd_file.stem.replace("_", " ")
             jobs.append({
                 "id":            jd_file.stem,
-                "title":         jd_file.stem.replace("_", " "),
+                "title":         job_title,
                 "category":      cat_label,
                 "category_slug": cat_dir.name,
+                "salary_range":  "Thỏa thuận (Cạnh tranh)",
+                "location":      "TP. Hồ Chí Minh (CT Group Tower)",
+                "work_type":     "Toàn thời gian",
+                "hot_badge":     True,
+                "ai_match_rate": "95%",
+                "tags":          ["AI Interview", "Đào tạo AI", "Phỏng vấn Online"]
             })
     return jobs
 
 
 def resolve_job_id(job_id: str) -> tuple[str | None, str]:
     """
-    Nhận bất kỳ job_id nào (kể cả level-prefixed như Senior_Backend_Developer)
-    → trả (canonical_job_id, level). canonical_job_id là id trong get_all_jobs().
+    Nhận bất kỳ job_id nào → trả (canonical_job_id, level).
     """
+    if not job_id:
+        return None, "Junior"
+
+    jobs = get_all_jobs()
+    # 1. Direct match with any canonical job id
+    matched = next((j for j in jobs if j["id"] == job_id), None)
+    if matched:
+        for lv in _JOB_LEVELS:
+            if job_id.startswith(lv + "_"):
+                return matched["id"], lv
+        return matched["id"], "Junior"
+
+    # 2. Match after removing level prefix
     for lv in _JOB_LEVELS:
         if job_id.startswith(lv + "_"):
             base = job_id[len(lv)+1:]
-            # Tìm Junior_ file tương ứng
-            for cat_dir in JDS_DIR.iterdir():
-                if not cat_dir.is_dir():
-                    continue
-                if (cat_dir / f"Junior_{base}.md").exists():
-                    return f"Junior_{base}", lv
-            # File Junior không có → thử tìm file level chính xác
-            for cat_dir in JDS_DIR.iterdir():
-                if not cat_dir.is_dir():
-                    continue
-                if (cat_dir / f"{job_id}.md").exists():
-                    return f"Junior_{base}", lv
-    # Không có prefix level → giả sử Junior
-    jobs = get_all_jobs()
-    matched = next((j for j in jobs if j["id"] == job_id), None)
-    return (matched["id"] if matched else None), "Junior"
+            matched = next((j for j in jobs if j["id"].endswith("_" + base) or j["id"] == f"Junior_{base}"), None)
+            if matched:
+                return matched["id"], lv
+
+    # 3. Fallback: match by title / stem
+    clean_id = job_id.lower().replace(" ", "_")
+    matched = next((j for j in jobs if j["id"].lower() == clean_id or j["id"].lower().replace("junior_", "") in clean_id), None)
+    if matched:
+        return matched["id"], "Junior"
+
+    # If jobs exist, fallback to first job
+    if jobs:
+        return jobs[0]["id"], "Junior"
+
+    return None, "Junior"
 
 
 def get_jd_content(job_id: str) -> str:
+    if not JDS_DIR.exists():
+        return ""
+    # Search exact match
     for cat_dir in JDS_DIR.iterdir():
         if not cat_dir.is_dir():
             continue
-        f = cat_dir / f"{job_id}.md"
-        if f.exists():
-            return f.read_text(encoding="utf-8")
+        for f in cat_dir.glob("*.md"):
+            if f.stem == job_id or f.stem.lower() == job_id.lower():
+                return f.read_text(encoding="utf-8", errors="ignore")
+
+    # Try fuzzy match without level prefix
+    for lv in _JOB_LEVELS:
+        if job_id.startswith(lv + "_"):
+            base = job_id[len(lv)+1:]
+            for cat_dir in JDS_DIR.iterdir():
+                if not cat_dir.is_dir():
+                    continue
+                for f in cat_dir.glob("*.md"):
+                    if f.stem.endswith("_" + base):
+                        return f.read_text(encoding="utf-8", errors="ignore")
     return ""
 
 

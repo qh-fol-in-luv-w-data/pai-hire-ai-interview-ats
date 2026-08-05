@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/styles/choices.min.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<link href="/ui/pai-theme.css" rel="stylesheet"/>
+<link href="/ui/pai-theme.css?v=cam-stream-5" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/choices.js@11.2.3/public/assets/scripts/choices.min.js" defer></script>
 <script src="/ui/pai-dropdowns.js" defer></script>
 <style>
@@ -120,6 +120,7 @@
     <p class="text-gray-600 text-sm leading-relaxed mb-5">
       Buổi phỏng vấn này sử dụng trí tuệ nhân tạo để ghi âm và phân tích câu trả lời của bạn.
       Dữ liệu chỉ được dùng cho mục đích tuyển dụng tại CT Group và được bảo mật theo chính sách của công ty.
+      Trình duyệt sẽ yêu cầu cấp quyền microphone và camera ngay sau khi bạn bấm bắt đầu.
     </p>
     <div class="space-y-3 mb-6">
       <label class="flex items-start gap-3 cursor-pointer">
@@ -138,7 +139,7 @@
       </label>
     </div>
     <p id="consent-error" class="hidden text-red-500 text-xs mb-3 font-medium">Vui lòng đồng ý ghi âm và bật camera để tiếp tục.</p>
-    <button onclick="acceptConsent()"
+    <button id="consent-start-btn" onclick="acceptConsent()"
       class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition active:scale-[.98]">
       Đồng ý và Bắt đầu
     </button>
@@ -986,16 +987,87 @@ async function requestMicrophonePermission() {
   }
 }
 
+async function requestCameraPreview() {
+  if (webcamStream && webcamStream.getVideoTracks().some(track => track.readyState === 'live')) {
+    return true;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    await showSystemDialog({
+      icon: 'warning',
+      title: 'Không hỗ trợ camera',
+      html: 'Trình duyệt hiện tại không hỗ trợ cấp quyền camera. Vui lòng mở bằng Chrome, Edge hoặc Safari phiên bản mới.',
+      confirmButtonText: 'Đã hiểu',
+    });
+    return false;
+  }
+
+  const webcamVideo = document.getElementById('webcam-video');
+  const cameraStatus = document.getElementById('webcam-status');
+  if (cameraStatus) {
+    cameraStatus.textContent = 'Đang mở camera...';
+    cameraStatus.classList.remove('hidden');
+  }
+  requestingPermission = true;
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      audio: false,
+    });
+    if (webcamVideo) {
+      webcamVideo.srcObject = webcamStream;
+      webcamVideo.classList.remove('hidden');
+      await webcamVideo.play().catch(() => {});
+    }
+    if (cameraStatus) cameraStatus.classList.add('hidden');
+    showToast('Camera đã bật.', 'success', 2500);
+    return true;
+  } catch(err) {
+    console.warn("Local webcam preview failed", err);
+    if (cameraStatus) {
+      cameraStatus.textContent = 'Camera bị chặn hoặc chưa bật';
+      cameraStatus.classList.remove('hidden');
+    }
+    await showSystemDialog({
+      icon: 'warning',
+      title: 'Cần quyền camera',
+      html: 'Vui lòng cấp quyền camera trước khi bắt đầu phỏng vấn để hệ thống hiển thị khung giám sát.<br><br>Nếu đã bấm chặn, hãy bấm biểu tượng ổ khóa/camera trên thanh địa chỉ và chọn <b>Allow / Cho phép</b>.',
+      confirmButtonText: 'Đã hiểu',
+    });
+    return false;
+  } finally {
+    requestingPermission = false;
+  }
+}
+
 async function acceptConsent() {
   const audioBox = document.getElementById('consent-audio');
   const cameraBox = document.getElementById('consent-camera');
+  const startBtn = document.getElementById('consent-start-btn');
   if (!audioBox.checked || !cameraBox.checked) {
     document.getElementById('consent-error').classList.remove('hidden');
     return;
   }
 
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.textContent = 'Đang xin quyền microphone/camera...';
+  }
   const micOk = await requestMicrophonePermission();
-  if (!micOk) return;
+  if (!micOk) {
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Đồng ý và Bắt đầu';
+    }
+    return;
+  }
+  const cameraOk = await requestCameraPreview();
+  if (!cameraOk) {
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Đồng ý và Bắt đầu';
+    }
+    return;
+  }
 
   consentAudio = true;
   const modal = document.getElementById('consent-modal');
@@ -1441,7 +1513,7 @@ async function _doStartInterview(proctoringUrl) {
   const webcamVideo = document.getElementById('webcam-video');
   const proctoringIframe = document.getElementById('proctoring-iframe');
   
-  if (webcamContainer && !webcamStream) {
+  if (webcamContainer) {
     webcamContainer.classList.remove('hidden');
     if (shouldHideProctoringBox()) {
       webcamContainer.classList.add('proctoring-box-hidden');
@@ -1449,31 +1521,26 @@ async function _doStartInterview(proctoringUrl) {
       webcamContainer.classList.remove('proctoring-box-hidden');
     }
     if (proctoringUrl) {
-      webcamVideo.classList.add('hidden');
-      webcamVideo.srcObject = null;
+      webcamVideo.classList.remove('hidden');
+      if (webcamStream) {
+        webcamVideo.srcObject = webcamStream;
+        webcamVideo.play().catch(() => {});
+      }
       const iframeUrl = new URL(proctoringUrl, window.location.href);
       iframeUrl.searchParams.set('autostart', 'true');
       iframeUrl.searchParams.set('debug', '0');
-      showToast('Vui lòng cấp quyền camera/micro cho khung giám sát trước khi vào bài.', 'info', 8000);
       proctoringIframe.src = iframeUrl.toString();
       proctoringIframe.classList.remove('hidden');
+      if (!webcamStream) {
+        await requestCameraPreview();
+      }
       await waitForProctoringFrame(proctoringIframe);
       showToast('Camera giám sát đã sẵn sàng. Bắt đầu bài phỏng vấn.', 'success', 3000);
     } else {
       proctoringIframe.classList.add('hidden');
       proctoringIframe.src = '';
       webcamVideo.classList.remove('hidden');
-      requestingPermission = true;
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(stream => {
-          requestingPermission = false;
-          webcamStream = stream;
-          webcamVideo.srcObject = stream;
-        })
-        .catch(err => {
-          requestingPermission = false;
-          console.warn("Webcam access denied or failed", err);
-        });
+      await requestCameraPreview();
     }
   }
 
@@ -1865,7 +1932,7 @@ async function processAnswer(qn, isPushback = false) {
   
   try {
     const form = new FormData();
-    form.append('audio', answers[qn]);
+    form.append('audio', answers[qn], `answer_${qn}.${audioExtensionForBlob(answers[qn])}`);
     const qText = PREP_QUESTIONS[mainQn]?.text || '';
     form.append('question_text', qText);
     form.append('question_number', mainQn);
@@ -2141,12 +2208,12 @@ async function prepInterview() {
     const body = new URLSearchParams({
       position_id: `${selectedLevel}_${selectedPosition}`,
       level: selectedLevel,
-      force: '1',
     });
     if (REF) body.append('app_ref', REF);
+    if (_params.get('regen_prep') === '1') body.append('force', '1');
 
     const controller = new AbortController();
-    const timeout    = setTimeout(() => controller.abort(), 45000);
+    const timeout    = setTimeout(() => controller.abort(), 120000);
     const r = await fetch(`${API_BASE}/interview/prep`, { method: 'POST', body, signal: controller.signal });
     clearTimeout(timeout);
     document.getElementById('prep-status').textContent = 'Đang nhận câu hỏi và audio từ server...';
@@ -2715,16 +2782,10 @@ submitInterview = async function() {
   }
 };
 </script>
-  <div id="webcam-container" class="hidden w-[280px] sm:w-[400px] aspect-[4/3] z-[9000] fixed bottom-4 right-4 bg-[#2e3038] rounded-2xl overflow-hidden shadow-2xl border-2 border-[#0051d5]/60 group transition-all duration-300 hover:scale-[1.02]">
-    <video id="webcam-video" autoplay muted playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
-    <div class="absolute inset-0 flex items-center justify-center text-white/50 text-sm pointer-events-none" id="webcam-placeholder">
-      <span class="material-symbols-outlined mr-2">videocam</span> AI Monitoring
-    </div>
-    <div class="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-bold px-2 py-1 rounded flex items-center gap-1 backdrop-blur-md">
-      <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-      Active
-    </div>
-    <iframe id="proctoring-iframe" title="AI proctoring camera" allow="camera; microphone; autoplay" class="hidden w-full h-full border-0 absolute inset-0" scrolling="no" style="overflow: hidden;"></iframe>
+  <div id="webcam-container" class="hidden w-[280px] sm:w-[400px] aspect-[4/3] z-[9000] fixed bottom-0 right-0 bg-transparent overflow-hidden">
+    <video id="webcam-video" autoplay muted playsinline class="hidden absolute inset-0 w-full h-full object-cover scale-x-[-1]"></video>
+    <div id="webcam-status" class="hidden absolute inset-0 flex items-center justify-center bg-black/70 px-3 text-center text-[11px] font-bold text-white"></div>
+    <iframe id="proctoring-iframe" title="AI proctoring camera" allow="camera; microphone; autoplay" class="hidden border-0 absolute" scrolling="no" style="overflow: hidden;"></iframe>
   </div>
 </body>
 </html>

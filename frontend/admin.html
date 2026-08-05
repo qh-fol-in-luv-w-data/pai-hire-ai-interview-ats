@@ -112,7 +112,7 @@
             .no-print { display: none !important; }
             .break-inside-avoid { break-inside: avoid; }
         }
-    
+
         .status-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
         .s-pending { background: #fef3c7; color: #b45309; }
         .s-pending_review { background: #f3f4f6; color: #4b5563; }
@@ -125,45 +125,6 @@
     </style>
 </head>
 <body class="flex min-h-screen text-on-surface bg-background antialiased">
-
-<!-- LOGIN PAGE -->
-
-<div id="login-page" class="fixed inset-0 z-[9999] flex items-center justify-center bg-primary-container">
-  <div class="w-full max-w-md px-6">
-    <!-- Logo -->
-    <div class="text-center mb-10">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-secondary rounded-2xl shadow-lg mb-4">
-        <span class="material-symbols-outlined text-on-secondary text-3xl" style="font-variation-settings:'FILL' 1;">psychology</span>
-      </div>
-      <h1 class="font-bold text-2xl text-on-primary-container tracking-tight">PAI HR</h1>
-      <p class="text-on-surface-variant text-sm mt-1">Hệ thống quản lý tuyển dụng</p>
-    </div>
-
-    <!-- Card -->
-    <div class="bg-surface-container-lowest rounded-2xl shadow-xl border border-outline-variant p-8">
-      <h2 class="text-lg font-bold text-primary mb-1">Đăng nhập</h2>
-      <p class="text-on-surface-variant text-sm mb-6">Nhập thông tin để tiếp tục</p>
-
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-semibold text-on-surface mb-1.5">Admin Key</label>
-          <input id="login-key-input" type="password" placeholder="Nhập admin key…"
-            class="w-full border border-outline-variant rounded-xl px-4 py-3 text-body-md bg-surface-container-low focus:ring-2 focus:ring-secondary focus:outline-none transition"
-            onkeydown="if(event.key==='Enter')doLogin()"/>
-        </div>
-        <p id="login-error" class="hidden text-red-500 text-sm">Sai key, vui lòng thử lại.</p>
-        <button onclick="doLogin()"
-          class="w-full py-3 bg-secondary text-on-secondary font-bold rounded-xl hover:opacity-90 active:scale-95 transition text-sm">
-          Đăng nhập Admin
-        </button>
-      </div>
-    </div>
-
-    <p class="text-center text-xs text-on-surface-variant mt-6 opacity-60">PAI HR © 2026</p>
-  </div>
-</div>
-
-
 
 <!-- APP SHELL -->
 <div id="app-shell" class="hidden flex min-h-screen w-full relative">
@@ -209,6 +170,10 @@
 <a id="nav-settings" onclick="switchTab('settings'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs text-secondary hover:bg-surface-container-high rounded-lg transition-colors duration-200 cursor-pointer">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-label-lg text-label-lg">Cài đặt</span>
+</a>
+<a id="nav-jd-editor" onclick="switchTab('jd-editor'); if(window.innerWidth < 768) toggleSidebar();" class="admin-nav flex items-center gap-sm px-sm py-xs text-secondary hover:bg-surface-container-high rounded-lg transition-colors duration-200 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+<span class="font-label-lg text-label-lg">Soạn & Cấu hình JD</span>
 </a>
 </nav>
 
@@ -266,11 +231,11 @@
     </div>
     <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-sm card-hover transition-all">
       <div class="flex justify-between items-start mb-2">
-        <p class="font-label-md text-label-md text-secondary uppercase tracking-wider">Điểm CV TB</p>
+        <p class="font-label-md text-label-md text-secondary uppercase tracking-wider">Điểm CV trung bình</p>
         <span class="material-symbols-outlined text-amber-600 bg-amber-50 p-1 rounded-md">analytics</span>
       </div>
       <p class="font-headline-lg text-headline-lg font-extrabold text-amber-600" id="stat-avg">—</p>
-      <p class="text-xs text-outline mt-1">/ 10 điểm</p>
+      <p class="text-xs text-outline mt-1">/ 5 điểm</p>
     </div>
   </div>
 
@@ -427,6 +392,7 @@
       </div>
       
       <div class="pt-6 mt-6 border-t border-outline-variant flex justify-end">
+      <div class="pt-6 mt-6 border-t border-outline-variant flex justify-end">
         <button onclick="saveSettings(event)" class="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all active:scale-95 flex items-center gap-2">
           <span class="material-symbols-outlined text-sm">save</span> Lưu cấu hình
         </button>
@@ -435,7 +401,84 @@
   </div>
 </div>
 
+<!-- ── TAB: SOẠN & CẤU HÌNH JD ───────────────────────────────────── -->
+<div id="tab-jd-editor" class="hidden">
+  <div class="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-xl font-bold text-on-surface flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">edit_note</span> Soạn Thảo & Cấu Hình JD Mới
+        </h2>
+        <p class="text-sm text-secondary">Tạo hoặc cập nhật Mô tả công việc (JD), xuất bản vị trí tuyển dụng</p>
+      </div>
+    </div>
+    <form onsubmit="handleSaveJD(event)" class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Danh mục Ngành nghề</label>
+          <select id="jd-category-select" required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-sm">
+            <option value="Công_Nghệ_Thông_Tin_(IT)">Công Nghệ Thông Tin (IT)</option>
+            <option value="Kinh_Doanh_&_Bán_Hàng_(Sales_&_Business_Development)">Kinh Doanh & Bán Hàng</option>
+            <option value="Chuỗi_Cung_Ứng_&_Logistics_(Supply_Chain)">Chuỗi Cung Ứng & Logistics</option>
+            <option value="Kỹ_Thuật_&_Sản_Xuất_(Engineering_&_Manufacturing)">Kỹ Thuật & Sản Xuất</option>
+            <option value="Marketing_&_Truyền_Thông_(Marketing_&_PR)">Marketing & Truyền Thông</option>
+            <option value="Nhân_Sự_&_Hành_Chính_(HR_&_Admin)">Nhân Sự & Hành Chính</option>
+            <option value="Thiết_Kế_&_Sáng_Tạo_(Design_&_Creative)">Thiết Kế & Sáng Tạo</option>
+            <option value="Tài_Chính_&_Kế_Toán_(Finance_&_Accounting)">Tài Chính & Kế Toán</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Tên vị trí (VD: Junior_AI_Engineer)</label>
+          <input id="jd-title-input" type="text" placeholder="Tên vị trí..." required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-sm"/>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-700 mb-1">Nội dung Mô tả Công việc (Markdown / Text)</label>
+        <textarea id="jd-content-input" rows="14" placeholder="# MÔ TẢ CÔNG VIỆC...&#10;&#10;## 1. Trách nhiệm chính&#10;- ...&#10;&#10;## 2. Yêu cầu chuyên môn&#10;- ..." required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-3 text-sm font-mono"></textarea>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="submit" id="save-jd-btn" class="px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-primary/90 transition flex items-center gap-2">
+          <span class="material-symbols-outlined text-sm">save</span> Lưu & Xuất bản JD
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
+async function handleSaveJD(e) {
+  e.preventDefault();
+  const category = document.getElementById('jd-category-select').value;
+  const title = document.getElementById('jd-title-input').value.trim();
+  const jd_content = document.getElementById('jd-content-input').value.trim();
+  const btn = document.getElementById('save-jd-btn');
+
+  if (!category || !title || !jd_content) return alert('Vui lòng nhập đầy đủ thông tin JD!');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">↻</span> Đang lưu...';
+
+  try {
+    const res = await fetch(`${API_BASE}/jobs/save-jd`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Key': ADMIN_KEY
+      },
+      body: JSON.stringify({ category, title, jd_content })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Lỗi khi lưu JD');
+    alert(`🎉 ${data.message}`);
+    document.getElementById('jd-title-input').value = '';
+    document.getElementById('jd-content-input').value = '';
+  } catch (err) {
+    alert(`❌ Lỗi: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm">save</span> Lưu & Xuất bản JD';
+  }
+}
 
 const API_BASE  = location.origin;
 const LEGACY_ADMIN_KEY = localStorage.getItem('pai_admin_key') || '';
@@ -560,6 +603,44 @@ const STATUS_LABEL = {
 function statusLabel(status) {
   return STATUS_LABEL[status] || status || '—';
 }
+function questionPrepBadge(app) {
+  const status = app.question_prep_status || app.prep_status || (app.interview_prep?.questions?.length ? 'ready' : 'none');
+  if (status === 'generating') return '<span class="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">Đang tạo câu hỏi</span>';
+  if (status === 'ready') return '<span class="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">Đã có câu hỏi</span>';
+  if (status === 'error') return '<span class="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">Lỗi câu hỏi</span>';
+  return '<span class="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-bold">Chưa tạo câu hỏi</span>';
+}
+function renderApplicationTimeline(app) {
+  const logs = app.application_logs || [];
+  const rows = logs.length ? logs.slice(0, 12).map(log => {
+    const time = (log.created_at || '').substring(0, 16).replace('T', ' ');
+    const eventLabel = (log.event_type || '').replace(/_/g, ' ');
+    const sameApp = !log.app_id || log.app_id === app.id;
+    return `
+      <li class="relative pl-6 pb-3 last:pb-0">
+        <span class="absolute left-0 top-1.5 w-2.5 h-2.5 rounded-full ${sameApp ? 'bg-primary' : 'bg-purple-500'}"></span>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-on-surface">${escapeAdminText(log.message || eventLabel || 'Cập nhật hồ sơ')}</p>
+            <p class="text-[11px] text-gray-400 uppercase font-bold">${escapeAdminText(eventLabel)}${log.app_id && log.app_id !== app.id ? ` · ${escapeAdminText(log.app_id)}` : ''}</p>
+          </div>
+          <span class="text-[11px] text-gray-500 shrink-0">${escapeAdminText(time)}</span>
+        </div>
+      </li>
+    `;
+  }).join('') : '<li class="text-sm text-gray-500">Chưa có log xử lý cho email này.</li>';
+  return `
+    <div class="bg-white border border-outline-variant rounded-xl p-4 mb-4">
+      <div class="flex items-center justify-between gap-3 mb-3 border-b pb-2">
+        <h4 class="font-bold text-xs text-primary flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">timeline</span> TIẾN TRÌNH XỬ LÝ HỒ SƠ</h4>
+        <span class="text-[11px] text-gray-400 font-semibold">${escapeAdminText(app.email || '')}</span>
+      </div>
+      <ul class="relative before:absolute before:left-1 before:top-2 before:bottom-1 before:w-px before:bg-gray-200">
+        ${rows}
+      </ul>
+    </div>
+  `;
+}
 const AI_COLORS = {
   'nắm vững':    'ai-nắm-vững',
   'am hiểu':     'ai-am-hiểu',
@@ -573,19 +654,13 @@ const TYPE_COLOR = {
 };
 
 // ── Auth ──────────────────────────────────────────────────
-function doLogin() {
-  const inputEl = document.getElementById('login-key-input') || document.getElementById('admin-key-input');
-  if (!inputEl) return;
-  const key = inputEl.value.trim();
-  if (!key) return;
-  localStorage.removeItem('pai_admin_key');
-  sessionStorage.setItem('pai_admin_key', key);
-  location.reload();
-}
 function logout() {
   sessionStorage.removeItem('pai_admin_key');
   localStorage.removeItem('pai_admin_key');
-  location.reload();
+  localStorage.removeItem('pai_candidate_user');
+  localStorage.removeItem('pai_candidate_token');
+  localStorage.removeItem('pai_candidate_last_lookup');
+  location.href = '/apply';
 }
 function doLogout() { logout(); }
 
@@ -615,6 +690,36 @@ function escapeAdminText(value) {
     '"': '&quot;',
     "'": '&#39;',
   }[ch]));
+}
+
+/**
+ * Format ISO datetime string → "DD/MM/YYYY HH:mm" (giờ Việt Nam UTC+7)
+ * Input: "2026-07-31T10:09:56.925660Z" hoặc "2026-07-31 10:09:56"
+ */
+function formatDate(raw, mode = 'datetime') {
+  if (!raw) return '—';
+  try {
+    const clean = String(raw).trim().replace(' ', 'T');
+    const withZ = /[Zz]$/.test(clean) || /[+-]\d{2}:\d{2}$/.test(clean) ? clean : clean + 'Z';
+    const d = new Date(withZ);
+    if (isNaN(d.getTime())) return raw;
+
+    const locale = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d);
+
+    const get = t => locale.find(p => p.type === t)?.value || '??';
+    const day = get('day'), month = get('month'), year = get('year');
+    const hour = get('hour'), minute = get('minute');
+
+    if (mode === 'date') return `${day}/${month}/${year}`;
+    if (mode === 'short') return `${day}/${month} ${hour}:${minute}`;
+    return `${day}/${month}/${year} ${hour}:${minute}`;
+  } catch {
+    return raw;
+  }
 }
 
 const nativeAdminAlert = window.alert.bind(window);
@@ -663,16 +768,9 @@ async function init() {
   const appShell = document.getElementById('app-shell');
   
   if (!authRes.ok) {
-    if(loginPage) {
-        loginPage.classList.remove('hidden');
-        loginPage.style.opacity = '1';
-        loginPage.style.pointerEvents = 'auto';
-    }
-    const errorEl = document.getElementById('login-error');
-    if (ADMIN_KEY && errorEl) {
-        errorEl.textContent = authRes.msg;
-        errorEl.classList.remove('hidden');
-    }
+    sessionStorage.removeItem('pai_admin_key');
+    localStorage.removeItem('pai_admin_key');
+    location.href = '/apply';
     return;
   }
   
@@ -694,7 +792,8 @@ function switchTab(tab) {
     'interviews': 'Quản lý phỏng vấn',
     'applications': 'Hồ sơ ứng viên',
     'feedback': 'Phản hồi từ ứng viên',
-    'settings': 'Cài đặt hệ thống'
+    'settings': 'Cài đặt hệ thống',
+    'jd-editor': 'Soạn thảo & Cấu hình JD'
   };
   document.getElementById('topbar-title').textContent = titles[tab] || 'Dashboard';
   const searchWrap = document.getElementById('admin-search-wrap');
@@ -708,7 +807,7 @@ function switchTab(tab) {
     if (!canSearch) searchInput.value = '';
   }
 
-  ['dashboard','interviews','applications','feedback','settings'].forEach(t => {
+  ['dashboard','interviews','applications','feedback','settings','jd-editor'].forEach(t => {
     const el = document.getElementById('tab-'+t);
     if(el) el.classList.add('hidden');
   });
@@ -901,7 +1000,7 @@ function renderInterviewTable() {
     <tbody>
       ${list.map(iv => {
         const pos = (iv.position_id||'').replace(/^(Junior|Mid|Senior|Entry|Manager|Director)_/,'').replace(/_/g,' ');
-        const date = iv.submitted_at ? iv.submitted_at.substring(0,10) : '—';
+        const date = formatDate(iv.submitted_at, 'date');
         const score = iv.avg_score != null ? `<span class="font-bold ${iv.avg_score>=7.5?'text-emerald-600':iv.avg_score>=5?'text-amber-600':'text-red-500'}">${iv.avg_score.toFixed(1)}</span>` : '<span class="text-gray-300">—</span>';
         const reTag = iv.is_reapplicant ? '<span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold ml-1">Tái ứng</span>' : '';
         return `<tr class="tr-hover border-b border-outline-variant" onclick="openModal('${iv.id}')">
@@ -1003,7 +1102,7 @@ function renderApplicationTable() {
       <tbody>
         ${list.map(app => {
           const reTag = app.is_reapplicant ? '<span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold ml-1">Tái ứng</span>' : '';
-          const date  = (app.applied_at||'').substring(0,10);
+          const date  = formatDate(app.applied_at, 'date');
         const score = app.cv_score != null ? `<span class="font-bold ${app.cv_score>=3.0?'text-emerald-600':app.cv_score>=2.5?'text-amber-600':'text-red-500'}">${app.cv_score.toFixed?.(1)||app.cv_score}</span>` : '—';
           return `<tr class="border-b border-outline-variant hover:bg-surface-container-low cursor-pointer" onclick="openAppModal('${app.id}')">
             <td class="px-4 py-3">
@@ -1012,7 +1111,7 @@ function renderApplicationTable() {
             </td>
             <td class="px-4 py-3 text-gray-600 text-xs">${(app.job_id||'').replace(/_/g,' ')}</td>
             <td class="px-4 py-3">${score}</td>
-            <td class="px-4 py-3"><span class="status-pill s-${app.status||'pending_review'}">${statusLabel(app.status)}</span></td>
+	            <td class="px-4 py-3"><span class="status-pill s-${app.status||'pending_review'}">${statusLabel(app.status)}</span>${questionPrepBadge(app)}</td>
             <td class="px-4 py-3 text-outline text-xs">${date}</td>
             <td class="px-4 py-3">
               ${app.cv_path ? `<a href="${API_BASE}/admin/cv/${app.id}" target="_blank" class="text-secondary hover:underline text-xs font-semibold flex items-center gap-1"><span class="material-symbols-outlined text-sm">download</span>CV</a>` : '<span class="text-gray-300 text-xs">—</span>'}
@@ -1038,7 +1137,7 @@ async function openAppModal(appId) {
     
     document.getElementById('modal-candidate-name').textContent = app.name || '—';
     const pos = (app.job_id||'').replace(/_/g,' ');
-    const date = (app.applied_at||'').substring(0,16).replace('T',' ');
+    const date = formatDate(app.applied_at);
     document.getElementById('modal-subtitle').textContent = `${pos} · ${app.level||'Junior'} · Nộp lúc ${date}`;
     document.getElementById('modal-status-badge').innerHTML = `<span class="status-pill s-${app.status||'pending'}">${statusLabel(app.status)}</span>`;
 
@@ -1092,7 +1191,7 @@ async function openAppModal(appId) {
       <div class="space-y-6">
         <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant text-center">
           <p class="text-sm font-semibold text-outline">TỔNG ĐIỂM CV</p>
-          <p class="text-4xl font-black ${app.cv_score>=3.0?'text-emerald-600':'text-red-500'} mt-1">${app.cv_score}/5</p>
+          <p class="text-4xl font-black ${app.cv_score>=3.0?'text-emerald-600':'text-red-500'} mt-1">${app.cv_score != null ? Number(app.cv_score).toFixed(1) : '—'}/5</p>
           ${b.score_cap_reason ? `<p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">${b.score_cap_reason}</p>` : ''}
         </div>
         
@@ -1179,7 +1278,37 @@ async function openAppModal(appId) {
         </div>
         `;
       }
-      
+
+      if (app.interview_prep && app.interview_prep.questions && app.interview_prep.questions.length > 0) {
+        const prep = app.interview_prep;
+        const typeColor = { Technical: 'bg-blue-100 text-blue-700', Experience: 'bg-amber-100 text-amber-700', 'Soft Skill': 'bg-purple-100 text-purple-700', General: 'bg-gray-100 text-gray-600' };
+        bdHtml += `
+        <div class="bg-white border border-outline-variant rounded-xl p-4 mt-4">
+          <div class="flex items-center justify-between gap-3 mb-3 border-b pb-2">
+            <h4 class="font-bold text-xs text-primary flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">quiz</span> CÂU HỎI PHỎNG VẤN ĐÃ GEN</h4>
+            <span class="text-[11px] text-gray-400 font-semibold">${prep.prep_id || ''}</span>
+          </div>
+          <div class="space-y-3 text-sm">
+            ${prep.questions.map((q, idx) => `
+              <div class="p-3 rounded-xl border border-gray-100 bg-surface-container-low">
+                <div class="flex items-start gap-3">
+                  <span class="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center mt-0.5">${idx + 1}</span>
+                  <div class="flex-1">
+                    <p class="text-on-surface leading-snug">${q.text || ''}</p>
+                    <div class="mt-2 flex gap-2 flex-wrap items-center">
+                      <span class="text-[11px] px-2 py-0.5 rounded-full ${typeColor[q.type] || 'bg-gray-100 text-gray-600'}">${q.type || '—'}</span>
+                      ${q.is_ai_generated ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">AI/gen theo CV-JD</span>' : '<span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">câu cố định</span>'}
+                      ${q.audio_url ? `<a class="text-[11px] font-bold text-primary hover:underline" href="${q.audio_url}" target="_blank">Nghe audio</a>` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        `;
+      }
+
       if (b.candidate_reply) {
         bdHtml += `
         <div class="bg-white border border-outline-variant rounded-xl p-4 mt-4">
@@ -1260,10 +1389,40 @@ async function openAppModal(appId) {
       bdHtml += `
       </div>
       `;
-    }
+	    }
 
-    
-    let hrActionHtml = '';
+	    if (!app.score_breakdown && app.interview_prep && app.interview_prep.questions && app.interview_prep.questions.length > 0) {
+	      const prep = app.interview_prep;
+	      const typeColor = { Technical: 'bg-blue-100 text-blue-700', Experience: 'bg-amber-100 text-amber-700', 'Soft Skill': 'bg-purple-100 text-purple-700', General: 'bg-gray-100 text-gray-600' };
+	      bdHtml = `
+	        <div class="bg-white border border-outline-variant rounded-xl p-4">
+	          <div class="flex items-center justify-between gap-3 mb-3 border-b pb-2">
+	            <h4 class="font-bold text-xs text-primary flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">quiz</span> CÂU HỎI PHỎNG VẤN ĐÃ GEN</h4>
+	            <span class="text-[11px] text-gray-400 font-semibold">${prep.prep_id || ''}</span>
+	          </div>
+	          <div class="space-y-3 text-sm">
+	            ${prep.questions.map((q, idx) => `
+	              <div class="p-3 rounded-xl border border-gray-100 bg-surface-container-low">
+	                <div class="flex items-start gap-3">
+	                  <span class="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center mt-0.5">${idx + 1}</span>
+	                  <div class="flex-1">
+	                    <p class="text-on-surface leading-snug">${q.text || ''}</p>
+	                    <div class="mt-2 flex gap-2 flex-wrap items-center">
+	                      <span class="text-[11px] px-2 py-0.5 rounded-full ${typeColor[q.type] || 'bg-gray-100 text-gray-600'}">${q.type || '—'}</span>
+	                      ${q.is_ai_generated ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">AI/gen theo CV-JD</span>' : '<span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">câu cố định</span>'}
+	                      ${q.audio_url ? `<a class="text-[11px] font-bold text-primary hover:underline" href="${q.audio_url}" target="_blank">Nghe audio</a>` : ''}
+	                    </div>
+	                  </div>
+	                </div>
+	              </div>
+	            `).join('')}
+	          </div>
+	        </div>
+	      `;
+	    }
+
+
+	    let hrActionHtml = '';
     
     if (app.status && app.status.startsWith('waiting_for_reply')) {
       hrActionHtml = `
@@ -1275,17 +1434,24 @@ async function openAppModal(appId) {
           </div>
         </div>
       `;
-    } else if (app.status && app.status.startsWith('pending_hr_approval')) {
-      const isPass = app.status.includes('pass');
-      hrActionHtml = `
-        <div class="mt-6 p-4 bg-tertiary-fixed border border-on-tertiary-fixed-variant rounded-xl shadow-sm">
-          <h4 class="font-bold text-on-tertiary-fixed mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-sm">admin_panel_settings</span> Phê duyệt (HR)</h4>
-          <p class="text-sm text-on-tertiary-fixed-variant mb-4">AI đề xuất chung: <strong>${isPass ? 'ĐẬU (Mời phỏng vấn)' : 'RỚT (Từ chối)'}</strong>. Vui lòng xác nhận.</p>
-          <div class="flex gap-2">
-            <button onclick="hrApprove('${app.id}')" class="px-4 py-2 bg-secondary text-on-secondary rounded font-medium hover:opacity-90 text-sm transition">Duyệt & Gửi Link Phỏng vấn</button>
-            <button onclick="hrReject('${app.id}')" class="px-4 py-2 bg-error text-on-error rounded font-medium hover:opacity-90 text-sm transition">Từ chối ứng viên</button>
-          </div>
-        </div>
+	    } else if (app.status && app.status.startsWith('pending_hr_approval')) {
+	      const isPass = app.status.includes('pass');
+	      const prepStatus = app.question_prep_status || app.prep_status || (app.interview_prep?.questions?.length ? 'ready' : 'none');
+	      const prepAction = prepStatus === 'generating'
+	        ? `<button disabled class="px-4 py-2 bg-blue-100 text-blue-700 rounded font-bold text-sm transition cursor-wait"><span class="spin inline-block mr-1">↻</span> Đang tạo câu hỏi...</button>`
+	        : prepStatus === 'ready'
+	          ? `<button onclick="hrSendInterviewEmail('${app.id}')" class="px-4 py-2 bg-secondary text-on-secondary rounded font-medium hover:opacity-90 text-sm transition">Gửi Link Phỏng vấn</button>
+	             <button onclick="hrApprove('${app.id}')" class="px-4 py-2 bg-white text-secondary border border-secondary rounded font-medium hover:bg-secondary/10 text-sm transition">Tạo lại câu hỏi</button>`
+	          : `<button onclick="hrApprove('${app.id}')" class="px-4 py-2 bg-secondary text-on-secondary rounded font-medium hover:opacity-90 text-sm transition">Tạo câu hỏi phỏng vấn</button>`;
+	      hrActionHtml = `
+	        <div class="mt-6 p-4 bg-tertiary-fixed border border-on-tertiary-fixed-variant rounded-xl shadow-sm">
+	          <h4 class="font-bold text-on-tertiary-fixed mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-sm">admin_panel_settings</span> Phê duyệt (HR)</h4>
+	          <p class="text-sm text-on-tertiary-fixed-variant mb-4">AI đề xuất chung: <strong>${isPass ? 'ĐẬU (Mời phỏng vấn)' : 'RỚT (Từ chối)'}</strong>. ${questionPrepBadge(app)}</p>
+	          <div class="flex gap-2">
+	            ${prepAction}
+	            <button onclick="hrReject('${app.id}')" class="px-4 py-2 bg-error text-on-error rounded font-medium hover:opacity-90 text-sm transition">Từ chối ứng viên</button>
+	          </div>
+	        </div>
       `;
     }
     
@@ -1301,7 +1467,7 @@ async function openAppModal(appId) {
       <div id="integrated-interview-data" class="mt-3"></div>
     `;
 
-    document.getElementById('modal-body').innerHTML = bdHtml + hrActionHtml + evalBtnHtml;
+    document.getElementById('modal-body').innerHTML = renderApplicationTimeline(app) + bdHtml + hrActionHtml + evalBtnHtml;
 
 
 
@@ -1342,7 +1508,7 @@ async function loadFeedback() {
           <td class="px-4 py-3 font-semibold text-gray-800 text-xs">${p.position_id||'—'}</td>
           <td class="px-4 py-3 text-center text-on-surface-variant">${p.count}</td>
           <td class="px-4 py-3 text-center font-bold ${p.avg_nps>=8?'text-emerald-600':p.avg_nps>=5?'text-amber-600':'text-red-500'}">${p.avg_nps!=null?p.avg_nps.toFixed(1):'—'}</td>
-          ${Object.keys(RATING_LABELS).map(k=>`<td class="px-4 py-3 text-center">${p.avg_ratings?.[k]!=null?'<span class="font-bold text-amber-500">'+p.avg_ratings[k].toFixed(1)+'★</span>':'—'}</td>`).join('')}
+          ${Object.keys(RATING_LABELS).map(k=>`<td class="px-4 py-3 text-center">${p.avg_ratings?.[k]!=null?'<span class="font-bold text-amber-500">'+p.avg_ratings[k].toFixed(1)+'</span>':'—'}</td>`).join('')}
         </tr>`).join('')}
       </tbody>
     </table>` : '<p class="text-outline text-sm text-center py-6">Chưa có phản hồi nào.</p>';
@@ -1357,7 +1523,7 @@ async function openModal(ivId) {
   const backdrop = document.getElementById('modal-backdrop');
   backdrop.style.opacity = '1';
   backdrop.style.pointerEvents = 'auto';
-  document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-outline text-sm"><span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...</div>';
+  document.getElementById('modal-body').innerHTML = '<div class="py-10 text-center text-outline text-sm">Đang tải...</div>';
   document.getElementById('modal-candidate-name').textContent = '—';
   document.getElementById('modal-subtitle').textContent = '—';
   document.getElementById('modal-status-badge').innerHTML = '';
@@ -1404,7 +1570,104 @@ function closeModal() {
   currentIvId = '';
 }
 
+const proctoringLogStore = {};
 
+function parseProctoringStats(alerts, tabSw = 0) {
+  let noFaceCount = 0;
+  let multiFaceCount = 0;
+  let lookAwayCount = 0;
+  let otherCount = 0;
+
+  (alerts || []).forEach(a => {
+    const t = ((a && a.alert_type) || '').toUpperCase();
+    if (t.includes('NO_FACE') || t.includes('0_FACE') || t.includes('MISSING') || t.includes('NO_PERSON') || t.includes('ABSENT')) {
+      noFaceCount++;
+    } else if (t.includes('MULTI') || t.includes('MANY') || t.includes('2_FACE') || t.includes('SEVERAL') || t.includes('EXTRA')) {
+      multiFaceCount++;
+    } else if (t.includes('LOOK') || t.includes('AWAY') || t.includes('SIDE') || t.includes('TURN') || t.includes('GAZE') || t.includes('ANGLE')) {
+      lookAwayCount++;
+    } else {
+      otherCount++;
+    }
+  });
+
+  return {
+    noFaceCount,
+    multiFaceCount,
+    lookAwayCount,
+    otherCount,
+    tabSwitches: Number(tabSw || 0),
+    totalAlerts: alerts ? alerts.length : 0
+  };
+}
+
+function showProctoringDetails(ivId) {
+  const data = proctoringLogStore[ivId] || {};
+  const cameraAlerts = data.cameraAlerts || [];
+  const tabSw = Number(data.tabSw || 0);
+
+  const stats = parseProctoringStats(cameraAlerts, tabSw);
+
+  const alertRows = cameraAlerts.length
+    ? cameraAlerts.map(a => {
+        const typeRaw = (a.alert_type || 'Cảnh báo').toUpperCase();
+        let typeLabel = 'Cảnh báo hệ thống';
+        let badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
+
+        if (typeRaw.includes('NO_FACE') || typeRaw.includes('0_FACE') || typeRaw.includes('MISSING')) {
+          typeLabel = 'Không thấy khuôn mặt';
+          badgeColor = 'bg-red-100 text-red-800 border-red-300';
+        } else if (typeRaw.includes('MULTI') || typeRaw.includes('MANY') || typeRaw.includes('2_FACE')) {
+          typeLabel = 'Phát hiện nhiều người';
+          badgeColor = 'bg-purple-100 text-purple-800 border-purple-300';
+        } else if (typeRaw.includes('LOOK') || typeRaw.includes('AWAY') || typeRaw.includes('SIDE') || typeRaw.includes('TURN')) {
+          typeLabel = 'Ngoảnh mặt / Nhìn hướng khác';
+          badgeColor = 'bg-orange-100 text-orange-800 border-orange-300';
+        }
+
+        return `
+          <li class="rounded-xl border border-gray-200 bg-white p-3 text-xs shadow-sm flex items-center justify-between gap-3">
+            <span class="font-bold px-3 py-1 rounded-lg border ${badgeColor}">${escapeAdminText(typeLabel)}</span>
+            <span class="text-gray-400 font-mono text-[11px]">${formatDate(a.timestamp || a.created_at)}</span>
+          </li>
+        `;
+      }).join('')
+    : '<li class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-700 font-medium">✓ Không ghi nhận vi phạm camera trong phiên phỏng vấn.</li>';
+
+  showAdminDialog({
+    icon: stats.totalAlerts || stats.tabSwitches ? 'warning' : 'success',
+    title: 'Báo Cáo Chi Tiết Giám Sát Phỏng Vấn',
+    html: `
+      <div class="text-left space-y-4">
+        <!-- 4 Metric Cards without Emojis -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+          <div class="rounded-xl bg-red-50 border border-red-200 p-3">
+            <div class="text-xl font-black text-red-700">${stats.noFaceCount} lần</div>
+            <div class="text-xs font-bold text-red-800 mt-1">Không thấy mặt</div>
+          </div>
+          <div class="rounded-xl bg-purple-50 border border-purple-200 p-3">
+            <div class="text-xl font-black text-purple-700">${stats.multiFaceCount} lần</div>
+            <div class="text-xs font-bold text-purple-800 mt-1">Nhiều người</div>
+          </div>
+          <div class="rounded-xl bg-orange-50 border border-orange-200 p-3">
+            <div class="text-xl font-black text-orange-700">${stats.lookAwayCount} lần</div>
+            <div class="text-xs font-bold text-orange-800 mt-1">Nhìn hướng khác</div>
+          </div>
+          <div class="rounded-xl bg-amber-50 border border-amber-200 p-3">
+            <div class="text-xl font-black text-amber-700">${stats.tabSwitches} lần</div>
+            <div class="text-xs font-bold text-amber-800 mt-1">Chuyển màn hình</div>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">Nhật Ký Vi Phạm Chi Tiết (${stats.totalAlerts})</h4>
+          <ul class="space-y-2 max-h-[240px] overflow-y-auto pr-1">${alertRows}</ul>
+        </div>
+      </div>
+    `,
+    confirmButtonText: 'Đóng',
+  });
+}
 
 function calcTotal(element) {
     if (!element) return;
@@ -1481,18 +1744,17 @@ async function saveIvEvaluation(round) {
 
 function renderModal(iv, evaluations = [], appId = null) {
   const pos = (iv.position_id||'').replace(/_/g,' ');
-  const date = (iv.submitted_at||'').substring(0,16).replace('T',' ');
+  const date = formatDate(iv.submitted_at);
   document.getElementById('modal-candidate-name').textContent = iv.candidate_name || iv.candidate_id || '—';
   document.getElementById('modal-subtitle').textContent = `${pos} · ${iv.level||'—'} · Nộp lúc ${date}`;
 
   // Tab switches badge
   const tabSw = iv.tab_switches || 0;
   const tabColor = tabSw === 0 ? 'bg-emerald-100 text-emerald-700' : tabSw <= 2 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
-  const tabIcon = tabSw === 0 ? '✅' : tabSw <= 2 ? '⚠️' : '🚨';
   document.getElementById('modal-status-badge').innerHTML = `
     <span class="status-pill s-${iv.status}">${statusLabel(iv.status)}</span>
-    <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${tabColor}" title="Số lần chuyển tab trong lúc phỏng vấn">
-      ${tabIcon} Out tab: ${tabSw} lần
+    <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${tabColor}" title="Số lần chuyển màn hình trong lúc phỏng vấn">
+      Out tab: ${tabSw} lần
     </span>
   `;
 
@@ -1520,7 +1782,6 @@ function renderModal(iv, evaluations = [], appId = null) {
       if (qs.length) {
         hodHtml = `<div class="bg-purple-50 border border-purple-100 rounded-xl p-4">
           <div class="flex items-center gap-2 mb-3">
-            <span class="material-symbols-outlined text-purple-600 text-lg">psychology</span>
             <p class="font-bold text-purple-800 text-sm">Câu hỏi gợi ý cho HOD (${qs.length})</p>
           </div>
           <ol class="space-y-2">
@@ -1533,43 +1794,81 @@ function renderModal(iv, evaluations = [], appId = null) {
 
   const proctorLogs = iv.proctoring_logs || {};
   const cameraAlerts = proctorLogs.proctoring_alerts || [];
-  const localIncidents = proctorLogs.incidents || [];
+  proctoringLogStore[iv.id] = { cameraAlerts, tabSw };
+  const stats = parseProctoringStats(cameraAlerts, tabSw);
+
   const alertTone = cameraAlerts.length || tabSw > 2 ? 'red' : tabSw > 0 ? 'amber' : 'emerald';
   const alertCls = {
-    red: { box: 'bg-red-50 border-red-100', text: 'text-red-700', title: 'text-red-800', item: 'border-red-100' },
-    amber: { box: 'bg-amber-50 border-amber-100', text: 'text-amber-700', title: 'text-amber-800', item: 'border-amber-100' },
-    emerald: { box: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700', title: 'text-emerald-800', item: 'border-emerald-100' },
+    red: { box: 'bg-red-50 border-red-100', text: 'text-red-700', title: 'text-red-800', chip: 'bg-red-100 text-red-700' },
+    amber: { box: 'bg-amber-50 border-amber-100', text: 'text-amber-700', title: 'text-amber-800', chip: 'bg-amber-100 text-amber-700' },
+    emerald: { box: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700', title: 'text-emerald-800', chip: 'bg-emerald-100 text-emerald-700' },
   }[alertTone];
+
+
+  // Build inline alert rows
+  const _alertRows_inline = cameraAlerts.length
+    ? cameraAlerts.map(a => {
+        const typeRaw = (a.alert_type || '').toUpperCase();
+        const rawLabel = escapeAdminText(a.alert_type || 'unknown');
+        let typeLabel = `Khác (${rawLabel})`;
+        let badgeColor = 'bg-gray-100 text-gray-700 border-gray-300';
+        if (typeRaw.includes('NO_FACE') || typeRaw.includes('0_FACE') || typeRaw.includes('MISSING')) {
+          typeLabel = 'Không thấy khuôn mặt'; badgeColor = 'bg-red-100 text-red-800 border-red-300';
+        } else if (typeRaw.includes('MULTI') || typeRaw.includes('MANY') || typeRaw.includes('2_FACE')) {
+          typeLabel = 'Phát hiện nhiều người'; badgeColor = 'bg-purple-100 text-purple-800 border-purple-300';
+        } else if (typeRaw.includes('LOOK') || typeRaw.includes('AWAY') || typeRaw.includes('SIDE') || typeRaw.includes('TURN')) {
+          typeLabel = 'Ngoảnh mặt / Nhìn hướng khác'; badgeColor = 'bg-orange-100 text-orange-800 border-orange-300';
+        }
+        return `<li class="rounded-xl border border-gray-200 bg-white p-3 text-xs shadow-sm flex items-center justify-between gap-3">
+          <span class="font-bold px-3 py-1 rounded-lg border ${badgeColor}">${typeLabel}</span>
+          <span class="text-gray-400 text-[11px]">${formatDate(a.timestamp || a.created_at)}</span>
+        </li>`;
+      }).join('')
+    : '<li class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-700 font-medium text-center">Không ghi nhận vi phạm camera trong phiên phỏng vấn.</li>';
+
   const proctorHtml = `
-    <div class="${alertCls.box} border rounded-xl p-4">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined ${alertCls.text} text-lg">videocam</span>
-          <p class="font-bold ${alertCls.title} text-sm">Log giám sát camera & chống gian lận</p>
-        </div>
-        <span class="text-xs font-bold ${alertCls.text}">${cameraAlerts.length} cảnh báo AI · ${tabSw} out-tab</span>
+    <div class="${alertCls.box} border rounded-2xl p-4 space-y-3">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="material-symbols-outlined ${alertCls.text} text-lg">videocam</span>
+        <p class="font-extrabold ${alertCls.title} text-sm">Giám sát AI Proctoring &amp; Chống gian lận</p>
       </div>
-      ${cameraAlerts.length ? `
-        <ul class="space-y-2 mb-3">
-          ${cameraAlerts.map(a => `
-            <li class="bg-white/70 border ${alertCls.item} rounded-lg p-3 text-xs">
-              <div class="flex items-center justify-between gap-2">
-                <span class="font-bold text-red-700">${escapeAdminText(a.alert_type)}</span>
-                <span class="text-gray-500">${escapeAdminText(a.timestamp || a.created_at)}</span>
-              </div>
-              ${a.snapshot_id ? `<p class="text-gray-600 mt-1">Snapshot: <span class="font-mono">${escapeAdminText(a.snapshot_id)}</span></p>` : ''}
-            </li>
-          `).join('')}
-        </ul>
-      ` : `<p class="text-xs ${alertCls.text} mb-2">Chưa có cảnh báo AI proctoring cho phiên này.</p>`}
-      ${localIncidents.length ? `
-        <details class="text-xs text-gray-600">
-          <summary class="cursor-pointer font-semibold">Xem incident local (${localIncidents.length})</summary>
-          <ul class="mt-2 space-y-1">
-            ${localIncidents.slice(0, 10).map(i => `<li>${escapeAdminText(i.created_at)} · ${escapeAdminText(i.type)} · ${escapeAdminText(i.description)}</li>`).join('')}
-          </ul>
-        </details>
-      ` : ''}
+
+      <!-- Breakdown Metrics -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div class="rounded-xl bg-white/80 border border-white p-2.5 text-center">
+          <div class="text-base font-black ${stats.noFaceCount > 0 ? 'text-red-600' : 'text-slate-400'}">${stats.noFaceCount} lần</div>
+          <div class="text-[10px] font-bold text-gray-500 mt-0.5">Không thấy mặt</div>
+        </div>
+        <div class="rounded-xl bg-white/80 border border-white p-2.5 text-center">
+          <div class="text-base font-black ${stats.multiFaceCount > 0 ? 'text-purple-600' : 'text-slate-400'}">${stats.multiFaceCount} lần</div>
+          <div class="text-[10px] font-bold text-gray-500 mt-0.5">Nhiều người</div>
+        </div>
+        <div class="rounded-xl bg-white/80 border border-white p-2.5 text-center">
+          <div class="text-base font-black ${stats.lookAwayCount > 0 ? 'text-orange-600' : 'text-slate-400'}">${stats.lookAwayCount} lần</div>
+          <div class="text-[10px] font-bold text-gray-500 mt-0.5">Nhìn hướng khác</div>
+        </div>
+        <div class="rounded-xl bg-white/80 border border-white p-2.5 text-center">
+          <div class="text-base font-black ${stats.tabSwitches > 2 ? 'text-amber-700' : 'text-slate-400'}">${stats.tabSwitches} lần</div>
+          <div class="text-[10px] font-bold text-gray-500 mt-0.5">Chuyển màn hình</div>
+        </div>
+        <div class="rounded-xl bg-white/80 border border-white p-2.5 text-center">
+          <div class="text-base font-black ${stats.otherCount > 0 ? 'text-gray-700' : 'text-slate-400'}">${stats.otherCount} lần</div>
+          <div class="text-[10px] font-bold text-gray-500 mt-0.5">Cảnh báo khác</div>
+        </div>
+      </div>
+
+      <!-- Inline log accordion -->
+      ${stats.totalAlerts > 0 ? `
+      <div>
+        <button
+          onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.toggle-arrow').textContent = this.nextElementSibling.classList.contains('hidden') ? '▶' : '▼';"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/70 border border-white text-xs font-bold ${alertCls.title} hover:bg-white transition"
+        >
+          <span>Nhật ký vi phạm chi tiết (${stats.totalAlerts} lần)</span>
+          <span class="toggle-arrow">▶</span>
+        </button>
+        <ul class="hidden mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">${_alertRows_inline}</ul>
+      </div>` : ''}
     </div>
   `;
 
@@ -2022,33 +2321,125 @@ switchTab = function(tabId) {
   }
 
 
+function dateTimePartsHtml(prefix, label) {
+  const partClass = 'w-full border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500 text-sm bg-white';
+  return `
+    <div>
+      <label class="block text-xs font-semibold mb-1 text-gray-600">${label}</label>
+      <div class="grid grid-cols-[1fr_1fr_1.3fr_1fr_1fr] gap-2">
+        <input type="number" id="${prefix}-day" min="1" max="31" placeholder="Ngày" class="${partClass}">
+        <input type="number" id="${prefix}-month" min="1" max="12" placeholder="Tháng" class="${partClass}">
+        <input type="number" id="${prefix}-year" min="2026" max="2035" placeholder="Năm" class="${partClass}">
+        <input type="number" id="${prefix}-hour" min="0" max="23" placeholder="Giờ" class="${partClass}">
+        <input type="number" id="${prefix}-minute" min="0" max="59" step="5" placeholder="Phút" class="${partClass}">
+      </div>
+    </div>
+  `;
+}
+
+function setDateTimeParts(prefix, date) {
+  const pad = n => n.toString().padStart(2, '0');
+  document.getElementById(`${prefix}-day`).value = pad(date.getDate());
+  document.getElementById(`${prefix}-month`).value = pad(date.getMonth() + 1);
+  document.getElementById(`${prefix}-year`).value = date.getFullYear();
+  document.getElementById(`${prefix}-hour`).value = pad(date.getHours());
+  document.getElementById(`${prefix}-minute`).value = pad(date.getMinutes());
+}
+
+function readDateTimeParts(prefix) {
+  const num = (id) => parseInt(document.getElementById(`${prefix}-${id}`)?.value, 10);
+  const day = num('day');
+  const month = num('month');
+  const year = num('year');
+  const hour = num('hour');
+  const minute = num('minute');
+  if (![day, month, year, hour, minute].every(Number.isFinite)) return '';
+  const date = new Date(year, month - 1, day, hour, minute);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    date.getMinutes() !== minute
+  ) return '';
+  const pad = n => n.toString().padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+}
+
+function hrSendInterviewEmail(appId) {
+  const modal = document.createElement('div');
+  modal.className = "fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 backdrop-blur-sm";
+  modal.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-xl w-[460px] max-w-[calc(100vw-24px)] overflow-hidden">
+      <div class="p-6 border-b border-gray-100">
+        <h3 class="font-bold text-lg text-gray-800">Gửi link phỏng vấn</h3>
+        <p class="text-sm text-gray-500 mt-1">Bộ câu hỏi và thời gian hiệu lực đã được lưu trong hồ sơ. Xác nhận để gửi email cho ứng viên.</p>
+      </div>
+      <div class="p-6 text-sm text-gray-600 leading-relaxed">
+        Hệ thống sẽ dùng khung giờ đã cấu hình ở bước tạo câu hỏi. Nếu cần đổi thời gian, bấm <strong>Tạo lại câu hỏi</strong> để chỉnh lại trước khi gửi.
+      </div>
+      <div class="p-4 bg-gray-50 border-t flex justify-end gap-3">
+        <button id="send-cancel" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Hủy</button>
+        <button id="send-confirm" class="px-5 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:opacity-90">Gửi Email</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('send-cancel').onclick = () => document.body.removeChild(modal);
+  document.getElementById('send-confirm').onclick = async () => {
+    const btn = document.getElementById('send-confirm');
+    btn.disabled = true;
+    btn.textContent = 'Đang gửi...';
+    try {
+      const r = await fetch(`/admin/applications/${appId}/approve`, {
+        method: 'POST',
+        headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || data.msg || 'Không gửi được email');
+      document.body.removeChild(modal);
+      await showAdminDialog({
+        icon: 'success',
+        title: 'Email mời phỏng vấn đã gửi',
+        text: data.msg || 'Ứng viên đã nhận link phỏng vấn.',
+        confirmButtonText: 'Đóng',
+      });
+      openAppModal(appId);
+      loadApplications();
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = 'Gửi Email';
+      await showAdminDialog({
+        icon: 'error',
+        title: 'Không gửi được email',
+        text: e.message || 'Hệ thống gặp lỗi khi gửi email.',
+        confirmButtonText: 'Đóng',
+      });
+    }
+  };
+}
+
 function hrApprove(appId) {
   const modal = document.createElement('div');
   modal.className = "fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 backdrop-blur-sm";
   modal.innerHTML = `
     <div id="approve-modal-box" class="bg-white rounded-2xl shadow-xl w-[540px] max-h-[90vh] overflow-hidden flex flex-col">
-      <!-- STEP 1: Config -->
       <div id="step-config">
         <div class="p-6 border-b border-gray-100">
           <h3 class="font-bold text-lg text-gray-800">Cấu hình phỏng vấn</h3>
-          <p class="text-sm text-gray-500 mt-1">Thiết lập số lượng câu hỏi cho từng phần, sau đó xem trước trước khi gửi email.</p>
+          <p class="text-sm text-gray-500 mt-1">Thiết lập số lượng câu hỏi, hệ thống sẽ tạo và lưu vào hồ sơ ứng viên để HR kiểm tra trước khi gửi email.</p>
         </div>
         <div class="p-6 space-y-4 text-left">
           <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
             <h4 class="font-semibold text-blue-800 text-sm">Thời gian hiệu lực của link</h4>
             <label class="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700">
-                <input type="checkbox" id="cfg-unlimited" onchange="document.getElementById('cfg-timeframe').style.display = this.checked ? 'none' : 'grid'" class="w-4 h-4 text-blue-600 rounded">
-                Không giới hạn thời gian
+              <input type="checkbox" id="cfg-unlimited" onchange="document.getElementById('cfg-timeframe').style.display = this.checked ? 'none' : 'block'" class="w-4 h-4 text-blue-600 rounded">
+              Không giới hạn thời gian
             </label>
-            <div id="cfg-timeframe" class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-semibold mb-1 text-gray-600">Giờ bắt đầu</label>
-                    <input type="datetime-local" id="cfg-start" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold mb-1 text-gray-600">Giờ kết thúc</label>
-                    <input type="datetime-local" id="cfg-end" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 text-sm">
-                </div>
+            <div id="cfg-timeframe" class="space-y-3">
+              ${dateTimePartsHtml('cfg-start', 'Bắt đầu')}
+              ${dateTimePartsHtml('cfg-end', 'Kết thúc')}
             </div>
           </div>
           <div>
@@ -2067,73 +2458,52 @@ function hrApprove(appId) {
         <div class="p-4 bg-gray-50 border-t flex justify-end gap-3">
           <button id="cfg-cancel" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Hủy</button>
           <button id="cfg-next" class="px-4 py-2 bg-secondary text-white rounded-lg text-sm font-bold hover:opacity-90 flex items-center gap-2">
-            <span>Xem trước câu hỏi</span> <span class="material-symbols-outlined text-base">arrow_forward</span>
-          </button>
-        </div>
-      </div>
-      <!-- STEP 2: Preview -->
-      <div id="step-preview" class="hidden flex-col flex-1 overflow-hidden">
-        <div class="p-6 border-b border-gray-100 flex items-center gap-3">
-          <button id="preview-back" class="text-gray-500 hover:text-gray-800"><span class="material-symbols-outlined">arrow_back</span></button>
-          <div>
-            <h3 class="font-bold text-lg text-gray-800">Danh sách câu hỏi phỏng vấn</h3>
-            <p id="preview-subtitle" class="text-sm text-gray-500 mt-0.5"></p>
-          </div>
-        </div>
-        <div id="questions-preview-list" class="flex-1 overflow-y-auto p-6 space-y-2 text-sm"></div>
-        <div id="preview-actions" class="hidden p-4 bg-gray-50 border-t flex justify-between items-center gap-3">
-          <button id="btn-regen" class="px-4 py-2 text-secondary border border-secondary rounded-lg text-sm font-bold hover:bg-secondary/10 flex items-center gap-1.5">
-            <span class="material-symbols-outlined text-base">refresh</span> Tạo lại
-          </button>
-          <button id="btn-confirm-send" class="px-5 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:opacity-90 flex items-center gap-2">
-            <span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email
+            <span>Tạo câu hỏi</span> <span class="material-symbols-outlined text-base">arrow_forward</span>
           </button>
         </div>
       </div>
     </div>
   `;
   document.body.appendChild(modal);
-
-  // Default dates
   const now = new Date();
   const nextWeek = new Date(now.getTime() + 7*24*60*60*1000);
-  const formatDT = d => {
-    const pad = n => n.toString().padStart(2,'0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  document.getElementById('cfg-start').value = formatDT(now);
-  document.getElementById('cfg-end').value = formatDT(nextWeek);
-
-  let configData = null;
+  setDateTimeParts('cfg-start', now);
+  setDateTimeParts('cfg-end', nextWeek);
 
   document.getElementById('cfg-cancel').onclick = () => document.body.removeChild(modal);
-  document.getElementById('preview-back').onclick = () => {
-    document.getElementById('step-config').classList.remove('hidden');
-    document.getElementById('step-preview').classList.add('hidden');
-    document.getElementById('step-preview').classList.remove('flex');
-  };
 
-  async function loadPreview() {
+  async function startQuestionGeneration() {
     const clamp = (value, fallback, min, max) => {
       const parsed = parseInt(value, 10);
       return Math.max(min, Math.min(Number.isFinite(parsed) ? parsed : fallback, max));
     };
-    let p1 = clamp(document.getElementById('cfg-p1').value, 11, 1, 11);
-    let p2 = clamp(document.getElementById('cfg-p2').value, 7, 0, 13);
-    let p3 = clamp(document.getElementById('cfg-p3').value, 5, 0, 5);
-    configData = { PART_1_DEFAULT: p1, PART_2_GENERATED: p2, PART_3_FOLLOW_UP: p3 };
-
-    document.getElementById('step-config').classList.add('hidden');
-    document.getElementById('step-preview').classList.remove('hidden');
-    document.getElementById('step-preview').classList.add('flex');
-
-    const list = document.getElementById('questions-preview-list');
-    const subtitle = document.getElementById('preview-subtitle');
-    const actions = document.getElementById('preview-actions');
-    list.innerHTML = '<div class="text-center py-8 text-gray-400"><span class="spin inline-block mr-2">↻</span> Đang tạo câu hỏi bằng AI...</div>';
-    subtitle.textContent = '';
-    actions.classList.add('hidden');
-    actions.classList.remove('flex');
+    const configData = {
+      PART_1_DEFAULT: clamp(document.getElementById('cfg-p1').value, 11, 1, 11),
+      PART_2_GENERATED: clamp(document.getElementById('cfg-p2').value, 7, 0, 13),
+      PART_3_FOLLOW_UP: clamp(document.getElementById('cfg-p3').value, 5, 0, 5),
+    };
+    const isUnlimited = document.getElementById('cfg-unlimited').checked;
+    const validFrom = readDateTimeParts('cfg-start');
+    const validUntil = readDateTimeParts('cfg-end');
+    if (!isUnlimited && (!validFrom || !validUntil || new Date(validUntil).getTime() <= new Date(validFrom).getTime())) {
+      await showAdminDialog({
+        icon: 'warning',
+        title: 'Khung giờ chưa hợp lệ',
+        text: 'Vui lòng chọn giờ bắt đầu và giờ kết thúc hợp lệ.',
+        confirmButtonText: 'Sửa lại',
+      });
+      return;
+    }
+    configData.IS_UNLIMITED = isUnlimited;
+    configData.VALID_FROM = validFrom;
+    configData.VALID_UNTIL = validUntil;
+    document.body.removeChild(modal);
+    const idx = allApplications.findIndex(app => app.id === appId);
+    if (idx >= 0) {
+      allApplications[idx].prep_status = 'generating';
+      allApplications[idx].question_prep_status = 'generating';
+      renderApplicationTable();
+    }
 
     try {
       const r = await fetch(`/admin/applications/${appId}/generate_prep`, {
@@ -2142,106 +2512,25 @@ function hrApprove(appId) {
         body: JSON.stringify({ config: configData })
       });
       const data = await r.json();
-      const qs = data.questions || [];
-      const followLimit = data.follow_up_limit || 0;
-      subtitle.textContent = `${qs.length} câu hỏi chính${followLimit ? ` · tối đa ${followLimit} câu đào sâu nếu cần` : ''}`;
-
-      const typeColor = { Technical: 'bg-blue-100 text-blue-700', Experience: 'bg-amber-100 text-amber-700', 'Soft Skill': 'bg-purple-100 text-purple-700', General: 'bg-gray-100 text-gray-600' };
-      list.innerHTML = qs.map((q, i) => `
-        <div class="flex gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition">
-          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-secondary/10 text-secondary font-bold text-xs flex items-center justify-center mt-0.5">${i+1}</span>
-          <div class="flex-1">
-            <p class="text-gray-800 leading-snug">${q.text}</p>
-            <div class="mt-1.5 flex gap-2 flex-wrap">
-              <span class="text-[11px] px-2 py-0.5 rounded-full ${typeColor[q.type]||'bg-gray-100 text-gray-600'}">${q.type||'—'}</span>
-              ${q.is_ai_generated ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">✨ AI</span>' : ''}
-            </div>
-          </div>
-        </div>
-      `).join('');
-      actions.classList.remove('hidden');
-      actions.classList.add('flex');
+      if (!r.ok) throw new Error(data.detail || 'Lỗi khi tạo câu hỏi');
+      await loadApplications();
     } catch(e) {
-      list.innerHTML = '<div class="text-center text-red-500 py-8">Lỗi khi tạo câu hỏi</div>';
-      // Show regen button only on error so they can try again
-      actions.classList.remove('hidden');
-      actions.classList.add('flex');
-      document.getElementById('btn-confirm-send').style.display = 'none'; // Hide send email if error
-    }
-  }
-
-  document.getElementById('cfg-next').onclick = loadPreview;
-  document.getElementById('btn-regen').onclick = () => {
-    document.getElementById('btn-confirm-send').style.display = 'flex'; // Restore for next attempt
-    loadPreview();
-  };
-
-    document.getElementById('btn-confirm-send').onclick = async () => {
-    document.getElementById('btn-confirm-send').textContent = 'Đang gửi...';
-    try {
-      const isUnlimited = document.getElementById('cfg-unlimited').checked;
-      const validFrom = document.getElementById('cfg-start').value;
-      const validUntil = document.getElementById('cfg-end').value;
-      if (!isUnlimited) {
-        if (!validFrom || !validUntil) {
-          await showAdminDialog({
-            icon: 'warning',
-            title: 'Thiếu khung giờ phỏng vấn',
-            text: 'Vui lòng chọn đầy đủ giờ bắt đầu và giờ kết thúc trước khi gửi email mời phỏng vấn.',
-            confirmButtonText: 'Chọn lại',
-          });
-          document.getElementById('btn-confirm-send').innerHTML = '<span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email';
-          return;
-        }
-        if (new Date(validUntil).getTime() <= new Date(validFrom).getTime()) {
-          await showAdminDialog({
-            icon: 'warning',
-            title: 'Khung giờ chưa hợp lệ',
-            text: 'Giờ kết thúc phải sau giờ bắt đầu. Vui lòng kiểm tra lại lịch phỏng vấn trước khi gửi email.',
-            confirmButtonText: 'Sửa lịch',
-          });
-          document.getElementById('btn-confirm-send').innerHTML = '<span class="material-symbols-outlined text-base">send</span> Xác nhận & Gửi Email';
-          return;
-        }
+      const errIdx = allApplications.findIndex(app => app.id === appId);
+      if (errIdx >= 0) {
+        allApplications[errIdx].prep_status = 'error';
+        allApplications[errIdx].question_prep_status = 'error';
+        renderApplicationTable();
       }
-
-      const r = await fetch(`/admin/applications/${appId}/approve`, {
-        method: 'POST',
-        headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: configData, is_unlimited: isUnlimited, valid_from: validFrom, valid_until: validUntil })
-      });
-      if(r.ok) {
-        document.body.removeChild(modal);
-        await showAdminDialog({
-          icon: 'success',
-          title: 'Email mời phỏng vấn đã gửi',
-          html: `
-            Hồ sơ đã được duyệt và email mời phỏng vấn đã được gửi cho ứng viên.<br><br>
-            <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-left">
-              <p class="font-bold text-emerald-800 mb-1">Trạng thái mới</p>
-              <p class="text-emerald-700">Ứng viên có thể mở link phỏng vấn theo khung giờ đã cấu hình.</p>
-            </div>
-          `,
-          confirmButtonText: 'Xem hồ sơ',
-        });
-        openAppModal(appId); loadApplications();
-      } else {
-        await showAdminDialog({
-          icon: 'error',
-          title: 'Không gửi được email',
-          text: 'Hệ thống chưa duyệt/gửi email thành công. Vui lòng thử lại hoặc kiểm tra cấu hình email.',
-          confirmButtonText: 'Đóng',
-        });
-      }
-    } catch(e) {
       await showAdminDialog({
         icon: 'error',
-        title: 'Lỗi mạng',
-        text: e.message || 'Không thể kết nối tới máy chủ. Vui lòng thử lại.',
+        title: 'Không tạo được câu hỏi',
+        text: e.message || 'Hệ thống gặp lỗi khi tạo câu hỏi phỏng vấn.',
         confirmButtonText: 'Đóng',
       });
     }
-  };
+  }
+
+  document.getElementById('cfg-next').onclick = startQuestionGeneration;
 }
 
 
@@ -2286,7 +2575,7 @@ async function loadInterviewForApp(appId) {
             const score = interview.avg_score != null ? Number(interview.avg_score).toFixed(1) : null;
             const scoreTone = score == null ? 'text-outline' : score >= 7.5 ? 'text-emerald-600' : score >= 5 ? 'text-amber-600' : 'text-red-500';
             const interviewStatusText = statusLabel(interview.status);
-            const submitted = interview.submitted_at ? interview.submitted_at.substring(0, 10) : '—';
+            const submitted = formatDate(interview.submitted_at);
             const pos = (interview.position_id || '').replace(/_/g, ' ');
             container.innerHTML = `
                 <div class="mt-4 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">

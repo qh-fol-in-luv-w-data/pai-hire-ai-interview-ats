@@ -18,6 +18,10 @@ JDS_DIR         = BASE_DIR / "JDs_Detailed"
 ADMIN_KEY       = os.environ.get("ADMIN_KEY", "")
 OPENAI_API_KEY      = os.environ.get("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY  = os.environ.get("ELEVENLABS_API_KEY", "")
+MINIO_ENDPOINT   = os.environ.get("MINIO_ENDPOINT", "http://192.168.90.230:9002")
+MINIO_BUCKET     = os.environ.get("MINIO_BUCKET", "pai-hire")
+MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "pai_hire")
+MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "yHCwFhOMWCQrktCnnUuTI3JcbVnmGnr1CNrGBGv3Aeg")
 PASS_SCORE      = 3.0
 SMTP_HOST       = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT       = int(os.environ.get("SMTP_PORT", "587"))
@@ -36,8 +40,8 @@ def _detect_local_ip() -> str:
     except Exception:
         return "localhost"
 
-_server_port = int(os.environ.get("PORT", "8080"))
-_default_interview_url = f"http://{_detect_local_ip()}:{_server_port}/interview"
+_server_port = int(os.environ.get("PORT", "8001"))
+_default_interview_url = f"http://{_detect_local_ip()}:8000/interview"
 INTERVIEW_URL   = os.environ.get("INTERVIEW_URL", _default_interview_url)
 
 PROCTORING_API_URL = os.environ.get("PROCTORING_API_URL", "http://127.0.0.1:8003/api/v1")
@@ -46,12 +50,12 @@ PROCTORING_EMBED_PUBLIC_BASE = os.environ.get("PROCTORING_EMBED_PUBLIC_BASE", "h
 PROCTORING_ALERT_THRESHOLD_SECONDS = float(os.environ.get("PROCTORING_ALERT_THRESHOLD_SECONDS", "2"))
 PROCTORING_WEBHOOK_SECRET = os.environ.get("PROCTORING_WEBHOOK_SECRET", "")
 PROCTORING_WEBHOOK_REQUIRE_SECRET = os.environ.get("PROCTORING_WEBHOOK_REQUIRE_SECRET", "true").lower() not in {"0", "false", "no"}
-PUBLIC_WEBHOOK_DOMAIN = os.environ.get("PUBLIC_WEBHOOK_DOMAIN", f"http://{_detect_local_ip()}:{_server_port}")
+PUBLIC_WEBHOOK_DOMAIN = os.environ.get("PUBLIC_WEBHOOK_DOMAIN", f"http://{_detect_local_ip()}:8000")
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
         "ALLOWED_ORIGINS",
-        f"http://localhost:{_server_port},http://127.0.0.1:{_server_port},{PUBLIC_WEBHOOK_DOMAIN}",
+        f"http://localhost:8000,http://127.0.0.1:8000,http://localhost:8001,http://127.0.0.1:8001,{PUBLIC_WEBHOOK_DOMAIN}",
     ).split(",")
     if origin.strip()
 ]

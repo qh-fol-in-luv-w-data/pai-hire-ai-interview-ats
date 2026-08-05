@@ -8,11 +8,12 @@ import shutil
 from pathlib import Path
 from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, Header, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from backend.database import db
+from backend.database import db, log_application_event
 from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, _JOB_LEVELS, INTERVIEW_URL
 from backend.routers.api_v1 import parse_slot_datetime
 
 from backend.services.email_service import send_interview_result, send_reinterview_email
+from backend.routers.auth import _group_consecutive_alerts
 router = APIRouter()
 
 
@@ -24,6 +25,59 @@ def _normalize_cv_score_value(value):
     except Exception:
         return value
     return round(score / 2, 2) if score > 5 else score
+
+
+def _row_logs(rows):
+    logs = []
+    for r in rows:
+        item = dict(r)
+        if item.get("details"):
+            try:
+                item["details"] = json.loads(item["details"])
+            except Exception:
+                pass
+        logs.append(item)
+    return logs
+
+
+def _fallback_application_logs(app_row, prep_row, interview_rows):
+    app = dict(app_row)
+    logs = [{
+        "app_id": app.get("id"),
+        "email": app.get("email"),
+        "event_type": "application_submitted",
+        "message": f"Ứng viên nộp hồ sơ cho vị trí {app.get('job_id') or '—'}.",
+        "details": {"status": app.get("status")},
+        "created_at": app.get("applied_at"),
+    }]
+    if app.get("cv_score") is not None:
+        logs.append({
+            "app_id": app.get("id"),
+            "email": app.get("email"),
+            "event_type": "cv_scored",
+            "message": f"AI đã đánh giá hồ sơ: {_normalize_cv_score_value(app.get('cv_score'))}/5.",
+            "details": {"status": app.get("status")},
+            "created_at": app.get("applied_at"),
+        })
+    if prep_row:
+        logs.append({
+            "app_id": app.get("id"),
+            "email": app.get("email"),
+            "event_type": "questions_ready",
+            "message": "Đã tạo bộ câu hỏi phỏng vấn.",
+            "details": {"prep_id": prep_row["id"]},
+            "created_at": prep_row["created_at"],
+        })
+    for iv in interview_rows:
+        logs.append({
+            "app_id": app.get("id"),
+            "email": app.get("email"),
+            "event_type": "interview_submitted",
+            "message": f"Ứng viên đã nộp bài phỏng vấn {iv['id']}.",
+            "details": {"interview_id": iv["id"], "status": iv["status"]},
+            "created_at": iv["submitted_at"],
+        })
+    return sorted(logs, key=lambda x: x.get("created_at") or "", reverse=True)
 
 @router.get("/admin/settings")
 def get_settings(x_admin_key: str = Header(...)):
@@ -210,10 +264,17 @@ def admin_list_applications(
             f"SELECT * FROM cv_applications {clause} ORDER BY applied_at DESC LIMIT ?",
             (*params, limit),
         ).fetchall()
+        prep_refs = {
+            r["app_ref"]
+            for r in conn.execute(
+                "SELECT DISTINCT app_ref FROM interview_prep WHERE app_ref IS NOT NULL AND app_ref != ''"
+            ).fetchall()
+        }
 
     applications = [dict(r) for r in rows]
     for app in applications:
         app["cv_score"] = _normalize_cv_score_value(app.get("cv_score"))
+        app["question_prep_status"] = app.get("prep_status") or ("ready" if app.get("id") in prep_refs else "none")
     return {"total": len(rows), "applications": applications}
 
 
@@ -224,12 +285,64 @@ def admin_get_application(app_id: str, x_admin_key: str = Header(None)):
         row = conn.execute(
             "SELECT * FROM cv_applications WHERE id = ?", (app_id,)
         ).fetchone()
+        prep_row = conn.execute(
+            "SELECT * FROM interview_prep WHERE app_ref=? ORDER BY created_at DESC LIMIT 1",
+            (app_id,),
+        ).fetchone()
+        log_rows = []
+        interview_rows = []
+        if row:
+            log_rows = conn.execute(
+                """
+                SELECT * FROM application_logs
+                WHERE LOWER(email)=LOWER(?) OR app_id=?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 100
+                """,
+                (row["email"], app_id),
+            ).fetchall()
+            interview_rows = conn.execute(
+                """
+                SELECT DISTINCT i.id, i.status, i.submitted_at
+                FROM interviews i
+                LEFT JOIN candidates c ON c.id=i.candidate_id
+                LEFT JOIN interview_prep p ON p.id=i.prep_id
+                WHERE LOWER(c.email)=LOWER(?) OR p.app_ref=?
+                ORDER BY i.submitted_at DESC
+                LIMIT 50
+                """,
+                (row["email"], app_id),
+            ).fetchall()
     if not row:
         raise HTTPException(404, "Không tìm thấy đơn ứng tuyển")
     data = dict(row)
     data["cv_score"] = _normalize_cv_score_value(data.get("cv_score"))
     if data.get("score_breakdown"):
         data["score_breakdown"] = json.loads(data["score_breakdown"])
+    data["application_logs"] = _row_logs(log_rows) if log_rows else _fallback_application_logs(row, prep_row, interview_rows)
+    data["question_prep_status"] = data.get("prep_status") or ("ready" if prep_row else "none")
+    if prep_row:
+        from backend.services.prep_service import _prep_from_row
+        prep = _prep_from_row(prep_row)
+        questions_preview = []
+        for q_num, q_data in (prep.get("questions") or {}).items():
+            meta = QUESTIONS_BANK.get(q_num, {})
+            is_generated = bool(q_data.get("is_generated"))
+            questions_preview.append({
+                "n": q_num,
+                "text": q_data.get("text", ""),
+                "audio_url": q_data.get("audio_url", ""),
+                "type": q_data.get("type") or meta.get("type", ""),
+                "label": meta.get("label", f"Câu {q_num}"),
+                "is_ai_generated": is_generated,
+            })
+        data["interview_prep"] = {
+            "prep_id": prep.get("prep_id"),
+            "position_id": prep_row["position_id"],
+            "created_at": prep_row["created_at"],
+            "questions": questions_preview,
+            "follow_up_limit": prep.get("follow_up_limit", 0),
+        }
     return data
 
 
@@ -257,48 +370,36 @@ def admin_get_proctoring_logs(
 
         alerts = []
         if resolved_app_id:
+            session_row = conn.execute(
+                """
+                SELECT session_id, MAX(id) AS latest_id
+                FROM proctoring_alerts
+                WHERE session_id=? OR session_id LIKE ?
+                GROUP BY session_id
+                ORDER BY latest_id DESC
+                LIMIT 1
+                """,
+                (resolved_app_id, f"{resolved_app_id}:%"),
+            ).fetchone()
+            session_id = session_row["session_id"] if session_row else None
             alerts = [
                 dict(r)
                 for r in conn.execute(
                     """
                     SELECT id, session_id, alert_type, snapshot_id, timestamp, created_at
                     FROM proctoring_alerts
-                    WHERE session_id=? OR session_id LIKE ?
-                    ORDER BY created_at DESC
-                    LIMIT 100
+                    WHERE session_id=?
+                    ORDER BY created_at ASC
                     """,
-                    (resolved_app_id, f"{resolved_app_id}:%"),
+                    (session_id,),
                 ).fetchall()
-            ]
-
-        incidents = []
-        incident_ids = []
-        if interview_id:
-            incident_ids.append(interview_id)
-        if resolved_app_id and resolved_app_id not in incident_ids:
-            incident_ids.append(resolved_app_id)
-        if incident_ids:
-            placeholders = ",".join("?" for _ in incident_ids)
-            incidents = [
-                dict(r)
-                for r in conn.execute(
-                    f"""
-                    SELECT id, interview_id, type, description, created_at
-                    FROM incidents
-                    WHERE interview_id IN ({placeholders})
-                    ORDER BY created_at DESC
-                    LIMIT 100
-                    """,
-                    incident_ids,
-                ).fetchall()
-            ]
+            ] if session_id else []
 
     return {
         "app_id": resolved_app_id,
         "interview_id": interview_id,
         "tab_switches": tab_switches,
         "proctoring_alerts": alerts,
-        "incidents": incidents,
     }
 
 @router.post("/admin/applications/{app_id}/analyze-reply")
@@ -366,6 +467,13 @@ async def admin_analyze_reply(app_id: str, request: Request, x_admin_key: str = 
                 "UPDATE cv_applications SET cv_score=?, score_breakdown=?, status=? WHERE id=?",
                 (new_cv_score, json.dumps(score_bd, ensure_ascii=False), new_status, app_id)
             )
+        log_application_event(
+            app_id,
+            row["email"],
+            "candidate_reply_analyzed",
+            f"AI đã phân tích phản hồi bổ sung, trạng thái mới: {new_status}.",
+            {"score_before": old_cv_score, "score_after": new_cv_score, "score_adjustment": score_adj},
+        )
             
         return {"ok": True, "analysis": reply_analysis, "new_status": new_status}
         
@@ -382,12 +490,12 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
     try:
         body = await request.json()
         from backend.services.prep_service import normalize_interview_config
-        interview_config = json.dumps(normalize_interview_config(body.get("config")))
+        raw_interview_config = body.get("config") if "config" in body else None
         valid_from = body.get("valid_from")
         valid_until = body.get("valid_until")
         is_unlimited = body.get("is_unlimited", False)
     except:
-        interview_config = None
+        raw_interview_config = None
         valid_from = None
         valid_until = None
         is_unlimited = False
@@ -404,14 +512,30 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
             raise HTTPException(400, f"Hồ sơ đang ở trạng thái '{row['status']}', không cần duyệt lại")
 
         level = dict(row).get("level", "Junior") or "Junior"
+        interview_config = (
+            json.dumps(normalize_interview_config(raw_interview_config))
+            if raw_interview_config is not None
+            else row["interview_config"]
+        )
+        if raw_interview_config is None and row["interview_config"]:
+            try:
+                saved_config = json.loads(row["interview_config"])
+                if "IS_UNLIMITED" in saved_config:
+                    is_unlimited = bool(saved_config.get("IS_UNLIMITED"))
+                valid_from = valid_from or saved_config.get("VALID_FROM")
+                valid_until = valid_until or saved_config.get("VALID_UNTIL")
+            except Exception:
+                pass
         conn.execute(
             "UPDATE cv_applications SET status='passed', interview_config=? WHERE id=?", (interview_config, app_id)
         )
         
         # Tạo slot
         slot_token = f"SLOT-{uuid.uuid4().hex[:12].upper()}"
-        start_time = None if is_unlimited else parse_slot_datetime(valid_from).isoformat()
-        end_time = None if is_unlimited else parse_slot_datetime(valid_until).isoformat()
+        if not is_unlimited and (not valid_from or not valid_until):
+            raise HTTPException(400, "Hồ sơ chưa có khung giờ phỏng vấn. Vui lòng tạo lại câu hỏi và chọn thời gian trước khi gửi email.")
+        start_time = None
+        end_time = None
         if not is_unlimited:
             start_dt = parse_slot_datetime(valid_from)
             end_dt = parse_slot_datetime(valid_until)
@@ -435,6 +559,13 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
             pass
             
     send_pass_email(row["name"], row["email"], row["job_id"], app_id, level=level, slot_token=slot_token, time_note=time_note)
+    log_application_event(
+        app_id,
+        row["email"],
+        "interview_email_sent",
+        "HR đã duyệt hồ sơ và gửi email mời phỏng vấn.",
+        {"slot_token": slot_token, "time_note": time_note, "level": level},
+    )
     print(f"[HR Approve] {app_id} → passed → Email sent to {row['email']}")
     return {"ok": True, "app_id": app_id, "status": "passed", "msg": f"Đã duyệt và gửi email mời phỏng vấn tới {row['email']}"}
 
@@ -461,7 +592,7 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
     if config:
         with db() as conn:
             conn.execute(
-                "UPDATE cv_applications SET interview_config=? WHERE id=?",
+                "UPDATE cv_applications SET interview_config=?, prep_status='generating', prep_error=NULL WHERE id=?",
                 (json.dumps(config), app_id)
             )
     
@@ -471,18 +602,40 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
     with db() as conn:
         conn.execute("DELETE FROM interview_prep WHERE app_ref=?", (app_id,))
     
-    prep = await _create_prep(dict(row)["job_id"], app_id, level=level)
+    try:
+        prep = await _create_prep(dict(row)["job_id"], app_id, level=level)
+        with db() as conn:
+            conn.execute(
+                "UPDATE cv_applications SET prep_status='ready', prep_error=NULL WHERE id=?",
+                (app_id,),
+            )
+        log_application_event(
+            app_id,
+            row["email"],
+            "questions_ready",
+            "Đã tạo bộ câu hỏi phỏng vấn và lưu vào hồ sơ.",
+            {"prep_id": prep.get("prep_id"), "question_count": len(prep.get("questions") or {})},
+        )
+    except Exception as e:
+        with db() as conn:
+            conn.execute(
+                "UPDATE cv_applications SET prep_status='error', prep_error=? WHERE id=?",
+                (str(e), app_id),
+            )
+        log_application_event(app_id, row["email"], "questions_error", "Tạo câu hỏi phỏng vấn bị lỗi.", {"error": str(e)})
+        raise
     
     # Return question list with meta for preview
     questions_preview = []
     for q_num, q_data in (prep.get("questions") or {}).items():
         meta = QUESTIONS_BANK.get(q_num, {})
+        is_generated = bool(q_data.get("is_generated"))
         questions_preview.append({
             "n": q_num,
             "text": q_data.get("text", ""),
             "type": q_data.get("type") or meta.get("type", ""),
             "label": meta.get("label", f"Câu {q_num}"),
-            "is_ai_generated": q_num not in QUESTIONS_BANK or meta.get("is_dynamic", False)
+            "is_ai_generated": is_generated
         })
     
     return {
@@ -514,6 +667,13 @@ def admin_reject_application(app_id: str, x_admin_key: str = Header(None)):
 
     # Gửi email Fail
     send_fail_email(row["name"], row["email"], row["job_id"], app_id)
+    log_application_event(
+        app_id,
+        row["email"],
+        "application_rejected",
+        "HR đã từ chối hồ sơ và gửi email kết quả.",
+        {"job_id": row["job_id"]},
+    )
     print(f"[HR Reject] {app_id} → failed → Email sent to {row['email']}")
     return {"ok": True, "app_id": app_id, "status": "failed", "msg": f"Đã từ chối và gửi email kết quả tới {row['email']}"}
 
@@ -600,6 +760,16 @@ async def save_evaluation(app_id: str, request: Request, x_admin_key: str = Head
                 "UPDATE interviews SET expert_score=?, expert_notes=? WHERE cv_path LIKE ?",
                 (scaled_score, summary_note, f"%{app_id}.pdf")
             )
+        app_row = conn.execute("SELECT email FROM cv_applications WHERE id=?", (app_id,)).fetchone()
+
+    if app_row:
+        log_application_event(
+            app_id,
+            app_row["email"],
+            "evaluation_saved",
+            f"Đã lưu phiếu đánh giá vòng {round_num}: {decision}.",
+            {"round": round_num, "decision": decision, "score": scaled_score, "evaluator": evaluator},
+        )
 
     return {"ok": True, "app_id": app_id, "round": round_num, "decision": decision}
 

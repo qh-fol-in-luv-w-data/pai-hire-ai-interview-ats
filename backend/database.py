@@ -1,6 +1,8 @@
 import sqlite3
 from contextlib import contextmanager
 from backend.config import DB_PATH
+import json
+import time
 
 # ─────────────────────────────────────────────────────────────
 # Database setup
@@ -33,6 +35,18 @@ def init_db():
             email      TEXT,
             created_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id            TEXT PRIMARY KEY,
+            email         TEXT UNIQUE,
+            phone         TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            role          TEXT NOT NULL DEFAULT 'candidate',
+            created_at    TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 
         CREATE TABLE IF NOT EXISTS interviews (
             id           TEXT PRIMARY KEY,
@@ -89,11 +103,23 @@ def init_db():
             created_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS application_logs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id     TEXT,
+            email      TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            message    TEXT NOT NULL,
+            details    TEXT,
+            created_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_interviews_candidate ON interviews(candidate_id);
         CREATE INDEX IF NOT EXISTS idx_answers_interview    ON answers(interview_id);
         CREATE INDEX IF NOT EXISTS idx_cvapp_job            ON cv_applications(job_id);
         CREATE INDEX IF NOT EXISTS idx_cvapp_status         ON cv_applications(status);
         CREATE INDEX IF NOT EXISTS idx_proctoring_session   ON proctoring_alerts(session_id);
+        CREATE INDEX IF NOT EXISTS idx_app_logs_email       ON application_logs(email);
+        CREATE INDEX IF NOT EXISTS idx_app_logs_app         ON application_logs(app_id);
         """)
     # Migration v1: AI evaluation columns
     with db() as conn:
@@ -137,6 +163,8 @@ def init_db():
             ("prev_app_id",    "TEXT"),
             ("level",          "TEXT DEFAULT 'Junior'"),
             ("interview_config", "TEXT"),
+            ("prep_status", "TEXT"),
+            ("prep_error", "TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE cv_applications ADD COLUMN {col} {typedef}")
@@ -157,6 +185,18 @@ def init_db():
                 pass
         # New tables
         conn.executescript("""
+        CREATE TABLE IF NOT EXISTS application_logs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id     TEXT,
+            email      TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            message    TEXT NOT NULL,
+            details    TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_app_logs_email ON application_logs(email);
+        CREATE INDEX IF NOT EXISTS idx_app_logs_app   ON application_logs(app_id);
+
         CREATE TABLE IF NOT EXISTS incidents (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             interview_id TEXT,
@@ -247,3 +287,15 @@ def init_db():
         """)
 
     print(f"[DB] Sẵn sàng: {DB_PATH}")
+
+
+def log_application_event(app_id: str | None, email: str | None, event_type: str, message: str, details=None):
+    email = (email or "").strip().lower()
+    if not email:
+        return
+    payload = json.dumps(details, ensure_ascii=False) if details is not None else None
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO application_logs (app_id, email, event_type, message, details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (app_id, email, event_type, message, payload, time.strftime("%Y-%m-%dT%H:%M:%S")),
+        )

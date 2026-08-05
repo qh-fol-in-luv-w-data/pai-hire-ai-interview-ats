@@ -1,11 +1,12 @@
 services:
-  app:
+  backend:
     build: .
-    container_name: pai_hire_app
+    container_name: pai_hire_backend
     restart: always
     ports:
-      - "8080:8080"
+      - "8001:8001"
     volumes:
+      - ./frontend:/app/frontend:ro
       - ./outputs:/app/outputs
       - ./ats_phongvan.db:/app/ats_phongvan.db
       - ./JDs:/app/JDs
@@ -15,7 +16,19 @@ services:
     env_file:
       - .env
     environment:
-      - PORT=8080
+      - PORT=8001
+
+  frontend:
+    image: nginx:alpine
+    container_name: pai_hire_frontend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./frontend:/usr/share/nginx/html/ui:ro
+      - ./frontend_nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
 
   ngrok:
     image: ngrok/ngrok:latest
@@ -23,8 +36,8 @@ services:
     restart: always
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-    command: http app:8080
+    command: http frontend:8000
     ports:
       - "4040:4040"
     depends_on:
-      - app
+      - frontend

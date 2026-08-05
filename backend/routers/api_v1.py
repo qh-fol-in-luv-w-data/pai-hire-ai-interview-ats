@@ -25,7 +25,7 @@ from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from backend.database import db
+from backend.database import db, log_application_event
 from backend.config import (
     BASE_DIR,
     CV_UPLOAD_DIR,
@@ -275,6 +275,14 @@ async def api_score_cv(
                 level,
             ),
         )
+    app_email = candidate_email or f"{app_id.lower()}@api.local"
+    log_application_event(
+        app_id,
+        app_email,
+        "application_scored_api",
+        f"API đã nhận và đánh giá hồ sơ: {round(total, 2)}/5.",
+        {"job_id": jd_slug, "level": level, "verdict": verdict, "mode": mode},
+    )
 
     result = {
         "app_id": app_id,
@@ -554,6 +562,7 @@ def debug_slots():
 # GET /api/v1/slot/{token}/validate   (KHÔNG cần auth)
 # ─────────────────────────────────────────────────────────────
 @router.get("/slot/{token}/validate")
+@router.get("/{token}/validate")
 def api_validate_slot(token: str):
     """
     Kiểm tra token lịch hẹn còn hiệu lực không.

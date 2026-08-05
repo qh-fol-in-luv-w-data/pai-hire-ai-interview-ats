@@ -13,4 +13,4 @@ mkdir -p outputs/interviews outputs/cv_applications outputs/temp_pushbacks outpu
 echo "Đang khởi động Docker container..."
 sudo docker compose up -d --build
 
-echo "Deploy thành công! App đang chạy tại port 8080."
+echo "Deploy thành công! Frontend đang chạy tại port 8000, Backend API đang chạy tại port 8001."

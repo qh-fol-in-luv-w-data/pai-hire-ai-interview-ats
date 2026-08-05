@@ -50,6 +50,50 @@
   .step-active { background:#0051d5;color:#fff; }
   .step-pend   { background:#f1f5f9;color:#94a3b8; }
 
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-fade-in-up { animation: fadeInUp .35s ease-out forwards; }
+
+  @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .vw-job-card {
+    transition: all .25s cubic-bezier(.4, 0, .2, 1);
+  }
+  .vw-job-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 30px -10px rgba(0, 81, 213, 0.15);
+  }
+  .quick-filter-btn {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid transparent;
+  }
+  .quick-filter-btn.active {
+    color: #fff;
+    background: rgba(255,255,255,.14);
+    border-color: rgba(255,255,255,.2);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,.12);
+  }
+  .quick-filter-btn.active::after {
+    content: "";
+    position: absolute;
+    left: .65rem;
+    right: .65rem;
+    bottom: .25rem;
+    height: 2px;
+    border-radius: 999px;
+    background: #f59e0b;
+  }
+  .quick-view-banner { animation: fadeInUp .28s ease-out forwards; }
+  .quick-view-band {
+    background-image: linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px);
+    background-size: 22px 100%;
+  }
+
   .jd-body h2 { font-weight:700;font-size:.82rem;color:#0d1b35;margin:.9rem 0 .35rem;padding-bottom:.25rem;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.04em; }
   .jd-body h3 { font-weight:600;font-size:.78rem;color:#374151;margin:.65rem 0 .25rem; }
   .jd-body ul { list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.28rem; }
@@ -59,51 +103,78 @@
   .jd-body p { font-size:.8rem;color:#6b7280;margin:.25rem 0; }
 </style>
 </head>
-<body class="min-h-screen text-[#191b23] antialiased overflow-x-hidden">
+<body class="min-h-screen bg-[#f4f6f9] text-slate-800 antialiased overflow-x-hidden">
 
-<nav class="hidden md:flex bg-[#0d1b35] text-[#dbe1ff] shadow-md w-full sticky top-0 z-40 justify-between items-center px-12 py-3">
-  <div class="text-xl font-bold text-white flex items-center gap-2">
-    <span class="w-9 h-9 rounded-xl bg-[#0051d5] text-white flex items-center justify-center">P</span>
-    PAI Recruitment
-  </div>
-  <div class="flex gap-8 items-center text-sm font-semibold">
-    <span class="text-[#b4c5ff] border-b-2 border-[#b4c5ff] pb-1">Applications</span>
+<!-- ── VIETNAMWORKS STYLE NAVBAR ───────────────────────────── -->
+<nav class="bg-[#0a2540] text-white shadow-lg w-full sticky top-0 z-40 border-b border-blue-900/50">
+  <div class="max-w-[1280px] mx-auto flex justify-between items-center px-4 md:px-8 py-3.5">
+    <div class="flex items-center gap-6">
+      <a href="/apply" class="text-xl font-extrabold text-white flex items-center gap-2.5 tracking-tight hover:opacity-90 transition">
+        <span class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/30">P</span>
+        <span class="flex flex-col">
+          <span class="leading-none text-base md:text-lg font-black">PAI RECRUITMENT</span>
+          <span class="text-[10px] text-blue-300 font-semibold tracking-widest uppercase">CT GROUP PORTAL</span>
+        </span>
+      </a>
+      <div class="hidden lg:flex items-center gap-4 text-xs font-bold text-blue-200">
+        <button id="quick-filter-all" onclick="resetFilters()" class="quick-filter-btn active text-white bg-white/10 px-3 py-1.5 rounded-lg hover:bg-white/20 transition cursor-pointer">Tất cả việc làm</button>
+        <button id="quick-filter-hot" onclick="filterHotJobs()" class="quick-filter-btn hover:text-white px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-sm text-amber-300">local_fire_department</span> Việc làm Hot
+        </button>
+        <button id="quick-filter-tech" onclick="filterTechJobs()" class="quick-filter-btn hover:text-white px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-sm text-cyan-300">memory</span> Khối Công Nghệ
+        </button>
+      </div>
+    </div>
+    <div class="flex gap-3 md:gap-4 items-center text-sm font-semibold" id="nav-actions">
+      <!-- Nút Đăng nhập Admin / Lịch sử ứng tuyển được nạp tự động qua JS -->
+    </div>
   </div>
 </nav>
 
-<main class="w-full max-w-[1280px] mx-auto px-4 md:px-5 py-8 pb-28 flex flex-col gap-5 relative">
+<main class="w-full max-w-[1280px] mx-auto px-4 md:px-6 py-6 pb-28 flex flex-col gap-6 relative">
   <div class="flex-1 flex flex-col gap-6 transition-all duration-300" id="job-list-container">
-    <section class="bg-white/95 backdrop-blur rounded-xl p-6 shadow-sm border border-[#e5e7eb] relative overflow-hidden sticky top-20 z-30">
-      <div class="absolute top-0 right-0 w-64 h-64 bg-[#0051d5]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
-      <div class="relative z-10 flex flex-col gap-4">
-        <div>
-          <h1 class="text-2xl md:text-[32px] leading-tight font-bold text-[#191b23] mb-1">Khám phá cơ hội nghề nghiệp</h1>
-          <p class="text-sm text-[#434654] leading-6">Hệ thống tuyển dụng thông minh được hỗ trợ bởi AI, kết nối nhân tài với các vị trí phù hợp nhất tại CT Group.</p>
+
+    <!-- ── VIETNAMWORKS STYLE HERO BANNER & SEARCH BOX ─────────────── -->
+    <section class="bg-gradient-to-r from-[#0a2540] via-[#0f2d59] to-[#0051d5] rounded-3xl p-6 md:p-9 text-white shadow-xl relative overflow-hidden">
+      <div class="absolute -right-10 -bottom-10 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="relative z-10 max-w-4xl">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-blue-200 text-xs font-semibold backdrop-blur mb-3 border border-white/10">
+          <span class="material-symbols-outlined text-sm text-amber-400">auto_awesome</span> Cổng Tuyển Dụng CT Group & Trợ lý Phỏng vấn AI
         </div>
-        <div class="flex flex-col sm:flex-row gap-2 mt-1">
+        <h1 class="text-2xl md:text-4xl font-extrabold text-white mb-2 leading-tight">
+          Khám Phá Cơ Hội Nghề Nghiệp Đột Phá
+        </h1>
+        <p class="text-xs md:text-sm text-blue-100/80 mb-6 max-w-2xl">
+          Tìm kiếm vị trí phù hợp, nộp CV trực tuyến và tham gia phỏng vấn tự động cùng công nghệ AI hiện đại.
+        </p>
+
+        <!-- Search Bar Form Box -->
+        <div class="bg-white rounded-2xl p-2.5 shadow-2xl flex flex-col md:flex-row gap-2.5 text-slate-800">
           <div class="relative flex-1">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#737686]">search</span>
-            <input id="search-input" type="text" placeholder="Tìm kiếm vị trí, kỹ năng..."
-              class="w-full bg-[#f9fafb] border border-[#e5e7eb] rounded-xl py-3 pl-10 pr-4 text-sm text-[#191b23] focus:outline-none focus:border-[#003ca3] focus:ring-1 focus:ring-[#003ca3]/20 transition-all"
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+            <input id="search-input" type="text" placeholder="Tên vị trí, từ khóa, kỹ năng..."
+              class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 font-medium placeholder-slate-400"
               oninput="filterJobs()"/>
           </div>
-          <div class="relative w-full sm:w-56">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#737686]">category</span>
+          <div class="relative w-full md:w-64">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">category</span>
             <select id="cat-filter" onchange="filterJobs()"
-              class="w-full bg-[#f9fafb] border border-[#e5e7eb] rounded-xl py-3 pl-10 pr-8 text-sm text-[#191b23] focus:outline-none focus:border-[#003ca3] focus:ring-1 focus:ring-[#003ca3]/20 appearance-none">
-              <option value="">Tất cả lĩnh vực</option>
+              class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-8 text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 appearance-none font-medium">
+              <option value="">Tất cả ngành nghề</option>
             </select>
           </div>
-          <button onclick="filterJobs()" class="bg-[#003ca3] text-white font-bold rounded-xl px-6 py-3 hover:bg-[#0051d5] transition flex items-center justify-center gap-2">
-            Tìm kiếm
+          <button onclick="filterJobs()" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold rounded-xl px-7 py-3 transition-all shadow-md shadow-orange-500/30 flex items-center justify-center gap-2 shrink-0 text-sm tracking-wide">
+            <span class="material-symbols-outlined text-lg">search</span> TÌM KIẾM
           </button>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button class="px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#003ca3] text-xs font-bold border border-[#003ca3]/10 flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">auto_awesome</span> Đề xuất bởi AI
-          </button>
-          <button onclick="document.getElementById('cat-filter').value=''; filterJobs();" class="px-3 py-1.5 rounded-full bg-[#ededf8] text-[#434654] text-xs font-bold border border-[#e5e7eb]">Tất cả</button>
-          <div class="flex gap-2 flex-wrap" id="top-level-btns">
+
+        <!-- Level Pills Filter -->
+        <div class="flex items-center gap-2 flex-wrap mt-5 pt-3 border-t border-white/10">
+          <span class="text-xs text-blue-200 font-semibold mr-1 flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">filter_alt</span> Cấp bậc:
+          </span>
+          <div class="flex gap-1.5 flex-wrap" id="top-level-btns">
             <button class="lv-btn" data-lv="Entry" onclick="selectLevel('Entry')">Entry</button>
             <button class="lv-btn active" data-lv="Junior" onclick="selectLevel('Junior')">Junior</button>
             <button class="lv-btn" data-lv="Mid" onclick="selectLevel('Mid')">Mid</button>
@@ -111,22 +182,21 @@
             <button class="lv-btn" data-lv="Manager" onclick="selectLevel('Manager')">Manager</button>
             <button class="lv-btn" data-lv="Director" onclick="selectLevel('Director')">Director</button>
           </div>
-          <div id="level-badge" class="ml-auto text-xs hidden md:flex items-center gap-1.5 text-[#0051d5] font-semibold">
-            <span class="material-symbols-outlined text-sm">badge</span>
-            <span id="level-badge-text">Junior</span>
-          </div>
         </div>
       </div>
     </section>
 
-    <div class="flex items-center justify-between">
-      <p class="text-xs text-[#737686]"><span id="job-count" class="font-bold text-[#191b23]">—</span> vị trí đang tuyển</p>
-      <p class="hidden md:flex items-center gap-1 text-xs text-[#737686]"><span class="material-symbols-outlined text-sm">verified</span> Ứng tuyển 100% trực tuyến</p>
+    <section id="quick-view-banner" class="hidden quick-view-banner rounded-3xl overflow-hidden shadow-sm border border-slate-200"></section>
+
+    <div class="flex items-center justify-between px-1">
+      <p class="text-xs font-semibold text-slate-500">Đang hiển thị <span id="job-count" class="font-extrabold text-blue-600 text-sm">—</span> vị trí tuyển dụng</p>
+      <p class="hidden md:flex items-center gap-1 text-xs text-slate-500 font-medium"><span class="material-symbols-outlined text-sm text-emerald-600">verified</span> Nộp CV & Phỏng vấn 100% Online</p>
     </div>
 
-    <section id="job-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      <div class="col-span-2 text-center py-12 text-gray-400 text-sm">
-        <span class="spin inline-block mr-2 text-xl">↻</span>Đang tải...
+    <!-- Job Cards Grid -->
+    <section id="job-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div class="col-span-full text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <span class="spin inline-block mr-2 text-xl text-blue-600">↻</span>Đang tải danh sách vị trí...
       </div>
     </section>
   </div>
@@ -161,7 +231,10 @@
       </div>
     </div>
     <p class="text-[.7rem] text-gray-400 mb-4">Kiểm tra hộp thư <strong class="text-gray-600" id="success-email"></strong> (kể cả Spam)</p>
-    <button onclick="location.reload()" class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition">
+    <button onclick="goToCandidateHistory()" class="w-full py-3 bg-[#0051d5] text-white rounded-xl font-bold text-sm hover:opacity-90 transition mb-2">
+      Theo dõi tiến trình hồ sơ
+    </button>
+    <button onclick="location.reload()" class="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition">
       Ứng tuyển vị trí khác
     </button>
   </div>
@@ -174,6 +247,8 @@ let allJobs      = [];
 let filteredJobs = [];
 let selectedJob  = null;
 let selectedLevel = 'Junior';
+let activeQuickFilter = 'all';
+let pendingApplyAfterAuth = false;
 
 const CAT_ICONS = {
   'Công Nghệ Thông Tin': 'computer',
@@ -191,6 +266,78 @@ function catIcon(cat) {
 function cleanTitle(t) {
   return t.replace(/^(Entry|Junior|Mid|Senior|Manager|Director)\s+/i, '');
 }
+function isTechJob(job) {
+  const text = `${job.category || ''} ${job.category_slug || ''} ${job.title || ''}`.toLowerCase();
+  return ['công nghệ', 'cong_nghe', 'it', 'software', 'developer', 'data', 'ai', 'system', 'engineer', 'công_nghệ'].some(k => text.includes(k));
+}
+function isHotJob(job, index = 0) {
+  const text = `${job.title || ''} ${job.category || ''}`.toLowerCase();
+  return index < 6 || /ai|data|developer|talent|kinh doanh|marketing|sales|product|engineer/.test(text);
+}
+function setQuickFilter(mode) {
+  activeQuickFilter = mode;
+  ['all', 'hot', 'tech'].forEach(key => {
+    document.getElementById(`quick-filter-${key}`)?.classList.toggle('active', key === mode);
+  });
+}
+
+function updateQuickFilterUrl(mode) {
+  const url = new URL(location.href);
+  if (mode === 'all') url.searchParams.delete('view');
+  else url.searchParams.set('view', mode);
+  history.replaceState(null, '', url.toString());
+}
+
+function renderQuickViewBanner() {
+  const el = document.getElementById('quick-view-banner');
+  if (!el) return;
+  if (activeQuickFilter === 'all') {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const isTech = activeQuickFilter === 'tech';
+  const title = isTech ? 'Khối Công Nghệ' : 'Việc Làm Hot';
+  const icon = isTech ? 'memory' : 'local_fire_department';
+  const bg = isTech
+    ? 'bg-gradient-to-r from-[#082f49] via-[#0e7490] to-[#0051d5]'
+    : 'bg-gradient-to-r from-[#7c2d12] via-[#d97706] to-[#0051d5]';
+  const desc = isTech
+    ? 'Các vị trí liên quan đến sản phẩm số, dữ liệu, AI, hệ thống và vận hành công nghệ.'
+    : 'Những vị trí đang cần tuyển nhanh, ưu tiên xử lý hồ sơ và có nhu cầu tuyển dụng cao.';
+  const chips = isTech
+    ? ['AI/Data', 'Engineering', 'System', 'Product']
+    : ['Tuyển gấp', 'Nhu cầu cao', 'Ưu tiên CV mới', 'Online process'];
+
+  el.className = `quick-view-banner rounded-3xl overflow-hidden shadow-sm border border-slate-200 ${bg} text-white`;
+  el.innerHTML = `
+    <div class="quick-view-band p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-5">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-2xl">${icon}</span>
+        </div>
+        <div>
+          <p class="text-[11px] font-black uppercase text-white/65 tracking-widest">Chuyên mục tuyển dụng</p>
+          <h2 class="text-xl md:text-2xl font-black mt-0.5">${title}</h2>
+          <p class="text-xs md:text-sm text-white/80 max-w-2xl mt-1">${desc}</p>
+          <div class="flex flex-wrap gap-2 mt-3">
+            ${chips.map(chip => `<span class="px-2.5 py-1 rounded-lg bg-white/12 border border-white/15 text-[11px] font-bold">${chip}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 min-w-[190px]">
+        <div class="rounded-2xl bg-white/12 border border-white/15 p-3">
+          <p class="text-[10px] uppercase font-black text-white/60">Đang mở</p>
+          <p class="text-2xl font-black">${filteredJobs.length}</p>
+        </div>
+        <div class="rounded-2xl bg-white/12 border border-white/15 p-3">
+          <p class="text-[10px] uppercase font-black text-white/60">Cấp bậc</p>
+          <p class="text-sm font-black mt-1">${selectedLevel}</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 // ── Level picker ─────────────────────────────────────────
 async function selectLevel(lv) {
@@ -198,13 +345,12 @@ async function selectLevel(lv) {
   document.querySelectorAll('#top-level-btns .lv-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.lv === lv);
   });
-  document.getElementById('level-badge').classList.remove('hidden');
-  document.getElementById('level-badge-text').textContent = lv;
+  renderJobs(); // Re-render cards immediately so level updates on UI!
 
   // Reload JD in panel if open
   if (selectedJob) {
     const jdEl = document.querySelector('.jd-body');
-    if (jdEl) jdEl.innerHTML = '<p class="text-gray-400 text-[.72rem] py-1">Đang tải JD...</p>';
+    if (jdEl) jdEl.innerHTML = '<p class="text-slate-400 text-xs py-2">Đang tải nội dung JD...</p>';
     try {
       const r = await fetch(`${API_BASE}/jobs/${encodeURIComponent(selectedJob.id)}?level=${lv}`);
       const d = await r.json();
@@ -213,51 +359,104 @@ async function selectLevel(lv) {
   }
 }
 
+function resetFilters() {
+  setQuickFilter('all');
+  updateQuickFilterUrl('all');
+  document.getElementById('search-input').value = '';
+  document.getElementById('cat-filter').value = '';
+  filteredJobs = allJobs;
+  renderJobs();
+}
+
+function filterTechJobs() {
+  setQuickFilter('tech');
+  updateQuickFilterUrl('tech');
+  document.getElementById('search-input').value = '';
+  const catSelect = document.getElementById('cat-filter');
+  const techOpt = Array.from(catSelect.options).find(o => o.value.includes('Công_Nghệ') || o.value.includes('IT'));
+  if (techOpt) catSelect.value = techOpt.value;
+  filteredJobs = allJobs.filter(isTechJob);
+  renderJobs();
+}
+
+function filterHotJobs() {
+  setQuickFilter('hot');
+  updateQuickFilterUrl('hot');
+  document.getElementById('search-input').value = '';
+  document.getElementById('cat-filter').value = '';
+  filteredJobs = allJobs.filter((j, index) => isHotJob(j, index)).slice(0, Math.min(9, allJobs.length));
+  renderJobs();
+}
+
 // ── Load jobs ────────────────────────────────────────────
 async function loadJobs() {
   try {
-    const r    = await fetch(`${API_BASE}/jobs`);
+    const r = await fetch(`${API_BASE}/jobs`);
     const data = await r.json();
     allJobs = data.jobs || [];
 
     const cats = [...new Set(allJobs.map(j => j.category))].sort();
-    document.getElementById('cat-filter').innerHTML =
-      '<option value="">Tất cả lĩnh vực</option>' +
-      cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    const catSelect = document.getElementById('cat-filter');
+    if (catSelect) {
+      catSelect.innerHTML =
+        '<option value="">Tất cả ngành nghề</option>' +
+        cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
 
     filteredJobs = allJobs;
     renderJobs();
     openJobFromUrl();
   } catch(e) {
     document.getElementById('job-list').innerHTML =
-      '<div class="col-span-2 text-center py-8 text-red-400 text-sm">Không thể tải danh sách. Thử lại sau.</div>';
+      '<div class="col-span-full text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm"><p class="text-red-500 font-semibold">Không thể tải danh sách vị trí. Thử lại sau.</p></div>';
   }
 }
 
 function openJobFromUrl() {
-  const params = new URLSearchParams(location.search);
-  const lv = params.get('level') || params.get('lv');
-  if (lv && lv !== selectedLevel) {
-    selectedLevel = lv;
-    document.querySelectorAll('#top-level-btns .lv-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.lv === lv);
-    });
-    document.getElementById('level-badge').classList.remove('hidden');
-    document.getElementById('level-badge-text').textContent = lv;
+  try {
+    const params = new URLSearchParams(location.search);
+    const lv = params.get('level') || params.get('lv');
+    if (lv && lv !== selectedLevel) {
+      selectedLevel = lv;
+      document.querySelectorAll('#top-level-btns .lv-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.lv === lv);
+      });
+    }
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    let pathJob = '';
+    if (pathParts[0] === 'apply' && pathParts.length > 1) {
+      try {
+        pathJob = decodeURIComponent(pathParts.slice(1).join('/'));
+      } catch(_) {
+        pathJob = pathParts.slice(1).join('/');
+      }
+    }
+    const view = params.get('view');
+    if (view === 'hot') {
+      filterHotJobs();
+    } else if (view === 'tech') {
+      filterTechJobs();
+    }
+    const jobId = pathJob || params.get('job') || params.get('pos');
+    if (jobId) selectJob(jobId);
+  } catch(err) {
+    console.warn('openJobFromUrl error:', err);
   }
-  const pathParts = location.pathname.split('/').filter(Boolean);
-  const pathJob = pathParts[0] === 'apply' && pathParts.length > 1 ? decodeURIComponent(pathParts.slice(1).join('/')) : '';
-  const jobId = pathJob || params.get('job') || params.get('pos');
-  if (jobId) selectJob(jobId);
 }
 
 function isApplyPageMode() {
-  const params = new URLSearchParams(location.search);
-  const pathParts = location.pathname.split('/').filter(Boolean);
-  return Boolean(params.get('job') || params.get('pos') || (pathParts[0] === 'apply' && pathParts.length > 1));
+  try {
+    const params = new URLSearchParams(location.search);
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    return Boolean(params.get('job') || params.get('pos') || (pathParts[0] === 'apply' && pathParts.length > 1));
+  } catch(_) {
+    return false;
+  }
 }
 
 function filterJobs() {
+  setQuickFilter('all');
+  updateQuickFilterUrl('all');
   const q   = document.getElementById('search-input').value.toLowerCase();
   const cat = document.getElementById('cat-filter').value;
   filteredJobs = allJobs.filter(j => {
@@ -268,44 +467,70 @@ function filterJobs() {
   renderJobs();
 }
 
-// ── Flat job grid ─────────────────────────────────────────
+// ── Clean & Professional Job Cards Grid ──────────────────────
 function renderJobs() {
   document.getElementById('job-count').textContent = filteredJobs.length;
+  renderQuickViewBanner();
   if (!filteredJobs.length) {
     document.getElementById('job-list').innerHTML =
-      '<div class="col-span-2 text-center py-8 text-gray-400 text-sm">Không tìm thấy vị trí phù hợp.</div>';
+      '<div class="col-span-full text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm"><span class="material-symbols-outlined text-4xl text-slate-300 mb-2">work_off</span><p class="text-slate-500 font-semibold">Không tìm thấy vị trí tuyển dụng phù hợp.</p></div>';
     return;
   }
-  document.getElementById('job-list').innerHTML = filteredJobs.map(j => `
-    <div class="job-card bg-white border border-[#e5e7eb] rounded-xl p-6 shadow-sm hover:shadow-[0_-4px_10px_rgba(0,81,213,0.1)] hover:-translate-y-[1px] transition-all cursor-pointer group flex flex-col gap-4 ${selectedJob?.id===j.id?'selected':''}"
+
+  document.getElementById('job-list').innerHTML = filteredJobs.map((j, index) => `
+    <div class="vw-job-card animate-fade-in-up bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-xl hover:border-blue-600 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden ${selectedJob?.id===j.id ? 'ring-2 ring-blue-600 bg-blue-50/20' : ''}"
+      style="animation-delay: ${index * 0.03}s"
       onclick="goApplyJob('${j.id}')" id="card-${j.id}">
-      <div class="flex justify-between items-start">
-        <div class="w-12 h-12 bg-[#f3f3fe] rounded-lg flex items-center justify-center border border-[#e5e7eb]/70">
-          <span class="material-symbols-outlined text-[#003ca3] text-2xl">${catIcon(j.category)}</span>
-        </div>
-        <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-[11px] font-bold">Toàn thời gian</span>
-      </div>
+
       <div>
-        <h3 class="text-lg font-semibold text-[#191b23] group-hover:text-[#003ca3] transition-colors line-clamp-1">${cleanTitle(j.title)}</h3>
-        <p class="text-sm text-[#434654] mt-1 flex items-center gap-1">
-          <span class="material-symbols-outlined text-[16px]">business</span> ${j.category}
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-[#0a2540] text-white flex items-center justify-center font-black text-base shadow-sm shrink-0 border border-blue-900/40">
+              CT
+            </div>
+            <div>
+              <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">CT GROUP</p>
+              <h3 class="text-base font-bold text-slate-900 group-hover:text-[#0051d5] transition-colors line-clamp-1">${cleanTitle(j.title)}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 flex-wrap text-xs my-3">
+          <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold flex items-center gap-1 border border-emerald-200/60">
+            <span class="material-symbols-outlined text-xs">payments</span> Thỏa thuận
+          </span>
+          <span class="px-2.5 py-1 rounded-lg bg-blue-50 text-[#0051d5] font-semibold flex items-center gap-1 border border-blue-100">
+            <span class="material-symbols-outlined text-xs">location_on</span> TP.HCM
+          </span>
+          <span class="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold border border-purple-100">
+            Cấp bậc: ${selectedLevel}
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-2">
+          <span class="font-semibold text-slate-700">Ngành nghề:</span> ${j.category}
         </p>
       </div>
-      <div class="flex gap-2 flex-wrap">
-        <span class="px-2 py-1 rounded bg-[#ededf8] text-[#434654] text-[11px] font-bold">AI Interview</span>
-        <span class="px-2 py-1 rounded bg-[#eff6ff] text-[#003ca3] text-[11px] font-bold">Phù hợp ${selectedLevel}</span>
+
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-between mt-auto">
+        <span class="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+          <span class="material-symbols-outlined text-xs text-slate-400">schedule</span> Toàn thời gian
+        </span>
+        <button class="px-3.5 py-1.5 rounded-xl bg-blue-50 group-hover:bg-[#0051d5] text-[#0051d5] group-hover:text-white font-bold text-xs transition-all duration-200 flex items-center gap-1 shadow-sm">
+          Ứng tuyển <span class="material-symbols-outlined text-xs group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+        </button>
       </div>
-      <div class="mt-auto pt-3 border-t border-[#e5e7eb] flex justify-between items-center text-[#434654] text-sm">
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">location_on</span> TP.HCM</span>
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> Mới cập nhật</span>
-      </div>
-    </div>`).join('');
+    </div>
+  `).join('');
 }
 
 function goApplyJob(jobId) {
-  const url = new URL(`/apply/${encodeURIComponent(jobId)}`, location.origin);
-  url.searchParams.set('level', selectedLevel);
-  location.href = url.toString();
+  try {
+    const targetUrl = `/apply?job=${encodeURIComponent(jobId)}&level=${encodeURIComponent(selectedLevel)}`;
+    location.href = targetUrl;
+  } catch(err) {
+    location.href = '/apply';
+  }
 }
 
 // ── Select job ────────────────────────────────────────────
@@ -429,6 +654,9 @@ function renderDetail(job) {
       </p>
       </div>
     </div>`;
+  try {
+    fillApplyFormFromUser(JSON.parse(localStorage.getItem('pai_candidate_user') || 'null'));
+  } catch(_) {}
 }
 
 function closeDetail() {
@@ -488,6 +716,14 @@ function removeCV() {
 
 // ── Submit ───────────────────────────────────────────────
 async function submitApply() {
+  const userJson = localStorage.getItem('pai_candidate_user');
+  if (!userJson) {
+    pendingApplyAfterAuth = true;
+    showErr('Vui lòng đăng ký hoặc đăng nhập tài khoản ứng viên trước khi nộp CV.');
+    openCandidateAuthModal('register');
+    return;
+  }
+
   const name  = document.getElementById('apply-name').value.trim();
   const email = document.getElementById('apply-email').value.trim();
   const phone = document.getElementById('apply-phone').value.trim();
@@ -511,11 +747,17 @@ async function submitApply() {
   form.append('cv_file', cvFile, cvFile.name);
 
   try {
-    const r    = await fetch(`${API_BASE}/jobs/${encodeURIComponent(selectedJob.id)}/apply`, { method:'POST', body:form });
+    const candidateToken = localStorage.getItem('pai_candidate_token') || '';
+    const r    = await fetch(`${API_BASE}/jobs/${encodeURIComponent(selectedJob.id)}/apply`, {
+      method:'POST',
+      headers: { 'X-Candidate-Token': candidateToken },
+      body:form
+    });
     const data = await r.json();
     if (!r.ok) throw new Error(data.detail || 'Lỗi server');
     document.getElementById('success-app-id').textContent = data.application_id || '—';
     document.getElementById('success-email').textContent  = email;
+    localStorage.setItem('pai_candidate_last_lookup', JSON.stringify({ email, phone, name }));
     if (data.is_reapplicant) document.getElementById('success-reapplicant').classList.remove('hidden');
     document.getElementById('success-screen').classList.remove('hidden');
   } catch(err) {
@@ -530,8 +772,359 @@ function showErr(msg) {
   el.textContent = msg; el.classList.remove('hidden');
 }
 
+// ── AUTHENTICATION & PORTAL NAV ──────────────────────
+function toggleUserDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('user-dropdown-menu');
+  const arrow = document.getElementById('nav-menu-arrow');
+  if (!menu) return;
+  const isHidden = menu.classList.contains('hidden');
+  if (isHidden) {
+    menu.classList.remove('hidden');
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+  } else {
+    menu.classList.add('hidden');
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('user-dropdown-menu');
+  const wrapper = document.getElementById('user-menu-wrapper');
+  if (menu && !menu.classList.contains('hidden') && wrapper && !wrapper.contains(e.target)) {
+    menu.classList.add('hidden');
+    const arrow = document.getElementById('nav-menu-arrow');
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
+  }
+});
+
+function checkAdminAuthStatus() {
+  const adminKey = sessionStorage.getItem('pai_admin_key');
+  const candidateUserJson = localStorage.getItem('pai_candidate_user');
+  const candidateUser = candidateUserJson ? JSON.parse(candidateUserJson) : null;
+
+  const navActions = document.getElementById('nav-actions');
+  if (!navActions) return;
+
+  if (candidateUser || adminKey) {
+    const name = candidateUser ? candidateUser.name : 'Quản trị viên';
+    const email = candidateUser ? candidateUser.email : 'admin@ctgroup.vn';
+    const isAdmin = (candidateUser && candidateUser.role === 'admin') || Boolean(adminKey);
+    const initial = name.charAt(0).toUpperCase();
+
+    navActions.innerHTML = `
+      <div class="relative inline-block text-left" id="user-menu-wrapper">
+        <button id="user-menu-btn" onclick="toggleUserDropdown(event)" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 transition text-white shadow-sm">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md border border-white/20">
+            ${initial}
+          </div>
+          <span class="font-bold text-xs max-w-[120px] truncate">${name}</span>
+          <span class="material-symbols-outlined text-sm transition-transform duration-200" id="nav-menu-arrow">expand_more</span>
+        </button>
+
+        <div id="user-dropdown-menu" class="hidden absolute right-0 mt-2 w-60 rounded-2xl bg-white text-slate-800 shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in">
+          <div class="p-3.5 border-b border-slate-100 bg-slate-50/80">
+            <p class="text-xs font-extrabold text-slate-900 truncate">${name}</p>
+            <p class="text-[11px] text-slate-500 truncate mt-0.5">${email}</p>
+            <span class="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-extrabold ${isAdmin ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">
+              ${isAdmin ? '⚡ Quản Trị Viên (Admin)' : '👤 Tài Khoản Ứng Viên'}
+            </span>
+          </div>
+          <div class="py-1">
+            <a href="/candidate/history?tab=profile" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-[#0051d5] transition">
+              <span class="material-symbols-outlined text-base text-blue-600">account_box</span> Hồ sơ cá nhân & CV
+            </a>
+            <a href="/candidate/history?tab=apps" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition">
+              <span class="material-symbols-outlined text-base text-purple-600">description</span> Lịch sử đơn ứng tuyển
+            </a>
+            <a href="/candidate/history?tab=interviews" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition">
+              <span class="material-symbols-outlined text-base text-indigo-600">smart_toy</span> Kết quả phỏng vấn AI
+            </a>
+            ${isAdmin ? `
+              <a href="/admin" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-800 hover:bg-amber-50 transition border-t border-slate-100">
+                <span class="material-symbols-outlined text-base text-amber-600">admin_panel_settings</span> Trang Quản Trị Admin
+              </a>
+            ` : ''}
+          </div>
+          <div class="border-t border-slate-100 py-1">
+            <button onclick="logoutCandidate()" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 transition text-left">
+              <span class="material-symbols-outlined text-base">logout</span> Đăng xuất
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    navActions.innerHTML = `
+      <button onclick="openCandidateAuthModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
+        <span class="material-symbols-outlined text-sm">account_circle</span> Đăng nhập / Đăng ký
+      </button>
+    `;
+  }
+}
+
+function openCandidateAuthModal(tab = 'login') {
+  document.getElementById('candidate-auth-modal').classList.remove('hidden');
+  switchAuthTab(tab);
+}
+
+function closeCandidateAuthModal() {
+  document.getElementById('candidate-auth-modal').classList.add('hidden');
+}
+
+function switchAuthTab(tab) {
+  const loginForm = document.getElementById('cand-login-form');
+  const regForm = document.getElementById('cand-reg-form');
+  const loginBtn = document.getElementById('auth-tab-login');
+  const regBtn = document.getElementById('auth-tab-register');
+
+  if (tab === 'login') {
+    loginForm.classList.remove('hidden');
+    regForm.classList.add('hidden');
+    loginBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg transition bg-white text-blue-600 shadow-sm';
+    regBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900';
+  } else {
+    loginForm.classList.add('hidden');
+    regForm.classList.remove('hidden');
+    regBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg transition bg-white text-blue-600 shadow-sm';
+    loginBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900';
+  }
+}
+
+function formatErrorMsg(detail, fallback) {
+  if (!detail) return fallback || 'Có lỗi xảy ra';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(d => (d.msg || JSON.stringify(d))).join('; ');
+  }
+  if (typeof detail === 'object') {
+    return detail.detail ? formatErrorMsg(detail.detail, fallback) : (detail.msg || JSON.stringify(detail));
+  }
+  return String(detail);
+}
+
+function fillApplyFormFromUser(user) {
+  if (!user) return;
+  const nameEl = document.getElementById('apply-name');
+  const emailEl = document.getElementById('apply-email');
+  const phoneEl = document.getElementById('apply-phone');
+  if (nameEl && !nameEl.value) nameEl.value = user.name || '';
+  if (emailEl && !emailEl.value) emailEl.value = user.email || '';
+  if (phoneEl && !phoneEl.value) phoneEl.value = user.phone || '';
+}
+
+function finishCandidateAuth(data) {
+  localStorage.setItem('pai_candidate_user', JSON.stringify(data.user));
+  localStorage.setItem('pai_candidate_token', data.token);
+  if (data.admin_key) {
+    sessionStorage.setItem('pai_admin_key', data.admin_key);
+  }
+  closeCandidateAuthModal();
+  checkAdminAuthStatus();
+  fillApplyFormFromUser(data.user);
+
+  const isAdminUser = data.user && data.user.role === 'admin';
+  if (isAdminUser) {
+    pendingApplyAfterAuth = false;
+    return;
+  }
+  if (!selectedJob && !isApplyPageMode() && !pendingApplyAfterAuth) {
+    location.href = '/candidate/history?tab=apps';
+  }
+  pendingApplyAfterAuth = false;
+}
+
+async function handleCandidateLogin(e) {
+  e.preventDefault();
+  const identifier = document.getElementById('cand-login-identifier').value.trim();
+  const password = document.getElementById('cand-login-password').value.trim();
+  const errEl = document.getElementById('cand-login-error');
+  const errText = document.getElementById('cand-login-err-text');
+  const btn = document.getElementById('cand-login-submit');
+
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Đang đăng nhập...';
+
+  try {
+    const isEmail = identifier.includes('@');
+    const body = {
+      email: isEmail ? identifier : null,
+      phone: !isEmail ? identifier : null,
+      password: password
+    };
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(formatErrorMsg(data.detail, 'Sai tài khoản hoặc mật khẩu'));
+
+    finishCandidateAuth(data);
+  } catch (err) {
+    errText.textContent = formatErrorMsg(err.message, 'Lỗi đăng nhập');
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Đăng Nhập';
+  }
+}
+
+async function handleCandidateRegister(e) {
+  e.preventDefault();
+  const name = document.getElementById('cand-reg-name').value.trim();
+  const email = document.getElementById('cand-reg-email').value.trim();
+  const phone = document.getElementById('cand-reg-phone').value.trim();
+  const password = document.getElementById('cand-reg-password').value.trim();
+  const errEl = document.getElementById('cand-reg-error');
+  const errText = document.getElementById('cand-reg-err-text');
+  const btn = document.getElementById('cand-reg-submit');
+
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Đang tạo tài khoản...';
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(formatErrorMsg(data.detail, 'Lỗi tạo tài khoản'));
+
+    finishCandidateAuth(data);
+  } catch (err) {
+    errText.textContent = formatErrorMsg(err.message, 'Lỗi tạo tài khoản');
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Tạo Tài Khoản';
+  }
+}
+
+function logoutCandidate() {
+  localStorage.removeItem('pai_candidate_user');
+  localStorage.removeItem('pai_candidate_token');
+  localStorage.removeItem('pai_candidate_last_lookup');
+  sessionStorage.removeItem('pai_admin_key');
+  localStorage.removeItem('pai_admin_key');
+  checkAdminAuthStatus();
+}
+
+function openHistoryModal() {
+  location.href = '/candidate/history?tab=apps';
+}
+
+function goToCandidateHistory() {
+  location.href = '/candidate/history?tab=apps';
+}
+
 // ── Boot ─────────────────────────────────────────────────
+checkAdminAuthStatus();
 loadJobs();
 </script>
+
+<!-- ── CANDIDATE HISTORY MODAL ───────────────────────── -->
+<div id="history-modal" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative max-h-[85vh] flex flex-col">
+    <button onclick="closeHistoryModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+    <div class="flex items-center gap-3 mb-4 shrink-0">
+      <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+        <span class="material-symbols-outlined text-2xl">history</span>
+      </div>
+      <div>
+        <h3 class="font-bold text-gray-900 text-lg">Lịch Sử Ứng Tuyển & Phỏng Vấn</h3>
+        <p class="text-xs text-gray-500">Xem lại các vị trí đã nộp và bài phỏng vấn AI của bạn</p>
+      </div>
+    </div>
+    <div id="history-content" class="flex-1 overflow-y-auto space-y-4 pr-1">
+      <div class="text-center py-8 text-gray-400 text-sm">Đang tải lịch sử...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CANDIDATE AUTH MODAL (ĐĂNG NHẬP / ĐĂNG KÝ) ───────────────── -->
+<div id="candidate-auth-modal" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 relative border border-slate-100">
+    <button onclick="closeCandidateAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-blue-50 text-[#0051d5] flex items-center justify-center font-bold">
+        <span class="material-symbols-outlined text-2xl">account_circle</span>
+      </div>
+      <div>
+        <h3 class="font-bold text-slate-900 text-lg">Tài khoản Ứng viên</h3>
+        <p class="text-xs text-slate-500">Đăng nhập hoặc Đăng ký để lưu và xem lại đơn ứng tuyển</p>
+      </div>
+    </div>
+
+    <!-- Tabs Switch -->
+    <div class="flex bg-slate-100 p-1 rounded-xl mb-5">
+      <button id="auth-tab-login" type="button" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold rounded-lg transition bg-white text-blue-600 shadow-sm">
+        Đăng nhập
+      </button>
+      <button id="auth-tab-register" type="button" onclick="switchAuthTab('register')" class="flex-1 py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900">
+        Đăng ký mới
+      </button>
+    </div>
+
+    <!-- Form Login -->
+    <form id="cand-login-form" onsubmit="handleCandidateLogin(event)">
+      <div class="mb-3">
+        <label class="block text-xs font-bold text-slate-700 mb-1">Email hoặc Số điện thoại</label>
+        <input type="text" id="cand-login-identifier" placeholder="Nhập email hoặc sđt..." required
+          class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"/>
+      </div>
+      <div class="mb-4">
+        <label class="block text-xs font-bold text-slate-700 mb-1">Mật khẩu</label>
+        <input type="password" id="cand-login-password" placeholder="Nhập mật khẩu..." required
+          class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"/>
+        <p id="cand-login-error" class="hidden text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">error</span> <span id="cand-login-err-text">Lỗi đăng nhập</span>
+        </p>
+      </div>
+      <button type="submit" id="cand-login-submit" class="w-full py-2.5 rounded-xl bg-[#0051d5] text-white text-xs font-bold hover:bg-blue-700 transition">
+        Đăng Nhập
+      </button>
+    </form>
+
+    <!-- Form Register -->
+    <form id="cand-reg-form" onsubmit="handleCandidateRegister(event)" class="hidden">
+      <div class="mb-3">
+        <label class="block text-xs font-bold text-slate-700 mb-1">Họ và tên</label>
+        <input type="text" id="cand-reg-name" placeholder="Nguyễn Văn A..." required
+          class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"/>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs font-bold text-slate-700 mb-1">Email</label>
+        <input type="email" id="cand-reg-email" placeholder="example@gmail.com..." required
+          class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"/>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs font-bold text-slate-700 mb-1">Số điện thoại</label>
+        <input type="tel" id="cand-reg-phone" placeholder="0901234567..." required
+          class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"/>
+      </div>
+      <div class="mb-4">
+        <label class="block text-xs font-bold text-slate-700 mb-1">Mật khẩu</label>
+        <input type="password" id="cand-reg-password" placeholder="Tạo mật khẩu an toàn..." required minlength="4"
+          class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"/>
+        <p id="cand-reg-error" class="hidden text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">error</span> <span id="cand-reg-err-text">Lỗi đăng ký</span>
+        </p>
+      </div>
+      <button type="submit" id="cand-reg-submit" class="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition">
+        Tạo Tài Khoản
+      </button>
+    </form>
+  </div>
+</div>
+
 </body>
 </html>

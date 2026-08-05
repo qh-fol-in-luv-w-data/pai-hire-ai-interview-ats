@@ -26,7 +26,7 @@ def _bounded_int(value, default: int, minimum: int, maximum: int) -> int:
 
 def normalize_interview_config(config: dict | None) -> dict:
     config = config or {}
-    return {
+    normalized = {
         "PART_1_DEFAULT": _bounded_int(
             config.get("PART_1_DEFAULT"),
             DEFAULT_PART_1_LIMIT,
@@ -46,17 +46,51 @@ def normalize_interview_config(config: dict | None) -> dict:
             MAX_FOLLOW_UP_LIMIT,
         ),
     }
+    if "IS_UNLIMITED" in config:
+        normalized["IS_UNLIMITED"] = bool(config.get("IS_UNLIMITED"))
+    if config.get("VALID_FROM"):
+        normalized["VALID_FROM"] = str(config.get("VALID_FROM"))
+    if config.get("VALID_UNTIL"):
+        normalized["VALID_UNTIL"] = str(config.get("VALID_UNTIL"))
+    return normalized
 
 
-def _question_type_for_prep(n: str, text: str) -> str:
+def _infer_generated_question_type(text: str) -> str:
+    lowered = (text or "").lower()
+    soft_terms = (
+        "giao tiếp", "phối hợp", "mâu thuẫn", "bất đồng", "áp lực",
+        "deadline", "stakeholder", "đội nhóm", "thuyết phục", "phản hồi",
+    )
+    technical_terms = (
+        "công cụ", "hệ thống", "phần mềm", "ats", "linkedin", "job board",
+        "star", "boolean", "kpi", "metric", "dashboard", "báo cáo",
+        "phương pháp", "quy trình chuẩn",
+    )
+    experience_terms = (
+        "trong cv", "kinh nghiệm", "từng làm", "đã thực hiện", "dẫn dắt",
+        "vai trò", "kết quả", "thành tích", "dự án", "nhiệm vụ", "bối cảnh",
+        "tại ", "quy trình", "case",
+    )
+    if any(term in lowered for term in soft_terms):
+        return "Soft Skill"
+    if any(term in lowered for term in experience_terms):
+        return "Experience"
+    if any(term in lowered for term in technical_terms):
+        return "Technical"
+    return "Experience"
+
+
+def _question_type_for_prep(n: str, text: str, is_generated: bool = False) -> str:
+    if is_generated:
+        return _infer_generated_question_type(text)
     lowered = (text or "").lower()
     if n == "01" or "giới thiệu" in lowered:
         return "General"
     return QUESTIONS_BANK.get(n, {}).get("type", "General")
 
 
-def _allow_follow_up_for_prep(n: str, text: str) -> bool:
-    return _question_type_for_prep(n, text) in {"Technical", "Experience"}
+def _allow_follow_up_for_prep(n: str, text: str, is_generated: bool = False) -> bool:
+    return _question_type_for_prep(n, text, is_generated) in {"Technical", "Experience"}
 
 
 _TECH_QUESTION_TERMS = (
@@ -70,6 +104,59 @@ _TECH_JD_TERMS = (
     "data", "ai/ml", "automation tester", "qa/qc", "system admin",
     "công nghệ thông tin", "lập trình", "phần mềm", "dữ liệu",
 )
+_JD_ANCHORS = (
+    "jd yêu cầu", "vị trí này", "yêu cầu công việc", "trách nhiệm chính",
+    "mô tả công việc", "công việc này", "vai trò này", "yêu cầu trong jd",
+    "một trách nhiệm chính", "ở vị trí này", "công việc sẽ cần",
+    "vai trò này cần", "liên quan đến", "theo yêu cầu", "phần tuyển dụng",
+    "phần sàng lọc", "phần phỏng vấn", "phần biên soạn",
+)
+_CV_ANCHORS = (
+    "trong cv", "cv của bạn", "cv bạn", "bạn có đề cập", "kinh nghiệm tại",
+    "vai trò tại", "dự án", "thành tích", "nhiệm vụ",
+)
+_GENERIC_QUESTION_TERMS = (
+    "giới thiệu", "mục tiêu nghề nghiệp", "điểm mạnh", "điểm yếu",
+    "khó khăn gì", "cải thiện quy trình", "quản lý thời gian", "làm việc đa nhiệm",
+    "mâu thuẫn nào", "dự án hoặc nhiệm vụ", "chia sẻ một ví dụ cụ thể",
+)
+_JD_REQUIREMENT_TERMS = (
+    "yêu cầu", "trách nhiệm", "nhiệm vụ", "kinh nghiệm", "kỹ năng",
+    "thành thạo", "phụ trách", "quản lý", "thực hiện", "triển khai",
+    "xây dựng", "theo dõi", "kiểm soát", "phân tích", "báo cáo",
+    "phối hợp", "đảm bảo", "tối ưu", "vận hành", "quy trình",
+    "tuyển dụng", "nhân sự", "bảo hiểm", "tiền lương", "đào tạo",
+)
+
+
+def _jd_requirement_lines(jd_text: str, limit: int = 12) -> list[str]:
+    lines = []
+    seen = set()
+    for raw in (jd_text or "").splitlines():
+        line = raw.strip(" -*•\t\r\n")
+        line = re.sub(r"\s+", " ", line)
+        if len(line) < 24 or len(line) > 240:
+            continue
+        lowered = line.lower()
+        if lowered in seen:
+            continue
+        if any(term in lowered for term in _JD_REQUIREMENT_TERMS):
+            lines.append(line)
+            seen.add(lowered)
+        if len(lines) >= limit:
+            break
+    if lines:
+        return lines
+    chunks = re.split(r"(?<=[.!?。])\s+|\n+", jd_text or "")
+    for raw in chunks:
+        line = raw.strip(" -*•\t\r\n")
+        line = re.sub(r"\s+", " ", line)
+        if 24 <= len(line) <= 240 and line.lower() not in seen:
+            lines.append(line)
+            seen.add(line.lower())
+        if len(lines) >= limit:
+            break
+    return lines
 
 
 def _question_relevant_to_jd(question: str, jd_text: str) -> bool:
@@ -81,21 +168,47 @@ def _question_relevant_to_jd(question: str, jd_text: str) -> bool:
     asks_old_tech = any(term in text for term in _TECH_QUESTION_TERMS)
     if asks_old_tech and not jd_is_tech:
         return False
+    has_jd_anchor = any(anchor in text for anchor in _JD_ANCHORS)
+    has_cv_anchor = any(anchor in text for anchor in _CV_ANCHORS)
+    if not has_jd_anchor and not has_cv_anchor:
+        return False
+    if has_cv_anchor and not any(term in text for term in ("jd", "vị trí", "yêu cầu", "công việc", "trách nhiệm")):
+        return False
+    too_generic = any(term in text for term in _GENERIC_QUESTION_TERMS)
+    if too_generic and not has_jd_anchor and not has_cv_anchor:
+        return False
     return True
 
 
-def _jd_gap_question(position: str, jd_text: str) -> str:
+def _jd_gap_question(position: str, jd_text: str, offset: int = 0) -> str:
     jd_hint = "yêu cầu quan trọng nhất trong JD"
-    jd_lines = [line.strip("-*• \t") for line in (jd_text or "").splitlines() if line.strip()]
-    for line in jd_lines:
-        if len(line) >= 24:
-            jd_hint = line[:180]
-            break
+    jd_lines = _jd_requirement_lines(jd_text)
+    if jd_lines:
+        jd_hint = jd_lines[offset % len(jd_lines)][:180]
     return (
-        f"Vị trí {position} cần đáp ứng {jd_hint}. "
-        "Trong CV của bạn, kinh nghiệm nào liên quan trực tiếp nhất đến yêu cầu này; "
-        "nếu chưa có kinh nghiệm đúng vai trò, bạn sẽ bù đắp khoảng trống như thế nào?"
+        f"Ở vị trí {position}, phần {jd_hint} là một nội dung cần kiểm chứng kỹ. "
+        "Anh/chị đã từng làm phần nào tương tự trong các kinh nghiệm ở CV chưa; nếu có, hãy chia sẻ vai trò trực tiếp, cách làm và kết quả đo được, "
+        "còn nếu chưa thì anh/chị sẽ chuẩn bị thêm như thế nào để bắt nhịp nhanh?"
     )
+
+
+def _dedupe_questions(questions: list[str]) -> list[str]:
+    kept = []
+    signatures = set()
+    for question in questions:
+        cleaned = re.sub(r"\s+", " ", (question or "").strip())
+        cleaned = re.sub(r"\bgap\b", "điểm cần bổ sung", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.replace("bù đắp gap", "bổ sung phần còn thiếu")
+        cleaned = cleaned.replace("kế hoạch bù đắp", "cách anh/chị chuẩn bị thêm")
+        if not cleaned:
+            continue
+        words = re.findall(r"[\wÀ-ỹ]+", cleaned.lower())
+        signature = " ".join(words[:18])
+        if signature in signatures:
+            continue
+        signatures.add(signature)
+        kept.append(cleaned)
+    return kept
 
 
 async def _create_prep(position_id: str, app_ref: str,
@@ -213,12 +326,12 @@ async def _create_prep(position_id: str, app_ref: str,
                             if isinstance(item, str): ai_texts.append(item)
                             elif isinstance(item, dict) and "text" in item: ai_texts.append(item["text"])
 
-                    ai_texts = [
+                    ai_texts = _dedupe_questions([
                         text for text in ai_texts
                         if _question_relevant_to_jd(text, jd_text)
-                    ]
+                    ])
                     while len(ai_texts) < num_gen:
-                        ai_texts.append(_jd_gap_question(job_title, jd_text))
+                        ai_texts.append(_jd_gap_question(job_title, jd_text, len(ai_texts)))
 
                     for i, text in enumerate(ai_texts[:num_gen]):
                         generated_qs[str(i + start_idx).zfill(2)] = text
@@ -233,7 +346,7 @@ async def _create_prep(position_id: str, app_ref: str,
             _DEFAULT_EXPERIENCE["q08"],
         ]
         while len(fallback_texts) < limit_p2:
-            fallback_texts.append(_jd_gap_question(job_title, jd_text))
+            fallback_texts.append(_jd_gap_question(job_title, jd_text, len(fallback_texts)))
         for i, text in enumerate(fallback_texts[:limit_p2]):
             generated_qs[str(start_idx + i).zfill(2)] = text
 
@@ -300,8 +413,9 @@ async def _create_prep(position_id: str, app_ref: str,
         n: {
             "text":      q_texts[n],
             "audio_url": f"/audio/{audio_map[n]}",
-            "type":      _question_type_for_prep(n, q_texts[n]),
-            "allow_follow_up": _allow_follow_up_for_prep(n, q_texts[n]),
+            "type":      _question_type_for_prep(n, q_texts[n], n in generated_qs),
+            "is_generated": n in generated_qs,
+            "allow_follow_up": _allow_follow_up_for_prep(n, q_texts[n], n in generated_qs),
         }
         for n in q_texts
     }
@@ -395,8 +509,9 @@ def _prep_from_row(row) -> dict:
             n: {
                 "text":      q_texts[n],
                 "audio_url": f"/audio/{audio_map[n]}",
-                "type":      _question_type_for_prep(n, q_texts[n]),
-                "allow_follow_up": _allow_follow_up_for_prep(n, q_texts[n]),
+                "type":      _question_type_for_prep(n, q_texts[n], n in generated_qs),
+                "is_generated": n in generated_qs,
+                "allow_follow_up": _allow_follow_up_for_prep(n, q_texts[n], n in generated_qs),
             }
             for n in q_texts if q_texts[n]
         },

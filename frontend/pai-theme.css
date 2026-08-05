@@ -254,12 +254,52 @@ select.choices__input[hidden] {
 }
 
 #webcam-container {
-  width: min(800px, calc(100vw - 32px), calc((100vh - 32px) * 4 / 3)) !important;
+  width: min(240px, calc(100vw - 8px), calc((100vh - 8px) * 4 / 3)) !important;
   aspect-ratio: 4 / 3 !important;
-  border-radius: 16px !important;
-  border-color: rgba(255, 255, 255, .16) !important;
-  background: rgba(13, 27, 53, .92) !important;
-  box-shadow: 0 24px 48px rgba(13, 27, 53, .24) !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+#webcam-video {
+  z-index: 2 !important;
+}
+
+#webcam-status {
+  z-index: 3 !important;
+}
+
+#webcam-video,
+#proctoring-iframe {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#proctoring-iframe {
+  position: absolute !important;
+  width: 800px !important;
+  height: 600px !important;
+  left: auto !important;
+  top: auto !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  opacity: .001 !important;
+  pointer-events: none !important;
+  max-width: none !important;
+  transform: scale(.3) !important;
+  transform-origin: right bottom !important;
+  z-index: 0 !important;
+}
+
+@media (max-width: 640px) {
+  #webcam-container {
+    width: min(190px, calc(100vw - 8px)) !important;
+  }
 }
 
 #webcam-container.proctoring-box-hidden {

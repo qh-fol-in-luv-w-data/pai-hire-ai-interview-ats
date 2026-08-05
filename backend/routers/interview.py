@@ -5,9 +5,10 @@ import json
 import httpx
 import shutil
 from pathlib import Path
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, Header, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from backend.database import db
+from backend.database import db, log_application_event
 from backend.services.ai_service import _tts
 from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, BASE_DIR, LEVEL_ORDER
 
@@ -169,7 +170,10 @@ async def evaluate_step(
                     files={"file": (in_audio_path.name, f, media_content_type_for_path(in_audio_path))},
                     data={"model_id": "scribe_v2", "language_code": "vi"},
                 )
-        transcript = r.json().get("text", "").strip()
+        if r.status_code >= 400:
+            print(f"[Eval] STT HTTP {r.status_code}: {r.text[:300]}")
+        else:
+            transcript = r.json().get("text", "").strip()
     except Exception as e:
         print(f"[Eval] STT error: {e}")
 
@@ -394,6 +398,25 @@ async def submit_interview(
         video_path.write_bytes(video_bytes)
         video_path_str = str(video_path.relative_to(BASE_DIR))
 
+        # Upload video phỏng vấn lên MinIO Storage theo candidate_id & tên ứng viên
+        try:
+            from backend.services.storage_service import upload_video_to_minio
+            import unicodedata, re
+
+            # Chuẩn hóa tên ứng viên (bỏ dấu tiếng Việt & ký tự đặc biệt) để tạo key an toàn trên MinIO
+            raw_name = c_name or "Candidate"
+            nfkd = unicodedata.normalize('NFKD', raw_name)
+            clean_name = ''.join([c for c in nfkd if not unicodedata.combining(c)])
+            clean_name = re.sub(r'[^a-zA-Z0-9_-]', '_', clean_name)
+            clean_name = re.sub(r'_+', '_', clean_name).strip('_') or "Candidate"
+
+            minio_object_key = f"candidates/{candidate_id}_{clean_name}/{interview_id}_{clean_name}_full_video.webm"
+            minio_url = upload_video_to_minio(video_bytes, minio_object_key, content_type="video/webm")
+            if minio_url:
+                print(f"[Interview] Đã lưu video phỏng vấn của ứng viên {c_name} ({candidate_id}) lên MinIO Storage: {minio_url}")
+        except Exception as err:
+            print(f"[Interview] Lỗi upload video lên MinIO: {err}")
+
     answer_rows = []
     # Lưu các audio tải lên (hỗ trợ động mọi số lượng câu hỏi)
     for key, upload in form.multi_items():
@@ -477,6 +500,14 @@ async def submit_interview(
             )
 
         print(f"[✓] Re-interview {reiv} | attempt={next_attempt} | {len(answer_rows)} answers added")
+        if c_email:
+            log_application_event(
+                app_ref,
+                c_email,
+                "reinterview_submitted",
+                f"Ứng viên đã nộp bài phỏng vấn lại cho {reiv}.",
+                {"interview_id": reiv, "attempt_number": next_attempt, "answers_saved": len(answer_rows)},
+            )
         background.add_task(_do_evaluate_interview, reiv, position_id, reiv_rows)
         return {"ok": True, "interview_id": reiv, "reinterview": True, "attempt_number": next_attempt, "answers_saved": len(answer_rows)}
 
@@ -507,6 +538,14 @@ async def submit_interview(
         """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in answer_rows])
 
     print(f"[✓] {interview_id} | candidate={candidate_id} | position={position_id}")
+    if c_email:
+        log_application_event(
+            app_ref,
+            c_email,
+            "interview_submitted",
+            f"Ứng viên đã nộp bài phỏng vấn {interview_id}.",
+            {"interview_id": interview_id, "answers_saved": len(answer_rows), "position_id": position_id},
+        )
     background.add_task(_do_evaluate_interview, interview_id, position_id, answer_rows)
 
     return {

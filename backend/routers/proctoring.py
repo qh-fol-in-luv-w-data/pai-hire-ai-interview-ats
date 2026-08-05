@@ -265,6 +265,7 @@ async def _handle_proctoring_webhook_payload(
 
 
 @router.post("/api/webhooks/ai-proctoring")
+@router.post("/webhooks/ai-proctoring")
 async def handle_proctoring_webhook(
     payload: ProctoringWebhookPayload,
     x_proctoring_webhook_secret: str = Header(None),

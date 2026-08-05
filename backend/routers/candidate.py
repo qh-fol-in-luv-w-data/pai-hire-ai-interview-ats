@@ -124,7 +124,7 @@ def get_candidate_questions(ref: str):
     })
 
 
-@router.post("/candidate/reply")
+@router.post("/candidate/submit_reply")
 async def submit_candidate_reply(request: Request, background: BackgroundTasks):
     """Nhận câu trả lời từ ứng viên qua form web, chấm điểm và cập nhật DB."""
     body = await request.json()

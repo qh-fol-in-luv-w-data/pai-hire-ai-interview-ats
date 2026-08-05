@@ -137,7 +137,7 @@ async function submitReply() {
   btn.textContent = 'Đang gửi...';
 
   try {
-    const r = await fetch(`${API}/candidate/reply`, {
+    const r = await fetch(`${API}/candidate/submit_reply`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ ref, answers })

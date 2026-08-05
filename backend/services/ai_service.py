@@ -6,7 +6,7 @@ import edge_tts
 from pathlib import Path
 from openai import AsyncOpenAI
 from backend.config import SCORE_PROMPT, EVAL_PROMPT, SOFT_SKILL_EVAL_PROMPT, HOD_QUESTIONS_PROMPT,  OPENAI_API_KEY, ELEVENLABS_API_KEY, OUTPUT_DIR, QUESTION_AUDIO_DIR, CV_UPLOAD_DIR, PASS_SCORE, _DEFAULT_EXPERIENCE, BASE_DIR, _find_position_files, _parse_q0306
-from backend.database import db
+from backend.database import db, log_application_event
 from backend.security import media_content_type_for_path
 
 
@@ -148,15 +148,33 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
             ).fetchone()
 
         print(f"[CV Score] {app_id} → {total}/5 (AI gợi ý: {ai_verdict}) — Chờ ứng viên trả lời")
+        if row:
+            log_application_event(
+                app_id,
+                row["email"],
+                "cv_scored",
+                f"AI đã đánh giá hồ sơ: {round(total, 2)}/5, đề xuất {ai_verdict}.",
+                {"score": total, "verdict": ai_verdict, "status": pending_status},
+            )
 
         if row and deep_qs:
             from backend.services.email_service import send_deep_questions_email
             send_deep_questions_email(row["name"], row["email"], row["job_id"], app_id, deep_qs)
+            log_application_event(
+                app_id,
+                row["email"],
+                "deep_questions_sent",
+                f"Đã gửi {len(deep_qs)} câu hỏi bổ sung cho ứng viên.",
+                {"question_count": len(deep_qs)},
+            )
 
     except Exception as e:
         print(f"[CV Score Error] {app_id}: {e}")
         with db() as conn:
             conn.execute("UPDATE cv_applications SET status='error' WHERE id=?", (app_id,))
+            row = conn.execute("SELECT email FROM cv_applications WHERE id=?", (app_id,)).fetchone()
+        if row:
+            log_application_event(app_id, row["email"], "cv_score_error", "AI đánh giá hồ sơ bị lỗi.", {"error": str(e)})
 
 
 async def _do_evaluate_interview(interview_id: str, position_id: str, answer_rows: list):
@@ -398,6 +416,24 @@ Trả về CHỈ JSON theo định dạng (mỗi phần viết thành 1 đoạn 
         with db() as conn:
             conn.execute(
                 "UPDATE interviews SET status='evaluated' WHERE id=?", (interview_id,)
+            )
+            iv_row = conn.execute(
+                """
+                SELECT c.email, p.app_ref
+                FROM interviews i
+                LEFT JOIN candidates c ON c.id=i.candidate_id
+                LEFT JOIN interview_prep p ON p.id=i.prep_id
+                WHERE i.id=?
+                """,
+                (interview_id,),
+            ).fetchone()
+        if iv_row and iv_row["email"]:
+            log_application_event(
+                iv_row["app_ref"],
+                iv_row["email"],
+                "interview_evaluated",
+                f"AI đã xử lý và đánh giá xong bài phỏng vấn {interview_id}.",
+                {"interview_id": interview_id},
             )
         print(f"[Eval] Hoàn thành {interview_id}")
 
