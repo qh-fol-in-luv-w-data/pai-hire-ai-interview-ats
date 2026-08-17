@@ -1,0 +1,268 @@
+--- backend/services/prep_service.py
++++ backend/services/prep_service.py
+@@ -279,15 +279,37 @@
+                 new_k = str(len(q_texts) + 1).zfill(2)
+                 q_texts[new_k] = v["text"]
+ 
+-    generated_qs = {}
+-    if app_ref and OPENAI_API_KEY and limit_p2 > 0:
+-        with db() as conn:
+-            row = conn.execute(
+-                "SELECT cv_path FROM cv_applications WHERE id=?", (app_ref,)
+-            ).fetchone()
+-        if row and row["cv_path"]:
+-            cv_text = extract_cv_text(BASE_DIR / row["cv_path"])
+-            if cv_text.strip():
+-                try:
+-                    from openai import AsyncOpenAI
+-                    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+-
+-                    num_gen = limit_p2
+-                    start_idx = len(q_texts) + 1
+-                    json_format = ", ".join([f'"q{str(i+start_idx).zfill(2)}": "câu hỏi thứ {i+1}"' for i in range(num_gen)])
+-                    json_format = f"{{{json_format}}}"
+-
+-                    prompt = CV_QUESTIONS_PROMPT.format(
+-                        position=job_title,
+-                        level=level or resolved_level,
+-                        jd_text=jd_text[:5000],
+-                        cv_text=cv_text[:4000],
+-                        num_gen=num_gen,
+-                        json_format=json_format
+-                    )
+-                    resp = await client.chat.completions.create(
+-                        model="gpt-4o",
+-                        messages=[{"role": "user", "content": prompt}],
+-                        temperature=0.3,
+-                        max_tokens=max(1000, num_gen * 180),
+-                        response_format={"type": "json_object"},
+-                    )
+-                    raw = resp.choices[0].message.content.strip()
+-                    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+-                    raw = re.sub(r"\s*```$", "", raw)
+-                    parsed = json.loads(raw)
+-
+-                    # Robust parsing: take all string values from parsed dict/list
+-                    ai_texts = []
+-                    if isinstance(parsed, dict):
+-                        for k, v in parsed.items():
+-                            if isinstance(v, str): ai_texts.append(v)
+-                            elif isinstance(v, dict) and "text" in v: ai_texts.append(v["text"])
+-                    elif isinstance(parsed, list):
+-                        for item in parsed:
+-                            if isinstance(item, str): ai_texts.append(item)
+-                            elif isinstance(item, dict) and "text" in item: ai_texts.append(item["text"])
+-
+-                    ai_texts = _dedupe_questions([
+-                        text for text in ai_texts
+-                        if _question_relevant_to_jd(text, jd_text)
+-                    ])
+-                    while len(ai_texts) < num_gen:
+-                        ai_texts.append(_jd_gap_question(job_title, jd_text, len(ai_texts)))
+-
+-                    for i, text in enumerate(ai_texts[:num_gen]):
+-                        generated_qs[str(i + start_idx).zfill(2)] = text
+-
+-                except Exception as e:
+-                    print(f"[Prep] CV questions error: {e}")
+-
+-    if not generated_qs and limit_p2 > 0:
+-        start_idx = len(q_texts) + 1
+-        fallback_texts = [
+-            _DEFAULT_EXPERIENCE["q07"],
+-            _DEFAULT_EXPERIENCE["q08"],
+-        ]
+-        while len(fallback_texts) < limit_p2:
+-            fallback_texts.append(_jd_gap_question(job_title, jd_text, len(fallback_texts)))
+-        for i, text in enumerate(fallback_texts[:limit_p2]):
+-            generated_qs[str(start_idx + i).zfill(2)] = text
+-
+-    for k, v in generated_qs.items():
+-        q_texts[k] = v
+-
+-    generated_json = json.dumps(generated_qs, ensure_ascii=False)
+-
+-    with db() as conn:
+-        conn.execute(
+-            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, q07_text, q08_text, created_at, generated_questions, edited_questions)"
+-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+-            (prep_id, app_ref, position_id, "", "", generated_qs.get("07", ""), generated_qs.get("08", ""), now, generated_json, None),
+-        )
+-
+-    audio_map = {}
+-    for k in q_texts:
+-        if k not in generated_qs:
+-            audio_map[k] = f"{position_id}_q{k}.mp3"
+-        else:
+-            audio_map[k] = f"{prep_id}_q{k}.mp3"
+-            
+-    intro_file = f"intro_{position_id}.mp3"
+-
+-    try:
+-        import shutil
+-        
+-        dst_intro = QUESTION_AUDIO_DIR / intro_file
+-        if not dst_intro.exists() or dst_intro.stat().st_size <= 512:
+-            src_intro = BASE_DIR / "outputs" / "question_audio" / intro_file
+-            if src_intro.exists():
+-                shutil.copy2(src_intro, dst_intro)
+-            else:
+-                try:
+-                    await _tts(INTRO_TEMPLATE.format(title=job_title), dst_intro)
+-                except Exception as e:
+-                    print(f"[Prep] Intro TTS error: {e}")
+-
+-        if gen_audio_dir and gen_audio_dir.is_dir():
+-            for n, src_name in _GEN_AUDIO_NAMES.items():
+-                if n in audio_map:
+-                    dst = QUESTION_AUDIO_DIR / audio_map[n]
+-                    if not dst.exists() or dst.stat().st_size <= 512:
+-                        src = gen_audio_dir / src_name
+-                        if src.exists():
+-                            shutil.copy2(src, dst)
+-                        else:
+-                            print(f"[Prep] Thiếu audio gốc: {src}")
+-
+-        # Ensure all questions have TTS audio
+-        import asyncio
+-
+-        sem = asyncio.Semaphore(3) # Limit concurrency to avoid Edge TTS rate limits
+-
+-        async def _safe_tts(k, text, dst):
+-            async with sem:
+-                if not dst.exists() or dst.stat().st_size <= 512:
+-                    try:
+-                        await _tts(text, dst)
+-                    except Exception as e:
+-                        print(f"[Prep] Q{k} TTS error: {e}")
+-
+-        tts_tasks = []
+-        for k, text in q_texts.items():
+-            dst = QUESTION_AUDIO_DIR / audio_map[k]
+-            tts_tasks.append(_safe_tts(k, text, dst))
+-            
+-        if tts_tasks:
+-            await asyncio.gather(*tts_tasks)
+-
+-        print(f"[Prep] Hoàn tất chuẩn bị audio cho {prep_id}")
+-    except Exception as e:
+-        print(f"[Prep] TTS error: {e}")
++    import asyncio
++    import shutil
++    sem = asyncio.Semaphore(3)
++    async def _safe_tts(k, text, dst):
++        async with sem:
++            if not dst.exists() or dst.stat().st_size <= 512:
++                try:
++                    await _tts(text, dst)
++                except Exception as e:
++                    print(f"[Prep] Q{k} TTS error: {e}")
++
++    audio_map = {}
++    static_tts_tasks = []
++
++    for k, text in q_texts.items():
++        audio_map[k] = f"{position_id}_q{k}.mp3"
++        dst = QUESTION_AUDIO_DIR / audio_map[k]
++        
++        copied = False
++        if gen_audio_dir and gen_audio_dir.is_dir() and k in _GEN_AUDIO_NAMES:
++            src = gen_audio_dir / _GEN_AUDIO_NAMES[k]
++            if src.exists():
++                if not dst.parent.exists(): dst.parent.mkdir(parents=True)
++                shutil.copy2(src, dst)
++                copied = True
++        if not copied:
++            static_tts_tasks.append(asyncio.create_task(_safe_tts(k, text, dst)))
++
++    intro_file = f"intro_{position_id}.mp3"
++    dst_intro = QUESTION_AUDIO_DIR / intro_file
++    if not dst_intro.exists() or dst_intro.stat().st_size <= 512:
++        src_intro = BASE_DIR / "outputs" / "question_audio" / intro_file
++        if src_intro.exists():
++            shutil.copy2(src_intro, dst_intro)
++        else:
++            static_tts_tasks.append(asyncio.create_task(_safe_tts("intro", INTRO_TEMPLATE.format(title=job_title), dst_intro)))
++
++    async def _run_gpt():
++        gen_qs = {}
++        if app_ref and OPENAI_API_KEY and limit_p2 > 0:
++            with db() as conn:
++                row = conn.execute("SELECT cv_path FROM cv_applications WHERE id=?", (app_ref,)).fetchone()
++            if row and row["cv_path"]:
++                cv_text = extract_cv_text(BASE_DIR / row["cv_path"])
++                if cv_text.strip():
++                    try:
++                        from openai import AsyncOpenAI
++                        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
++                        num_gen = limit_p2
++                        start_idx = len(q_texts) + 1
++                        json_format = ", ".join([f'"q{str(i+start_idx).zfill(2)}": "câu hỏi thứ {i+1}"' for i in range(num_gen)])
++                        json_format = f"{{{json_format}}}"
++                        prompt = CV_QUESTIONS_PROMPT.format(
++                            position=job_title,
++                            level=level or resolved_level,
++                            jd_text=jd_text[:5000],
++                            cv_text=cv_text[:4000],
++                            num_gen=num_gen,
++                            json_format=json_format
++                        )
++                        resp = await client.chat.completions.create(
++                            model="gpt-4o",
++                            messages=[{"role": "user", "content": prompt}],
++                            temperature=0.3,
++                            max_tokens=max(1000, num_gen * 180),
++                            response_format={"type": "json_object"},
++                        )
++                        raw = resp.choices[0].message.content.strip()
++                        raw = re.sub(r"^```(?:json)?\s*", "", raw)
++                        raw = re.sub(r"\s*```$", "", raw)
++                        parsed = json.loads(raw)
++                        ai_texts = []
++                        if isinstance(parsed, dict):
++                            for k, v in parsed.items():
++                                if isinstance(v, str): ai_texts.append(v)
++                                elif isinstance(v, dict) and "text" in v: ai_texts.append(v["text"])
++                        elif isinstance(parsed, list):
++                            for item in parsed:
++                                if isinstance(item, str): ai_texts.append(item)
++                                elif isinstance(item, dict) and "text" in item: ai_texts.append(item["text"])
++                        ai_texts = _dedupe_questions([text for text in ai_texts if _question_relevant_to_jd(text, jd_text)])
++                        while len(ai_texts) < num_gen:
++                            ai_texts.append(_jd_gap_question(job_title, jd_text, len(ai_texts)))
++                        for i, text in enumerate(ai_texts[:num_gen]):
++                            gen_qs[str(i + start_idx).zfill(2)] = text
++                    except Exception as e:
++                        print(f"[Prep] CV questions error: {e}")
++        if not gen_qs and limit_p2 > 0:
++            start_idx = len(q_texts) + 1
++            fallback_texts = [_DEFAULT_EXPERIENCE["q07"], _DEFAULT_EXPERIENCE["q08"]]
++            while len(fallback_texts) < limit_p2:
++                fallback_texts.append(_jd_gap_question(job_title, jd_text, len(fallback_texts)))
++            for i, text in enumerate(fallback_texts[:limit_p2]):
++                gen_qs[str(start_idx + i).zfill(2)] = text
++        return gen_qs
++
++    gpt_task = asyncio.create_task(_run_gpt())
++    if static_tts_tasks:
++        await asyncio.gather(*static_tts_tasks)
++    
++    generated_qs = await gpt_task
++
++    dynamic_tts_tasks = []
++    for k, v in generated_qs.items():
++        q_texts[k] = v
++        audio_map[k] = f"{prep_id}_q{k}.mp3"
++        dst = QUESTION_AUDIO_DIR / audio_map[k]
++        dynamic_tts_tasks.append(asyncio.create_task(_safe_tts(k, v, dst)))
++        
++    if dynamic_tts_tasks:
++        await asyncio.gather(*dynamic_tts_tasks)
++
++    generated_json = json.dumps(generated_qs, ensure_ascii=False)
++    with db() as conn:
++        conn.execute(
++            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, q07_text, q08_text, created_at, generated_questions, edited_questions)"
++            " VALUES (?,?,?,?,?,?,?,?,?,?)",
++            (prep_id, app_ref, position_id, "", "", generated_qs.get("07", ""), generated_qs.get("08", ""), now, generated_json, None),
++        )

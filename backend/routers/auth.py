@@ -6,10 +6,11 @@ import secrets
 import time
 import uuid
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, Request, Response
 from pydantic import BaseModel
-from backend.config import ADMIN_KEY
 from backend.database import db
+from backend.services.auth_service import create_session, current_user, revoke_session
+from backend.services.email_service import send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -199,6 +200,28 @@ class LoginReq(BaseModel):
     phone: Optional[str] = None
     password: str
 
+class UpdateProfileReq(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class PasswordResetRequest(BaseModel):
+    email: str
+    account_type: str = "user"
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    account_type: str = "user"
+    password: str
+
+_RESET_TTL_SECONDS = 60 * 60
+
+def _reset_account_type(value: str) -> str:
+    value = (value or "user").strip().lower()
+    if value not in {"user", "enterprise"}:
+        raise HTTPException(422, "Loại tài khoản không hợp lệ")
+    return value
+
 # ─────────────────────────────────────────────────────────────
 # Routes
 # ─────────────────────────────────────────────────────────────
@@ -227,50 +250,36 @@ def check_user(req: CheckUserReq):
         if not user_row:
             if email:
                 app_row = conn.execute(
-                    "SELECT name, email, phone FROM cv_applications WHERE LOWER(email) = ? ORDER BY applied_at DESC LIMIT 1", (email,)
+                    "SELECT name, email, phone FROM cv_applications WHERE LOWER(email) = ? AND COALESCE(application_source,'') != 'api' ORDER BY applied_at DESC LIMIT 1", (email,)
                 ).fetchone()
             if not app_row and phone:
                 app_row = conn.execute(
-                    "SELECT name, email, phone FROM cv_applications WHERE phone = ? ORDER BY applied_at DESC LIMIT 1", (phone,)
+                    "SELECT name, email, phone FROM cv_applications WHERE phone = ? AND COALESCE(application_source,'') != 'api' ORDER BY applied_at DESC LIMIT 1", (phone,)
                 ).fetchone()
 
-    if user_row:
-        u = dict(user_row)
-        return {
-            "exists": True,
-            "has_account": True,
-            "user": {
-                "name": u["name"],
-                "email": u["email"],
-                "phone": u["phone"],
-                "role": u["role"]
-            }
-        }
+    # Do not disclose somebody else's name/contact details through an account
+    # enumeration endpoint.  The UI only needs to decide login vs register.
+    return {"exists": bool(user_row or app_row), "has_account": bool(user_row), "user": None}
 
-    if app_row:
-        a = dict(app_row)
-        return {
-            "exists": True,
-            "has_account": False, # Có lịch sử nhưng chưa đăng ký tài khoản (chưa có pass)
-            "user": {
-                "name": a["name"],
-                "email": a["email"],
-                "phone": a["phone"]
-            }
-        }
 
+def _auth_response(user: dict, response: Response):
+    token = create_session(user["id"])
+    response.set_cookie(
+        "pai_session", token, httponly=True, secure=os.environ.get("COOKIE_SECURE", "true").lower() not in {"0", "false", "no"},
+        samesite="lax", max_age=60 * 60 * 24 * 14, path="/",
+    )
     return {
-        "exists": False,
-        "has_account": False,
-        "user": None
+        "success": True,
+        # Kept for old clients, but this is an opaque session, never a user id.
+        "token": token,
+        "user": {key: user.get(key) for key in ("id", "name", "email", "phone", "role")},
     }
 
-
 @router.post("/register")
-def register_user(req: RegisterReq):
+def register_user(req: RegisterReq, response: Response):
     name = req.name.strip()
-    email = req.email.strip().lower()
-    phone = req.phone.strip()
+    email = (req.email or "").strip().lower()
+    phone = (req.phone or "").strip()
     password = req.password.strip()
 
     if not name or not email or not password:
@@ -295,22 +304,13 @@ def register_user(req: RegisterReq):
             (user_id, email, phone, pwd_hash, name, "candidate", now)
         )
 
-    return {
-        "success": True,
-        "message": "Tạo tài khoản thành công!",
-        "token": user_id,
-        "user": {
-            "id": user_id,
-            "name": name,
-            "email": email,
-            "phone": phone,
-            "role": "candidate"
-        }
-    }
+    result = _auth_response({"id": user_id, "name": name, "email": email, "phone": phone, "role": "candidate"}, response)
+    result["message"] = "Tạo tài khoản thành công!"
+    return result
 
 
 @router.post("/login")
-def login_user(req: LoginReq):
+def login_user(req: LoginReq, response: Response):
     account = (req.account or req.email or req.phone or "").strip().lower()
     password = (req.password or "").strip()
 
@@ -329,41 +329,118 @@ def login_user(req: LoginReq):
     if not verify_password(password, user["password_hash"]):
         raise HTTPException(401, "Mật khẩu không chính xác!")
 
-    admin_key = ADMIN_KEY if user.get("role") == "admin" else None
+    return _auth_response(user, response)
 
-    return {
-        "success": True,
-        "token": user["id"],
-        "admin_key": admin_key,
-        "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "email": user["email"],
-            "phone": user["phone"],
-            "role": user.get("role", "candidate")
-        }
-    }
+
+@router.post("/password-reset/request")
+def request_password_reset(req: PasswordResetRequest, request: Request):
+    """Issue a one-time reset token without revealing whether an email exists."""
+    email = req.email.strip().lower()
+    account_type = _reset_account_type(req.account_type)
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(422, "Email không hợp lệ")
+    table = "enterprise_accounts" if account_type == "enterprise" else "users"
+    with db() as conn:
+        account = conn.execute(f"SELECT id,email FROM {table} WHERE LOWER(email)=LOWER(?)", (email,)).fetchone()
+        if account:
+            # Six-digit OTP is sent only to the registered mailbox; the DB
+            # stores its SHA-256 hash, never the code itself.
+            raw_token = f"{secrets.randbelow(1_000_000):06d}"
+            now = int(time.time())
+            conn.execute(
+                "UPDATE password_reset_tokens SET used_at=? WHERE account_type=? AND account_id=? AND used_at IS NULL",
+                (now, account_type, account["id"]),
+            )
+            conn.execute(
+                "INSERT INTO password_reset_tokens (id,account_type,account_id,token_hash,created_at,expires_at,requested_ip) VALUES (?,?,?,?,?,?,?)",
+                ("PRT-" + uuid.uuid4().hex[:16].upper(), account_type, account["id"], hashlib.sha256(raw_token.encode()).hexdigest(), now, now + _RESET_TTL_SECONDS, request.client.host if request.client else None),
+            )
+            label = "tài khoản doanh nghiệp" if account_type == "enterprise" else "tài khoản PAI Hire"
+            send_password_reset_email(account["email"], raw_token, account_label=label)
+        else:
+            raise HTTPException(404, "Không tìm thấy tài khoản với email này")
+    return {"success": True, "message": "Mã xác nhận đã được gửi đến email của bạn. Mã có hiệu lực 60 phút."}
+
+
+@router.post("/password-reset/confirm")
+def confirm_password_reset(req: PasswordResetConfirm):
+    account_type = _reset_account_type(req.account_type)
+    token = (req.token or "").strip()
+    password = req.password or ""
+    minimum = 10 if account_type == "enterprise" else 6
+    if not re.fullmatch(r"\d{6}", token):
+        raise HTTPException(400, "Mã xác nhận phải gồm 6 chữ số")
+    if len(password) < minimum:
+        raise HTTPException(422, f"Mật khẩu phải có ít nhất {minimum} ký tự")
+    now = int(time.time())
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    with db() as conn:
+        row = conn.execute(
+            "SELECT id,account_id FROM password_reset_tokens WHERE token_hash=? AND account_type=? AND used_at IS NULL AND expires_at>?",
+            (token_hash, account_type, now),
+        ).fetchone()
+        if not row:
+            raise HTTPException(400, "Mã xác nhận không chính xác, đã hết hạn hoặc đã được sử dụng")
+        table = "enterprise_accounts" if account_type == "enterprise" else "users"
+        
+        current_account = conn.execute(f"SELECT password_hash FROM {table} WHERE id=?", (row["account_id"],)).fetchone()
+        if current_account and verify_password(password, current_account["password_hash"]):
+            raise HTTPException(400, "Mật khẩu mới không được trùng với mật khẩu cũ")
+            
+        conn.execute(f"UPDATE {table} SET password_hash=? WHERE id=?", (hash_password(password), row["account_id"]))
+        conn.execute("UPDATE password_reset_tokens SET used_at=? WHERE id=?", (now, row["id"]))
+        if account_type == "enterprise":
+            conn.execute("UPDATE enterprise_sessions SET revoked_at=? WHERE account_id=? AND revoked_at IS NULL", (now, row["account_id"]))
+        else:
+            conn.execute("UPDATE user_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (now, row["account_id"]))
+    return {"success": True, "message": "Đã đặt lại mật khẩu. Vui lòng đăng nhập lại."}
+
+
+@router.post("/logout")
+def logout(request: Request, response: Response, authorization: Optional[str] = Header(None)):
+    raw = request.cookies.get("pai_session") or ((authorization or "").split(" ", 1)[1].strip() if (authorization or "").lower().startswith("bearer ") else "")
+    revoke_session(raw)
+    response.delete_cookie("pai_session", path="/")
+    return {"success": True}
+
+@router.patch("/profile")
+def update_profile(req: UpdateProfileReq, request: Request, authorization: Optional[str] = Header(None), x_user_id: Optional[str] = Header(None)):
+    """Cập nhật thông tin tài khoản ứng viên đang đăng nhập."""
+    actor = current_user(request, authorization, x_user_id)
+    user_id = actor["id"]
+    name = req.name.strip()
+    email = (req.email or "").strip().lower()
+    phone = (req.phone or "").strip()
+    if len(name) < 2:
+        raise HTTPException(400, "Họ tên phải có ít nhất 2 ký tự")
+    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(400, "Email không hợp lệ")
+    with db() as conn:
+        user = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(404, "Không tìm thấy tài khoản")
+        duplicate = conn.execute(
+            "SELECT id FROM users WHERE id!=? AND ((? != '' AND LOWER(email)=?) OR (? != '' AND phone=?))",
+            (user_id, email, email, phone, phone),
+        ).fetchone()
+        if duplicate:
+            raise HTTPException(400, "Email hoặc số điện thoại đã được sử dụng")
+        conn.execute("UPDATE users SET name=?, email=?, phone=? WHERE id=?", (name, email, phone, user_id))
+        saved = conn.execute("SELECT id, name, email, phone, role FROM users WHERE id=?", (user_id,)).fetchone()
+    return {"user": dict(saved)}
 
 
 @router.get("/history")
 def get_user_history(
-    email: Optional[str] = Query(None),
-    phone: Optional[str] = Query(None),
-    x_user_id: Optional[str] = Header(None)
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None),
 ):
-    user_email = (email or "").strip().lower()
-    user_phone = (phone or "").strip()
-
-    # Nếu có x_user_id, lấy email/phone từ user
-    if x_user_id:
-        with db() as conn:
-            u = conn.execute("SELECT email, phone FROM users WHERE id=?", (x_user_id,)).fetchone()
-            if u:
-                user_email = u["email"] or user_email
-                user_phone = u["phone"] or user_phone
-
+    actor = current_user(request, authorization, x_user_id)
+    user_email = (actor.get("email") or "").strip().lower()
+    user_phone = (actor.get("phone") or "").strip()
     if not user_email and not user_phone:
-        raise HTTPException(400, "Cần cung cấp Email hoặc SĐT để xem lịch sử")
+        raise HTTPException(400, "Tài khoản chưa có email hoặc số điện thoại")
 
     with db() as conn:
         u_row = conn.execute("SELECT name FROM users WHERE LOWER(email) = ? OR (phone != '' AND phone = ?)", (user_email, user_phone)).fetchone()
@@ -373,7 +450,8 @@ def get_user_history(
         apps = conn.execute("""
             SELECT id, job_id, name, email, phone, cv_filename, cv_path, cv_score, score_breakdown, ai_summary, status, applied_at, is_reapplicant, prev_app_id, level, eval_round1_status, eval_round2_status, eval_round3_status
             FROM cv_applications
-            WHERE LOWER(email) = ? OR (phone != '' AND phone = ?) OR (? != '' AND name = ?)
+            WHERE COALESCE(application_source,'') != 'api'
+              AND (LOWER(email) = ? OR (phone != '' AND phone = ?) OR (? != '' AND name = ?))
             ORDER BY applied_at DESC
         """, (user_email, user_phone, u_name, u_name)).fetchall()
         app_ids = [a["id"] for a in apps]
@@ -443,21 +521,99 @@ def get_user_history(
                 if event_key not in existing_interview_events:
                     interview_logs.append(status_log)
             merged = {log.get("id"): log for log in [*current_logs, *interview_logs]}
-            ad["application_logs"] = sorted(merged.values(), key=lambda x: x.get("created_at") or "", reverse=True)
-            app_list.append(ad)
+            
+            candidate_logs = []
+            for log in sorted(merged.values(), key=lambda x: x.get("created_at") or "", reverse=True):
+                evt = log.get("event_type", "")
+                
+                # Bỏ qua các log nội bộ không cho ứng viên xem
+                if evt in ["cv_score_error", "questions_error", "questions_edited", "questions_ready", "hr_reviewed"]:
+                    continue
+                    
+                msg = log.get("message", "")
+                if evt == "app_received":
+                    msg = "Hồ sơ của bạn đã được hệ thống tiếp nhận thành công."
+                elif evt in ["cv_scored", "ai_scored"]:
+                    msg = "Hồ sơ đang trong quá trình phân tích và đánh giá sơ bộ."
+                elif evt == "interview_email_sent":
+                    msg = "Chúc mừng! Bạn đã được mời tham gia phỏng vấn. Vui lòng kiểm tra email của bạn."
+                elif evt == "interview_submitted":
+                    msg = "Bài phỏng vấn của bạn đã được nộp thành công và đang chờ kết quả."
+                elif evt == "interview_evaluated":
+                    msg = "Bài phỏng vấn đang được hệ thống đánh giá."
+                elif evt == "interview_pending_review":
+                    msg = "Bài phỏng vấn đang chờ bộ phận tuyển dụng xét duyệt."
+                elif evt == "reinterview_requested":
+                    msg = "Bộ phận tuyển dụng đã yêu cầu bạn bổ sung thông tin phỏng vấn."
+                elif evt == "status_updated":
+                    status = (log.get("details") or {}).get("status", "")
+                    if status in ["failed", "rejected"]:
+                        msg = "Hồ sơ chưa phù hợp ở thời điểm hiện tại. Cảm ơn bạn đã quan tâm."
+                    elif status == "passed":
+                        msg = "Chúc mừng! Hồ sơ của bạn đã vượt qua vòng đánh giá."
+                        
+                candidate_logs.append({**log, "message": msg, "details": {}})
+                
+            ad["application_logs"] = candidate_logs
+            # Chỉ trả dữ liệu cần cho ứng viên theo dõi hồ sơ. Các trường phân tích
+            # nội bộ (breakdown, AI summary, đường dẫn file) không đi qua endpoint này.
+            app_list.append({
+                "id": ad["id"],
+                "job_id": ad["job_id"],
+                "name": ad["name"],
+                "email": ad["email"],
+                "phone": ad["phone"],
+                "cv_filename": ad["cv_filename"],
+                "cv_score": ad["cv_score"],
+                "status": ad["status"],
+                "applied_at": ad["applied_at"],
+                "is_reapplicant": ad["is_reapplicant"],
+                "level": ad["level"],
+                "application_logs": ad["application_logs"],
+            })
 
         interview_list = []
         for iv in interviews:
             ivd = dict(iv)
             ans_rows = conn.execute("""
-                SELECT question_number, question_text, transcript, audio_path, duration_sec, time_spent
+                SELECT question_number, question_text, transcript, duration_sec, time_spent
                 FROM answers
                 WHERE interview_id = ?
                 ORDER BY question_number ASC
             """, (ivd["id"],)).fetchall()
-            ivd["answers"] = [dict(a) for a in ans_rows]
-            ivd["proctoring_logs"] = _collect_interview_proctoring_logs(conn, ivd)
-            interview_list.append(ivd)
+            monitoring = _collect_interview_proctoring_logs(conn, ivd)
+            # Ứng viên được xem lại nội dung mình đã trả lời và tín hiệu giám sát,
+            # nhưng tuyệt đối không nhận điểm AI, nhận xét hay đánh giá của HR.
+            interview_list.append({
+                "id": ivd["id"],
+                "position_id": ivd["position_id"],
+                "level": ivd["level"],
+                "status": ivd["status"],
+                "submitted_at": ivd["submitted_at"],
+                "tab_switches": ivd["tab_switches"] or 0,
+                "answers": [
+                    {
+                        "question_number": a["question_number"],
+                        "question_text": a["question_text"],
+                        "transcript": a["transcript"],
+                        "duration_sec": a["duration_sec"],
+                        "time_spent": a["time_spent"],
+                    }
+                    for a in ans_rows
+                ],
+                "proctoring_logs": {
+                    "tab_switches": monitoring["tab_switches"],
+                    "proctoring_alerts": [
+                        {
+                            "alert_type": alert.get("alert_type"),
+                            "count": alert.get("count", 1),
+                            "duration_seconds": alert.get("duration_seconds", 0),
+                            "timestamp": alert.get("timestamp") or alert.get("created_at"),
+                        }
+                        for alert in monitoring["proctoring_alerts"]
+                    ],
+                },
+            })
 
     return {
         "applications": app_list,

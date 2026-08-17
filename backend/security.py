@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 
 MAX_CV_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_VIDEO_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_TEXT_CHARS = 50_000
 ALLOWED_CV_EXTENSIONS = {".pdf", ".docx"}
 ALLOWED_AUDIO_EXTENSIONS = {".webm", ".mp3", ".wav", ".m4a", ".ogg"}

@@ -1,0 +1,13 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ShieldCheck, UserRound } from 'lucide-react';
+import { adminApi, jsonInit } from '../shared/api';
+import { Badge, Button, Card, Empty, ErrorState, Loading } from '../shared/ui';
+
+type Account={id:string;name:string;email?:string;phone?:string;role:'candidate'|'admin'|'platform_admin';created_at:string};
+
+export function AccountsPage(){
+  const client=useQueryClient();
+  const accounts=useQuery({queryKey:['admin-accounts'],queryFn:()=>adminApi<{accounts:Account[]}>('/admin/accounts')});
+  const changeRole=useMutation({mutationFn:({id,role}:{id:string;role:'candidate'|'admin'})=>adminApi(`/admin/accounts/${encodeURIComponent(id)}/role`,jsonInit('PATCH',{role})),onSuccess:()=>client.invalidateQueries({queryKey:['admin-accounts']})});
+  return <div className="space-y-5"><Card className="p-6"><p className="eyebrow">Phân quyền</p><h2 className="section-title mt-2">Tài khoản và quyền truy cập</h2><p className="muted mt-2">Admin chính có thể cấp quyền quản trị cho tài khoản hiện có hoặc thu hồi quyền. Khi quyền thay đổi, tài khoản đó phải đăng nhập lại.</p></Card><Card className="overflow-hidden">{accounts.isLoading?<Loading/>:accounts.error?<ErrorState message={accounts.error.message}/>:accounts.data?.accounts.length?<div className="divide-y divide-slate-100">{accounts.data.accounts.map(account=>{const isAdmin=['admin','platform_admin'].includes(account.role);const locked=account.role==='platform_admin';return <div className="flex flex-wrap items-center justify-between gap-4 p-5" key={account.id}><div className="flex min-w-0 items-center gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isAdmin?'bg-blue-50 text-brand-700':'bg-slate-100 text-slate-500'}`}>{isAdmin?<ShieldCheck className="h-5 w-5"/>:<UserRound className="h-5 w-5"/>}</span><div className="min-w-0"><p className="truncate font-extrabold text-slate-950">{account.name}</p><p className="mt-1 truncate text-sm text-slate-500">{account.email||account.phone||'Không có email'}</p></div></div><div className="flex items-center gap-3"><Badge tone={isAdmin?'success':'neutral'}>{account.role==='platform_admin'?'Quản trị nền tảng':isAdmin?'Quản trị viên':'Ứng viên'}</Badge>{!locked&&<Button variant={isAdmin?'danger':'secondary'} disabled={changeRole.isPending} onClick={()=>changeRole.mutate({id:account.id,role:isAdmin?'candidate':'admin'})}>{isAdmin?'Thu hồi quyền':'Cấp quyền quản trị'}</Button>}</div></div>})}</div>:<Empty title="Chưa có tài khoản"/>}</Card>{changeRole.error&&<p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{changeRole.error.message}</p>}</div>;
+}

@@ -357,9 +357,9 @@ async def _create_prep(position_id: str, app_ref: str,
 
     with db() as conn:
         conn.execute(
-            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, q07_text, q08_text, created_at, generated_questions)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
-            (prep_id, app_ref, position_id, "", "", generated_qs.get("07", ""), generated_qs.get("08", ""), now, generated_json),
+            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, q07_text, q08_text, created_at, generated_questions, edited_questions)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (prep_id, app_ref, position_id, "", "", generated_qs.get("07", ""), generated_qs.get("08", ""), now, generated_json, None),
         )
 
     audio_map = {}
@@ -375,7 +375,7 @@ async def _create_prep(position_id: str, app_ref: str,
         import shutil
         
         dst_intro = QUESTION_AUDIO_DIR / intro_file
-        if not dst_intro.exists():
+        if not dst_intro.exists() or dst_intro.stat().st_size <= 512:
             src_intro = BASE_DIR / "outputs" / "question_audio" / intro_file
             if src_intro.exists():
                 shutil.copy2(src_intro, dst_intro)
@@ -389,7 +389,7 @@ async def _create_prep(position_id: str, app_ref: str,
             for n, src_name in _GEN_AUDIO_NAMES.items():
                 if n in audio_map:
                     dst = QUESTION_AUDIO_DIR / audio_map[n]
-                    if not dst.exists():
+                    if not dst.exists() or dst.stat().st_size <= 512:
                         src = gen_audio_dir / src_name
                         if src.exists():
                             shutil.copy2(src, dst)
@@ -397,14 +397,26 @@ async def _create_prep(position_id: str, app_ref: str,
                             print(f"[Prep] Thiếu audio gốc: {src}")
 
         # Ensure all questions have TTS audio
+        import asyncio
+
+        sem = asyncio.Semaphore(3) # Limit concurrency to avoid Edge TTS rate limits
+
+        async def _safe_tts(k, text, dst):
+            async with sem:
+                if not dst.exists() or dst.stat().st_size <= 512:
+                    try:
+                        await _tts(text, dst)
+                    except Exception as e:
+                        print(f"[Prep] Q{k} TTS error: {e}")
+
+        tts_tasks = []
         for k, text in q_texts.items():
             dst = QUESTION_AUDIO_DIR / audio_map[k]
-            if not dst.exists():
-                try:
-                    await _tts(text, dst)
-                except Exception as e:
-                    print(f"[Prep] Q{k} TTS error: {e}")
-        
+            tts_tasks.append(_safe_tts(k, text, dst))
+            
+        if tts_tasks:
+            await asyncio.gather(*tts_tasks)
+
         print(f"[Prep] Hoàn tất chuẩn bị audio cho {prep_id}")
     except Exception as e:
         print(f"[Prep] TTS error: {e}")
@@ -487,6 +499,13 @@ def _prep_from_row(row) -> dict:
         if row_dict.get("q07_text"): generated_qs["07"] = row_dict["q07_text"]
         if row_dict.get("q08_text"): generated_qs["08"] = row_dict["q08_text"]
 
+    edited_qs = {}
+    if "edited_questions" in row.keys() and row["edited_questions"]:
+        try:
+            edited_qs = json.loads(row["edited_questions"]) or {}
+        except Exception:
+            pass
+
     if len(generated_qs) > limit_p2:
         generated_qs = dict(
             sorted(generated_qs.items(), key=lambda item: int(item[0]) if str(item[0]).isdigit() else 999)[:limit_p2]
@@ -494,10 +513,13 @@ def _prep_from_row(row) -> dict:
         
     for k, v in generated_qs.items():
         q_texts[k] = v
+    for k, v in edited_qs.items():
+        if str(v).strip():
+            q_texts[str(k)] = str(v).strip()
         
     audio_map = {}
     for k in q_texts:
-        if k not in generated_qs:
+        if k not in generated_qs and k not in edited_qs:
             audio_map[k] = f"{pos}_q{k}.mp3"
         else:
             audio_map[k] = f"{pid}_q{k}.mp3"

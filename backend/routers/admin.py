@@ -17,6 +17,37 @@ from backend.routers.auth import _group_consecutive_alerts
 router = APIRouter()
 
 
+@router.get("/admin/accounts")
+def admin_list_accounts(x_admin_key: str = Header(None)):
+    """Main admin can review existing web accounts and their access level."""
+    require_admin(x_admin_key)
+    with db() as conn:
+        rows = conn.execute("""SELECT id,name,email,phone,role,created_at
+            FROM users ORDER BY CASE WHEN role IN ('admin','platform_admin') THEN 0 ELSE 1 END, created_at DESC""").fetchall()
+    return {"accounts": [dict(row) for row in rows]}
+
+
+@router.patch("/admin/accounts/{user_id}/role")
+async def admin_update_account_role(user_id: str, request: Request, x_admin_key: str = Header(None)):
+    """Grant/revoke internal admin access. Platform role is never assignable here."""
+    require_admin(x_admin_key)
+    body = await request.json()
+    role = str(body.get("role") or "").strip()
+    if role not in {"candidate", "admin"}:
+        raise HTTPException(422, "Chỉ có thể cấp hoặc thu hồi quyền Quản trị viên")
+    with db() as conn:
+        target = conn.execute("SELECT id,role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(404, "Không tìm thấy tài khoản")
+        if target["role"] == "platform_admin":
+            raise HTTPException(403, "Không thể thay đổi quyền quản trị nền tảng tại đây")
+        conn.execute("UPDATE users SET role=? WHERE id=?", (role, user_id))
+        # Role changes take effect immediately: old sessions cannot retain a
+        # permission that has just been revoked.
+        conn.execute("UPDATE user_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (int(time.time()), user_id))
+    return {"success": True, "role": role}
+
+
 def _normalize_cv_score_value(value):
     if value is None:
         return None
@@ -24,7 +55,7 @@ def _normalize_cv_score_value(value):
         score = float(value)
     except Exception:
         return value
-    return round(score / 2, 2) if score > 5 else score
+    return round(score / 2, 1) if score > 5 else round(score, 1)
 
 
 def _row_logs(rows):
@@ -133,14 +164,17 @@ def admin_list_interviews(
         where.append("(i.level = ? OR i.position_id LIKE ?)")
         params.extend([level, f"{level}_%"])
 
+    # No filter must produce no WHERE clause; a bare `WHERE GROUP BY` is
+    # invalid SQLite and breaks the default interview list request.
     clause = ("WHERE " + " AND ".join(where)) if where else ""
 
     with db() as conn:
         rows = conn.execute(f"""
-            SELECT i.id, i.candidate_id, i.position_id, i.status, i.submitted_at,
+            SELECT i.id, i.candidate_id, CASE WHEN ca.application_source='api' THEN '' ELSE i.position_id END AS position_id, i.status, i.submitted_at,
                    i.level, i.is_reapplicant, i.reinterview_of, i.cv_path,
                    CASE WHEN i.hod_questions IS NOT NULL AND i.hod_questions != '' THEN 1 ELSE 0 END as has_hod_questions,
                    c.name as candidate_name, c.email as candidate_email,
+                   ca.application_source,
                    COUNT(a.id) as answer_count,
                    (
                      SELECT ROUND(AVG(best_score), 1)
@@ -163,6 +197,8 @@ def admin_list_interviews(
             FROM interviews i
             LEFT JOIN answers a ON a.interview_id = i.id
             LEFT JOIN candidates c ON i.candidate_id = c.id
+            LEFT JOIN interview_prep ip ON ip.id = i.prep_id
+            LEFT JOIN cv_applications ca ON ca.id = ip.app_ref
             {clause}
             GROUP BY i.id
             ORDER BY i.submitted_at DESC
@@ -252,16 +288,27 @@ def admin_list_applications(
     x_admin_key: str = Header(None),
 ):
     require_admin(x_admin_key)
-    where, params = [], []
+    # Main ATS list is exclusively website Apply submissions. API tenants
+    # have their own queue under /admin/companies/api-applications.
+    where, params = ["COALESCE(application_source,'') != 'api'", "LOWER(COALESCE(job_id,'')) NOT GLOB 'jd_*'"], []
     if status:
         where.append("status = ?");  params.append(status)
     if job_id:
         where.append("job_id = ?");  params.append(job_id)
-    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    clause = "WHERE " + " AND ".join(where)
 
     with db() as conn:
         rows = conn.execute(
-            f"SELECT * FROM cv_applications {clause} ORDER BY applied_at DESC LIMIT ?",
+            f"""SELECT a.*,
+                   (
+                     SELECT i.status
+                     FROM interviews i
+                     JOIN interview_prep p ON p.id=i.prep_id
+                     WHERE p.app_ref=a.id
+                     ORDER BY COALESCE(i.submitted_at, '') DESC, i.id DESC
+                     LIMIT 1
+                   ) AS latest_interview_status
+                 FROM cv_applications a {clause} ORDER BY a.applied_at DESC LIMIT ?""",
             (*params, limit),
         ).fetchall()
         prep_refs = {
@@ -273,6 +320,8 @@ def admin_list_applications(
 
     applications = [dict(r) for r in rows]
     for app in applications:
+        if app.get("application_source") == "api" or str(app.get("job_id") or "").lower().startswith("jd_"):
+            app["job_id"] = "-"
         app["cv_score"] = _normalize_cv_score_value(app.get("cv_score"))
         app["question_prep_status"] = app.get("prep_status") or ("ready" if app.get("id") in prep_refs else "none")
     return {"total": len(rows), "applications": applications}
@@ -316,9 +365,25 @@ def admin_get_application(app_id: str, x_admin_key: str = Header(None)):
     if not row:
         raise HTTPException(404, "Không tìm thấy đơn ứng tuyển")
     data = dict(row)
+    if data.get("application_source") == "api" or str(data.get("job_id") or "").lower().startswith("jd_"):
+        data["job_id"] = "-"
     data["cv_score"] = _normalize_cv_score_value(data.get("cv_score"))
+    if data.get("cv_extracted_info"):
+        try:
+            data["cv_extracted_info"] = json.loads(data["cv_extracted_info"])
+        except Exception:
+            pass
     if data.get("score_breakdown"):
-        data["score_breakdown"] = json.loads(data["score_breakdown"])
+        try:
+            data["score_breakdown"] = json.loads(data["score_breakdown"])
+        except (TypeError, json.JSONDecodeError):
+            # Dữ liệu cũ có thể lưu breakdown không đúng JSON; vẫn phải mở được hồ sơ.
+            data["score_breakdown"] = {}
+    if data.get("interview_config"):
+        try:
+            data["interview_config"] = json.loads(data["interview_config"])
+        except (TypeError, json.JSONDecodeError):
+            data["interview_config"] = {}
     data["application_logs"] = _row_logs(log_rows) if log_rows else _fallback_application_logs(row, prep_row, interview_rows)
     data["question_prep_status"] = data.get("prep_status") or ("ready" if prep_row else "none")
     if prep_row:
@@ -512,24 +577,33 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
             raise HTTPException(400, f"Hồ sơ đang ở trạng thái '{row['status']}', không cần duyệt lại")
 
         level = dict(row).get("level", "Junior") or "Junior"
-        interview_config = (
-            json.dumps(normalize_interview_config(raw_interview_config))
-            if raw_interview_config is not None
-            else row["interview_config"]
-        )
-        if raw_interview_config is None and row["interview_config"]:
+        saved_config = {}
+        if row["interview_config"]:
             try:
                 saved_config = json.loads(row["interview_config"])
-                if "IS_UNLIMITED" in saved_config:
-                    is_unlimited = bool(saved_config.get("IS_UNLIMITED"))
-                valid_from = valid_from or saved_config.get("VALID_FROM")
-                valid_until = valid_until or saved_config.get("VALID_UNTIL")
             except Exception:
-                pass
-        conn.execute(
-            "UPDATE cv_applications SET status='passed', interview_config=? WHERE id=?", (interview_config, app_id)
-        )
-        
+                saved_config = {}
+        # Cấu hình đã chọn khi tạo bộ câu hỏi là nguồn mặc định. Giao diện cũ gửi
+        # is_unlimited=true khi chưa chạm vào lịch, không được phép làm mất lịch này.
+        if saved_config.get("VALID_FROM") and saved_config.get("VALID_UNTIL") and is_unlimited and not valid_from and not valid_until:
+            is_unlimited = False
+            valid_from = saved_config.get("VALID_FROM")
+            valid_until = saved_config.get("VALID_UNTIL")
+        if raw_interview_config is not None:
+            merged_config = dict(saved_config)
+            merged_config.update(raw_interview_config)
+            if not is_unlimited:
+                merged_config["IS_UNLIMITED"] = False
+                merged_config["VALID_FROM"] = valid_from or merged_config.get("VALID_FROM")
+                merged_config["VALID_UNTIL"] = valid_until or merged_config.get("VALID_UNTIL")
+            interview_config = json.dumps(normalize_interview_config(merged_config))
+        else:
+            interview_config = row["interview_config"]
+        if raw_interview_config is None and saved_config:
+            if "IS_UNLIMITED" in saved_config:
+                is_unlimited = bool(saved_config.get("IS_UNLIMITED"))
+            valid_from = valid_from or saved_config.get("VALID_FROM")
+            valid_until = valid_until or saved_config.get("VALID_UNTIL")
         # Tạo slot
         slot_token = f"SLOT-{uuid.uuid4().hex[:12].upper()}"
         if not is_unlimited and (not valid_from or not valid_until):
@@ -547,6 +621,10 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
             "INSERT INTO interview_slots (token, app_id, position_id, level, start_time, end_time, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (slot_token, app_id, row["job_id"], level, start_time, end_time, datetime.now(timezone.utc).isoformat())
         )
+        conn.execute(
+            "UPDATE cv_applications SET status='passed', interview_config=?, interview_link=?, interview_slot_token=?, interview_link_sent_at=?, interview_link_source='admin' WHERE id=?",
+            (interview_config, f"{INTERVIEW_URL}?slot={slot_token}", slot_token, datetime.now(timezone.utc).isoformat(), app_id)
+        )
 
     # Gửi email Pass
     time_note = "không giới hạn thời gian" if is_unlimited else f"từ {start_time} đến {end_time}"
@@ -557,7 +635,6 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
             time_note = f"từ {st} đến {et}"
         except:
             pass
-            
     send_pass_email(row["name"], row["email"], row["job_id"], app_id, level=level, slot_token=slot_token, time_note=time_note)
     log_application_event(
         app_id,
@@ -571,7 +648,7 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
 
 
 @router.post("/admin/applications/{app_id}/generate_prep")
-async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key: str = Header(None)):
+async def admin_generate_prep_preview(app_id: str, request: Request, background_tasks: BackgroundTasks, x_admin_key: str = Header(None)):
     """Tạo trước danh sách câu hỏi phỏng vấn để HR xem và duyệt trước khi gửi email."""
     require_admin(x_admin_key)
     try:
@@ -580,7 +657,6 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
         body = {}
 
     from backend.services.prep_service import _create_prep, normalize_interview_config
-    from backend.config import QUESTIONS_BANK
     
     with db() as conn:
         row = conn.execute("SELECT * FROM cv_applications WHERE id=?", (app_id,)).fetchone()
@@ -589,6 +665,16 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
 
     # Save config first so _create_prep respects it
     config = normalize_interview_config(body.get("config"))
+    if not config.get("IS_UNLIMITED"):
+        valid_from = config.get("VALID_FROM")
+        valid_until = config.get("VALID_UNTIL")
+        if not valid_from or not valid_until:
+            raise HTTPException(400, "Vui lòng chọn thời gian bắt đầu và kết thúc truy cập link phỏng vấn")
+        try:
+            if parse_slot_datetime(valid_until) <= parse_slot_datetime(valid_from):
+                raise HTTPException(400, "Giờ kết thúc phải sau giờ bắt đầu")
+        except ValueError as exc:
+            raise HTTPException(400, f"Định dạng thời gian không hợp lệ: {exc}")
     if config:
         with db() as conn:
             conn.execute(
@@ -601,50 +687,84 @@ async def admin_generate_prep_preview(app_id: str, request: Request, x_admin_key
     # Delete existing prep so we regenerate fresh
     with db() as conn:
         conn.execute("DELETE FROM interview_prep WHERE app_ref=?", (app_id,))
-    
-    try:
-        prep = await _create_prep(dict(row)["job_id"], app_id, level=level)
-        with db() as conn:
-            conn.execute(
-                "UPDATE cv_applications SET prep_status='ready', prep_error=NULL WHERE id=?",
-                (app_id,),
+        
+    async def run_prep_background():
+        try:
+            prep = await _create_prep(dict(row)["job_id"], app_id, level=level)
+            with db() as conn:
+                conn.execute(
+                    "UPDATE cv_applications SET prep_status='ready', prep_error=NULL WHERE id=?",
+                    (app_id,),
+                )
+            log_application_event(
+                app_id,
+                row["email"],
+                "questions_ready",
+                "Đã tạo bộ câu hỏi phỏng vấn và lưu vào hồ sơ.",
+                {"prep_id": prep.get("prep_id"), "question_count": len(prep.get("questions") or {})},
             )
-        log_application_event(
-            app_id,
-            row["email"],
-            "questions_ready",
-            "Đã tạo bộ câu hỏi phỏng vấn và lưu vào hồ sơ.",
-            {"prep_id": prep.get("prep_id"), "question_count": len(prep.get("questions") or {})},
+        except Exception as e:
+            with db() as conn:
+                conn.execute(
+                    "UPDATE cv_applications SET prep_status='error', prep_error=? WHERE id=?",
+                    (str(e), app_id),
+                )
+            log_application_event(app_id, row["email"], "questions_error", "Tạo câu hỏi phỏng vấn bị lỗi.", {"error": str(e)})
+
+    background_tasks.add_task(run_prep_background)
+    
+    return {"ok": True, "msg": "Đang tạo bộ câu hỏi ngầm...", "prep_status": "generating"}
+
+
+@router.patch("/admin/applications/{app_id}/prep")
+async def admin_update_prep_questions(app_id: str, body: dict, background: BackgroundTasks, x_admin_key: str = Header(None)):
+    """HR sửa trực tiếp câu hỏi đã sinh trước khi gửi link phỏng vấn."""
+    require_admin(x_admin_key)
+    questions = body.get("questions")
+    if not isinstance(questions, dict) or not questions:
+        raise HTTPException(400, "Danh sách câu hỏi không hợp lệ")
+    cleaned = {str(k): str(v or "").strip() for k, v in questions.items()}
+    if any(not value for value in cleaned.values()):
+        raise HTTPException(400, "Câu hỏi không được để trống")
+
+    from backend.services.prep_service import _prep_from_row
+    from backend.config import QUESTION_AUDIO_DIR
+    from backend.services.ai_service import _tts
+    with db() as conn:
+        app = conn.execute("SELECT id, email FROM cv_applications WHERE id=?", (app_id,)).fetchone()
+        prep = conn.execute("SELECT * FROM interview_prep WHERE app_ref=? ORDER BY created_at DESC LIMIT 1", (app_id,)).fetchone()
+        if not app or not prep:
+            raise HTTPException(404, "Chưa có bộ câu hỏi để chỉnh sửa")
+        old_prep = _prep_from_row(prep)
+        old_questions = {str(n): q.get("text", "") for n, q in (old_prep.get("questions") or {}).items()}
+        changed_questions = {
+            n: text for n, text in cleaned.items()
+            if text != str(old_questions.get(n, "")).strip()
+        }
+        try:
+            saved_edits = json.loads(prep["edited_questions"] or "{}")
+        except Exception:
+            saved_edits = {}
+        # Frontend chỉ gửi các câu vừa đổi. Giữ nguyên các lần sửa trước đó.
+        saved_edits.update(changed_questions)
+        conn.execute(
+            "UPDATE interview_prep SET edited_questions=? WHERE id=?",
+            (json.dumps(saved_edits, ensure_ascii=False), prep["id"]),
         )
-    except Exception as e:
-        with db() as conn:
-            conn.execute(
-                "UPDATE cv_applications SET prep_status='error', prep_error=? WHERE id=?",
-                (str(e), app_id),
-            )
-        log_application_event(app_id, row["email"], "questions_error", "Tạo câu hỏi phỏng vấn bị lỗi.", {"error": str(e)})
-        raise
-    
-    # Return question list with meta for preview
-    questions_preview = []
-    for q_num, q_data in (prep.get("questions") or {}).items():
-        meta = QUESTIONS_BANK.get(q_num, {})
-        is_generated = bool(q_data.get("is_generated"))
-        questions_preview.append({
-            "n": q_num,
-            "text": q_data.get("text", ""),
-            "type": q_data.get("type") or meta.get("type", ""),
-            "label": meta.get("label", f"Câu {q_num}"),
-            "is_ai_generated": is_generated
-        })
-    
-    return {
-        "ok": True,
-        "prep_id": prep.get("prep_id"),
-        "questions": questions_preview,
-        "follow_up_limit": prep.get("follow_up_limit", 0),
-        "follow_up_note": "Số câu đào sâu là giới hạn tối đa; AI chỉ hỏi thêm khi câu trả lời còn thiếu hoặc có rủi ro rõ.",
-    }
+
+    async def regenerate_audio():
+        for n, text in changed_questions.items():
+            try:
+                await _tts(text, QUESTION_AUDIO_DIR / f"{prep['id']}_q{n}.mp3")
+            except Exception as exc:
+                print(f"[Prep] Không tạo lại audio q{n}: {exc}")
+    if changed_questions:
+        background.add_task(regenerate_audio)
+    log_application_event(app_id, app["email"], "questions_edited", "HR đã chỉnh sửa nội dung câu hỏi trước khi gửi link.", {"question_count": len(cleaned), "audio_regenerated_count": len(changed_questions)})
+    with db() as conn:
+        saved = conn.execute("SELECT * FROM interview_prep WHERE id=?", (prep["id"],)).fetchone()
+    result = _prep_from_row(saved)
+    return {"ok": True, "prep_id": result["prep_id"], "questions": [{"n": n, **q} for n, q in result["questions"].items()]}
 
 
 
@@ -693,8 +813,14 @@ def admin_stats(x_admin_key: str = Header(None)):
                     WHEN cv_score IS NOT NULL AND cv_score > 5 THEN cv_score / 2.0
                     WHEN cv_score IS NOT NULL THEN cv_score
                     ELSE NULL
-                END), 2) AS avg_score
-            FROM cv_applications
+                END), 2) AS avg_score,
+                (SELECT COUNT(*) FROM interviews WHERE status IN ('submitted', 'pending_review')) AS submitted_interviews,
+                (SELECT COUNT(*) FROM interviews WHERE status='evaluated') AS evaluated_interviews,
+                (SELECT COUNT(*) FROM cv_applications WHERE status='pending'
+                    AND COALESCE(application_source,'') != 'api'
+                    AND LOWER(COALESCE(job_id,'')) NOT GLOB 'jd_*') AS new_applications
+            FROM cv_applications WHERE COALESCE(application_source,'') != 'api'
+              AND LOWER(COALESCE(job_id,'')) NOT GLOB 'jd_*'
         """).fetchone()
     return dict(row)
 

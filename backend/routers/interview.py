@@ -21,11 +21,13 @@ from backend.security import (
     ALLOWED_AUDIO_EXTENSIONS,
     ALLOWED_CV_EXTENSIONS,
     MAX_AUDIO_UPLOAD_BYTES,
+    MAX_VIDEO_UPLOAD_BYTES,
     MAX_CV_UPLOAD_BYTES,
     media_content_type_for_path,
     read_upload_limited,
     signed_temp_file_url,
 )
+from backend.services.interview_access import require_access, mark_submitted
 router = APIRouter()
 
 @router.post("/interview/prep")
@@ -34,11 +36,13 @@ async def create_interview_prep(
     app_ref:     str = Form(None),
     level:       str = Form("Junior"),
     force:       bool = Form(False),
+    x_interview_session: str = Header(None),
 ):
     from backend.routers.api_v1 import parse_slot_datetime
     
     # Check if app_ref has an expired slot
     if app_ref:
+        require_access(app_ref, x_interview_session)
         with db() as conn:
             slot = conn.execute("SELECT * FROM interview_slots WHERE app_id=? ORDER BY created_at DESC LIMIT 1", (app_ref,)).fetchone()
             if slot and slot["start_time"] and slot["end_time"]:
@@ -132,9 +136,11 @@ async def evaluate_step(
     history: str = Form("[]"),
     follow_up_limit: int = Form(5),
     app_ref: str = Form(None),
+    x_interview_session: str = Header(None),
 ):
     from backend.routers.api_v1 import parse_slot_datetime
     if app_ref:
+        require_access(app_ref, x_interview_session)
         with db() as conn:
             slot = conn.execute("SELECT * FROM interview_slots WHERE app_id=? ORDER BY created_at DESC LIMIT 1", (app_ref,)).fetchone()
             if slot and slot["start_time"] and slot["end_time"]:
@@ -301,6 +307,7 @@ async def submit_interview(
     position_id = form.get("position_id")
     candidate_id = form.get("candidate_id")
     app_ref      = form.get("app_ref")
+    x_interview_session = request.headers.get("x-interview-session")
     prep_id      = form.get("prep_id")
     level        = form.get("level", "Junior")
     reiv         = form.get("reiv")
@@ -308,6 +315,7 @@ async def submit_interview(
     
     from backend.routers.api_v1 import parse_slot_datetime
     if app_ref:
+        require_access(app_ref, x_interview_session)
         with db() as conn:
             slot = conn.execute("SELECT * FROM interview_slots WHERE app_id=? ORDER BY created_at DESC LIMIT 1", (app_ref,)).fetchone()
             if slot and slot["start_time"] and slot["end_time"]:
@@ -393,7 +401,12 @@ async def submit_interview(
     full_video = form.get("full_video")
     video_path_str = None
     if isinstance(full_video, UploadFile) and hasattr(full_video, "filename") and full_video.filename:
-        video_bytes = await full_video.read()
+        video_bytes, _ = await read_upload_limited(
+            full_video,
+            allowed_extensions={".webm"},
+            max_bytes=MAX_VIDEO_UPLOAD_BYTES,
+            field_name="Video phỏng vấn",
+        )
         video_path = session_dir / "full_video.webm"
         video_path.write_bytes(video_bytes)
         video_path_str = str(video_path.relative_to(BASE_DIR))
@@ -509,6 +522,8 @@ async def submit_interview(
                 {"interview_id": reiv, "attempt_number": next_attempt, "answers_saved": len(answer_rows)},
             )
         background.add_task(_do_evaluate_interview, reiv, position_id, reiv_rows)
+        if app_ref:
+            mark_submitted(app_ref, x_interview_session)
         return {"ok": True, "interview_id": reiv, "reinterview": True, "attempt_number": next_attempt, "answers_saved": len(answer_rows)}
 
     # ── Phỏng vấn mới: flow thông thường ───────────────────────
@@ -537,6 +552,8 @@ async def submit_interview(
             VALUES (:interview_id, :question_number, :question_type, :question_text, :transcript, :audio_path, :created_at, :time_spent, :attempt_number)
         """, [{**r, "time_spent": time_spent.get(r["question_number"].split(".")[0], 0)} for r in answer_rows])
 
+    if app_ref:
+        mark_submitted(app_ref, x_interview_session)
     print(f"[✓] {interview_id} | candidate={candidate_id} | position={position_id}")
     if c_email:
         log_application_event(
@@ -561,9 +578,11 @@ def get_interview(interview_id: str, x_admin_key: str = Header(None)):
     require_admin(x_admin_key)
     with db() as conn:
         row = conn.execute("""
-            SELECT i.*, c.name as candidate_name
+            SELECT i.*, c.name as candidate_name, ca.application_source
             FROM interviews i
             LEFT JOIN candidates c ON i.candidate_id = c.id
+            LEFT JOIN interview_prep ip ON ip.id = i.prep_id
+            LEFT JOIN cv_applications ca ON ca.id = ip.app_ref
             WHERE i.id = ?
         """, (interview_id,)).fetchone()
         if not row:

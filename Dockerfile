@@ -1,3 +1,11 @@
+FROM node:20-alpine AS frontend_builder
+
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend .
+RUN npm run build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -15,6 +23,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY . .
+
+# Cho phép backend phục vụ cùng bản React build khi truy cập trực tiếp cổng API.
+COPY --from=frontend_builder /frontend/dist /app/frontend/dist
+COPY frontend/code.html frontend/report_print.html /app/frontend/dist/
 
 # Expose port
 EXPOSE 8001

@@ -79,12 +79,19 @@ def normalize_cv_score(score_result: dict) -> tuple[dict, float]:
 
 
 async def _tts(text: str, out_path: Path) -> None:
-    """Sinh audio TTS và lưu vào out_path. Bỏ qua nếu đã tồn tại."""
-    if out_path.exists():
+    """Sinh audio atomically; corrupt/empty cached files are regenerated."""
+    if out_path.exists() and out_path.stat().st_size > 512:
         return
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    tmp_path.unlink(missing_ok=True)
     import edge_tts
     communicate = edge_tts.Communicate(text, voice="vi-VN-HoaiMyNeural")
-    await communicate.save(str(out_path))
+    await communicate.save(str(tmp_path))
+    if not tmp_path.exists() or tmp_path.stat().st_size <= 512:
+        tmp_path.unlink(missing_ok=True)
+        raise RuntimeError("TTS không tạo được audio hợp lệ")
+    tmp_path.replace(out_path)
 
 
 async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Junior"):
@@ -266,7 +273,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                             question=question,
                             transcript=transcript,
                         )
-                        max_tok = 1400
+                        max_tok = 8000
                     else:
                         # Xếp 4 mức
                         prompt = EVAL_PROMPT.format(
@@ -276,7 +283,7 @@ async def _do_evaluate_interview(interview_id: str, position_id: str, answer_row
                             question=question,
                             transcript=transcript,
                         )
-                        max_tok = 1800
+                        max_tok = 8000
 
                     resp = await client.chat.completions.create(
                         model="gpt-4o",
@@ -454,7 +461,7 @@ async def analyze_candidate_reply(cv_text: str, jd_text: str, deep_questions: li
     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
     
     # Format deep questions into readable text
-    dq_text = "\n".join([f"Câu {i+1}: {q.get('question_text', '')}" for i, q in enumerate(deep_questions)])
+    dq_text = "\n".join([f"Câu {i+1}: {q.get('question_text', '') if isinstance(q, dict) else str(q)}" for i, q in enumerate(deep_questions)])
     
     prompt = EVALUATE_REPLY_PROMPT.format(
         cv_text=cv_text[:5000], 
@@ -508,47 +515,26 @@ async def generate_deep_questions(cv_text: str, jd_text: str) -> list:
     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
     prompt = DEEP_ANALYSIS_PROMPT.format(cv_text=cv_text[:5000], jd_text=jd_text[:4000])
     
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "return_deep_questions",
-                "description": "Trả về danh sách các câu hỏi phỏng vấn xoáy sâu.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "questions": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "question_text": {"type": "string", "description": "Nội dung câu hỏi phỏng vấn."},
-                                    "rationale": {"type": "string", "description": "Lý do hỏi câu này dựa trên CV và JD."}
-                                },
-                                "required": ["question_text", "rationale"]
-                            }
-                        }
-                    },
-                    "required": ["questions"]
-                }
-            }
-        }
-    ]
-    
     resp = await client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        tools=tools,
-        tool_choice={"type": "function", "function": {"name": "return_deep_questions"}}
+        temperature=0.5,
+        max_tokens=1200,
     )
     
-    tool_call = resp.choices[0].message.tool_calls[0]
-    result_json = tool_call.function.arguments
     import json
-    parsed = json.loads(result_json)
+    import re
+    dq_raw = resp.choices[0].message.content.strip()
+    dq_raw = re.sub(r"^```(?:json)?\s*", "", dq_raw)
+    dq_raw = re.sub(r"\s*```$", "", dq_raw)
+    dq_data = json.loads(dq_raw)
     
-    return parsed.get("questions", [])
+    if isinstance(dq_data, list):
+        return dq_data
+    elif isinstance(dq_data, dict):
+        return dq_data.get("questions", dq_data.get("deep_questions", []))
+    
+    return []
 
 async def evaluate_cv_round_1(cv_text: str, jd_text: str, criteria_text: str) -> dict:
     """Đánh giá vòng 1: Kiểm tra xem CV có đủ thông tin không. Nếu thiếu trả về câu hỏi bổ sung."""

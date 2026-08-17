@@ -90,11 +90,14 @@ def _public_embed_url(embed_url: str | None) -> str | None:
 
 class ProctoringSessionRequest(BaseModel):
     app_id: str
+    interview_session: str
 
 @router.post("/api/v1/proctoring/session")
 async def create_proctoring_session(req: ProctoringSessionRequest):
     if not re.fullmatch(r"APP-[A-F0-9]{8}", req.app_id or ""):
         raise HTTPException(400, "app_id không hợp lệ")
+    from backend.services.interview_access import require_access
+    require_access(req.app_id, req.interview_session)
     ctpai_session_id = f"{req.app_id}:{int(time.time())}"
     session_prefix = f"{req.app_id}:%"
     with db() as conn:

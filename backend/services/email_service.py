@@ -15,6 +15,30 @@ def _smtp_send(msg: MIMEMultipart, to_email: str):
         print(f"[Email Error] {to_email}: {e}")
 
 
+def send_password_reset_email(to_email: str, reset_code: str, *, account_label: str) -> bool:
+    """Send a one-time email OTP without ever including a password."""
+    if not SMTP_USER or not SMTP_PASS:
+        print(f"[Email] Chưa cấu hình SMTP — không gửi được email đặt lại mật khẩu cho {to_email}")
+        return False
+    subject = "Đặt lại mật khẩu tài khoản PAI Hire"
+    plain = (
+        f"Bạn vừa yêu cầu đặt lại mật khẩu {account_label}.\n\n"
+        f"Mã xác nhận của bạn là: {reset_code}\n\n"
+        "Nếu bạn không gửi yêu cầu này, hãy bỏ qua email. Mật khẩu hiện tại sẽ không thay đổi."
+    )
+    html = f"""<html><body style=\"font-family:Arial,sans-serif;color:#172033;line-height:1.6\">
+      <h2>Đặt lại mật khẩu</h2><p>Bạn vừa yêu cầu đặt lại mật khẩu <strong>{account_label}</strong>.</p>
+      <p style=\"font-size:30px;font-weight:800;letter-spacing:7px;color:#155eef\">{reset_code}</p>
+      <p>Mã hết hạn sau 60 phút và chỉ dùng được một lần.</p>
+      <p style=\"color:#667085;font-size:13px\">Nếu bạn không gửi yêu cầu này, hãy bỏ qua email. Mật khẩu hiện tại không thay đổi.</p>
+    </body></html>"""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject; msg["From"] = f"PAI Hire <{SMTP_USER}>"; msg["To"] = to_email
+    msg.attach(MIMEText(plain, "plain", "utf-8")); msg.attach(MIMEText(html, "html", "utf-8"))
+    _smtp_send(msg, to_email)
+    return True
+
+
 def send_pass_email(name: str, to_email: str, job_title: str, app_id: str, level: str = "Junior", slot_token: str = None, time_note: str = "7 ngày"):
     if not SMTP_USER or not SMTP_PASS:
         print(f"[Email] Chưa cấu hình SMTP — bỏ qua gửi mail cho {to_email}")
@@ -615,10 +639,11 @@ def send_deep_questions_email(name: str, to_email: str, job_title: str, app_id: 
 
     items_html = ""
     for idx, q in enumerate(deep_questions):
+        text = q.get('question_text', '') if isinstance(q, dict) else str(q)
         items_html += f"""
         <div style="margin-bottom:14px;padding:12px 16px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:6px;">
             <p style="margin:0;font-size:14px;color:#0369a1;font-weight:700;">Câu {idx+1}:</p>
-            <p style="margin:6px 0 0;font-size:14px;color:#111827;">{q['question_text']}</p>
+            <p style="margin:6px 0 0;font-size:14px;color:#111827;">{text}</p>
         </div>
         """
 
@@ -685,5 +710,3 @@ def send_deep_questions_email(name: str, to_email: str, job_title: str, app_id: 
     msg.attach(MIMEText(plain, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
     _smtp_send(msg, to_email)
-
-

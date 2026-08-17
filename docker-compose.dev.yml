@@ -1,0 +1,43 @@
+services:
+  backend:
+    build: .
+    container_name: pai_hire_backend_dev
+    restart: unless-stopped
+    ports:
+      - "8101:8001"
+    volumes:
+      - ./frontend:/app/frontend:ro
+      - ./outputs_dev:/app/outputs
+      - ./ats_phongvan_dev.db:/app/ats_phongvan.db
+      - ./JDs:/app/JDs:ro
+      - ./JDs_Detailed:/app/JDs_Detailed:ro
+      - ./Generated_Questions:/app/Generated_Questions:ro
+      - ./Generated_Audio:/app/Generated_Audio:ro
+    env_file:
+      - .env.dev
+    environment:
+      - PORT=8001
+
+  frontend:
+    image: nginx:alpine
+    container_name: pai_hire_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "8100:8000"
+    volumes:
+      - ./frontend:/usr/share/nginx/html/ui:ro
+      - ./frontend_nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: pai_hire_ngrok_dev
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+    command: http frontend:8000
+    ports:
+      - "4041:4040"
+    depends_on:
+      - frontend

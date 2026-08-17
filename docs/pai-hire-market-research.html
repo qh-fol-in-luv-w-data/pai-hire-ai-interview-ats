@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Nghiên cứu thị trường tiền tiêu và chiến lược go-to-market cho PAI Hire.">
+  <title>PAI Hire — Nghiên cứu thị trường tiền tiêu</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #122033;
+      --muted: #64748b;
+      --line: #dbe3ee;
+      --soft: #f4f7fb;
+      --paper: #ffffff;
+      --navy: #0b1f3a;
+      --blue: #1769d1;
+      --blue-soft: #eaf3ff;
+      --green: #087f5b;
+      --green-soft: #e8f8f1;
+      --amber: #a15c00;
+      --amber-soft: #fff5df;
+      --red: #b42318;
+      --shadow: 0 18px 48px rgba(15, 35, 64, .10);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #edf2f8;
+      color: var(--ink);
+      font: 15px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: var(--blue); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: #0d4e9f; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { color: var(--navy); line-height: 1.2; }
+    h1 { max-width: 850px; margin-bottom: 18px; font-size: clamp(34px, 5vw, 62px); letter-spacing: -.045em; }
+    h2 { margin-bottom: 18px; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.025em; }
+    h3 { margin-bottom: 8px; font-size: 17px; }
+    p:last-child { margin-bottom: 0; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 72px 24px 58px;
+      background: var(--navy);
+      color: #dbeafe;
+    }
+    .hero::after {
+      position: absolute;
+      top: -180px;
+      right: -150px;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(58, 151, 255, .28), transparent 68%);
+      content: "";
+    }
+    .hero-inner { position: relative; z-index: 1; max-width: 1180px; margin: auto; }
+    .eyebrow {
+      margin-bottom: 14px;
+      color: #83b9ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .hero h1 { color: #fff; }
+    .hero-lead { max-width: 790px; margin-bottom: 26px; color: #cbd8e8; font-size: 18px; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-meta span {
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: rgba(255,255,255,.07);
+      color: #e7f1ff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 26px;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px 24px 70px;
+    }
+    .toc {
+      position: sticky;
+      top: 20px;
+      align-self: start;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: 0 8px 28px rgba(15,35,64,.06);
+    }
+    .toc-title { padding: 17px 18px 10px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .toc a { display: block; border-left: 3px solid transparent; padding: 9px 16px; color: #42526a; font-size: 13px; font-weight: 700; text-decoration: none; }
+    .toc a:hover { border-left-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
+    .toc .print-note { margin: 12px; border-radius: 12px; padding: 12px; background: var(--soft); color: var(--muted); font-size: 11px; }
+
+    main { min-width: 0; }
+    .section {
+      scroll-margin-top: 24px;
+      margin-bottom: 22px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: clamp(24px, 4vw, 40px);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+    .section-number { margin-bottom: 8px; color: var(--blue); font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .lede { max-width: 830px; color: #4b5d75; font-size: 16px; }
+
+    .decision {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .decision-main, .decision-side { border-radius: 18px; padding: 22px; }
+    .decision-main { background: linear-gradient(135deg, #0d2b51, #145b9f); color: #fff; }
+    .decision-main h3 { color: #fff; font-size: 23px; }
+    .decision-main p { color: #dcecff; }
+    .decision-side { border: 1px solid #cde0f7; background: var(--blue-soft); }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+    .metric { border: 1px solid var(--line); border-radius: 16px; padding: 17px; background: #fbfcfe; }
+    .metric small { display: block; min-height: 36px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .metric strong { display: block; margin-top: 8px; color: var(--navy); font-size: 25px; letter-spacing: -.03em; }
+
+    .table-wrap { overflow-x: auto; margin: 20px -4px 0; padding: 0 4px 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 13px 12px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); color: #45566e; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #f9fbfe; }
+    .fit { white-space: nowrap; color: var(--green); font-weight: 900; }
+
+    .grid-2, .grid-3 { display: grid; gap: 14px; margin-top: 20px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { border: 1px solid var(--line); border-radius: 17px; padding: 19px; background: #fff; }
+    .card.soft { background: var(--soft); }
+    .card.blue { border-color: #c8ddf7; background: var(--blue-soft); }
+    .card.green { border-color: #bfe6d7; background: var(--green-soft); }
+    .card.amber { border-color: #f0d6a7; background: var(--amber-soft); }
+    .card p, .card li { color: #4d5f77; }
+
+    .check-list { margin: 12px 0 0; padding: 0; list-style: none; }
+    .check-list li { position: relative; margin: 8px 0; padding-left: 20px; }
+    .check-list li::before { position: absolute; left: 0; color: var(--green); font-weight: 900; content: "✓"; }
+    .avoid-list li::before { color: var(--red); content: "×"; }
+
+    .quote {
+      margin: 22px 0 0;
+      border-left: 4px solid #61a8ff;
+      border-radius: 0 16px 16px 0;
+      padding: 20px 22px;
+      background: #f0f6ff;
+      color: #173b67;
+      font-size: 19px;
+      font-weight: 780;
+      line-height: 1.45;
+    }
+    .formula { margin-top: 18px; border: 1px dashed #9bbde8; border-radius: 15px; padding: 18px; background: #f7fbff; text-align: center; }
+    .formula strong { color: var(--blue); font-size: 18px; }
+
+    .funnel { display: grid; gap: 8px; max-width: 700px; margin: 24px auto 0; }
+    .funnel-row { margin: auto; border-radius: 12px; padding: 11px 16px; color: #fff; text-align: center; font-size: 13px; font-weight: 800; }
+    .funnel-row:nth-child(1) { width: 100%; background: #183b68; }
+    .funnel-row:nth-child(2) { width: 78%; background: #1769d1; }
+    .funnel-row:nth-child(3) { width: 56%; background: #20869c; }
+    .funnel-row:nth-child(4) { width: 38%; background: #087f5b; }
+
+    .timeline { position: relative; margin-top: 24px; padding-left: 25px; }
+    .timeline::before { position: absolute; top: 6px; bottom: 6px; left: 7px; width: 2px; background: #c9d8e9; content: ""; }
+    .timeline-item { position: relative; margin-bottom: 18px; padding: 1px 0 0 17px; }
+    .timeline-item::before { position: absolute; top: 6px; left: -24px; width: 12px; height: 12px; border: 3px solid #ddecff; border-radius: 50%; background: var(--blue); content: ""; }
+    .timeline-item strong { display: block; color: var(--navy); }
+    .timeline-item span { color: var(--muted); font-size: 13px; }
+
+    .tag { display: inline-block; border-radius: 999px; padding: 5px 9px; background: var(--soft); color: #45566e; font-size: 11px; font-weight: 800; }
+    .tag.high { background: var(--green-soft); color: var(--green); }
+    .tag.medium { background: var(--amber-soft); color: var(--amber); }
+
+    .source-list { margin: 18px 0 0; padding-left: 20px; }
+    .source-list li { margin: 9px 0; color: #4d5f77; }
+    .note { margin-top: 20px; border-radius: 14px; padding: 15px 17px; background: #fff8e8; color: #735113; font-size: 13px; }
+    .footer { padding: 28px 24px 46px; color: #728197; text-align: center; font-size: 12px; }
+
+    @media (max-width: 900px) {
+      .layout { display: block; padding: 16px 12px 50px; }
+      .toc { position: static; margin-bottom: 16px; }
+      .toc-title, .toc .print-note { display: none; }
+      .toc nav { display: flex; overflow-x: auto; padding: 8px; scrollbar-width: thin; }
+      .toc a { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 9px 11px; white-space: nowrap; }
+      .decision { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .hero { padding: 48px 18px 40px; }
+      .hero-lead { font-size: 16px; }
+      .section { border-radius: 18px; padding: 22px 18px; }
+      .grid-2, .metrics { grid-template-columns: 1fr; }
+      .metric small { min-height: 0; }
+      th, td { padding: 11px 9px; }
+    }
+    @media print {
+      @page { size: A4; margin: 14mm; }
+      body { background: #fff; font-size: 11px; }
+      .hero { padding: 30px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .hero h1 { font-size: 34px; }
+      .layout { display: block; max-width: none; padding: 18px 0; }
+      .toc { display: none; }
+      .section { break-inside: avoid; margin-bottom: 12px; border-radius: 10px; padding: 22px; box-shadow: none; }
+      h2 { font-size: 22px; }
+      .decision-main, .card, th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      a { color: inherit; text-decoration: none; }
+      .footer { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">PAI Hire · Market Research 2026</p>
+      <h1>Chọn đúng thị trường đầu tiên để thắng</h1>
+      <p class="hero-lead">Bản nghiên cứu về phân khúc khách hàng, thị trường tiền tiêu, persona, TAM, chu kỳ mua, đề xuất giá trị, 10 khách hàng thử nghiệm, năng lực lõi và định vị sản phẩm.</p>
+      <div class="hero-meta">
+        <span>Cập nhật 12/08/2026</span>
+        <span>Thị trường Việt Nam</span>
+        <span>Mô hình B2B SaaS + AI credits</span>
+        <span>Bản giả thuyết cần kiểm chứng</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="toc" aria-label="Mục lục">
+      <p class="toc-title">Nội dung</p>
+      <nav>
+        <a href="#summary">Kết luận điều hành</a>
+        <a href="#segments">1. Phân khúc</a>
+        <a href="#beachhead">2. Beachhead</a>
+        <a href="#persona">3. Persona</a>
+        <a href="#tam">4. TAM</a>
+        <a href="#icp">5. ICP</a>
+        <a href="#buying">6. Chu kỳ mua</a>
+        <a href="#value">7. Giá trị</a>
+        <a href="#first-ten">8. 10 khách đầu tiên</a>
+        <a href="#core">9. Năng lực lõi</a>
+        <a href="#positioning">10. Định vị</a>
+        <a href="#actions">Kế hoạch 90 ngày</a>
+        <a href="#sources">Nguồn nghiên cứu</a>
+      </nav>
+      <p class="print-note">Có thể nhấn Ctrl/Cmd + P để lưu bản này thành PDF.</p>
+    </aside>
+
+    <main>
+      <section class="section" id="summary">
+        <p class="section-number">Kết luận điều hành</p>
+        <h2>Đừng bán cho “mọi doanh nghiệp tuyển dụng”</h2>
+        <p class="lede">PAI Hire hiện mạnh nhất ở đoạn CV → sàng lọc → câu hỏi → phỏng vấn bất đồng bộ → báo cáo/API. Thị trường đầu tiên vì vậy phải có CV chuẩn, tuyển lặp lại, quy trình vòng đầu tốn thời gian và người mua đủ gần để chạy pilot nhanh.</p>
+        <div class="decision">
+          <div class="decision-main">
+            <p class="eyebrow">Beachhead đề xuất</p>
+            <h3>Công ty phần mềm, ITO/BPO 50–500 nhân sự</h3>
+            <p>Ưu tiên Hà Nội, TP.HCM và Đà Nẵng; nhận 50–500 hồ sơ/tháng; đội tuyển dụng 1–6 người; thường xuyên tuyển kỹ sư, QA, BA, support và sales.</p>
+          </div>
+          <div class="decision-side">
+            <h3>Thông điệp bán hàng</h3>
+            <p>Giảm thời gian vòng đầu nhưng vẫn để con người giữ quyền quyết định.</p>
+          </div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><small>Tài khoản phù hợp ước tính</small><strong>200–300</strong></div>
+          <div class="metric"><small>ACV mục tiêu</small><strong>36–72 triệu</strong></div>
+          <div class="metric"><small>Beachhead TAM/năm</small><strong>7,2–21,6 tỷ</strong></div>
+          <div class="metric"><small>Chu kỳ mua SME</small><strong>2–6 tuần</strong></div>
+        </div>
+        <p class="note"><strong>Lưu ý:</strong> Đây là các giả định chiến lược để kiểm chứng qua 10 khách hàng thật, không phải doanh thu hay nhu cầu đã được xác nhận.</p>
+      </section>
+
+      <section class="section" id="segments">
+        <p class="section-number">01 · Phân khúc thị trường</p>
+        <h2>Toàn cảnh nhóm khách hàng có thể sử dụng</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Phân khúc</th><th>Nhu cầu</th><th>Phù hợp</th><th>Quyết định</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Phần mềm, ITO/BPO 50–500 người</strong></td><td>Lọc CV, phỏng vấn kỹ thuật/sơ bộ từ xa</td><td class="fit">5/5</td><td><span class="tag high">Beachhead</span></td></tr>
+              <tr><td><strong>Recruitment agency, headhunter</strong></td><td>Xử lý khối lượng CV lớn, nhúng API cho nhiều khách</td><td class="fit">4/5</td><td>Thị trường mở rộng số 1</td></tr>
+              <tr><td><strong>SME dịch vụ, fintech, thương mại điện tử</strong></td><td>HR mỏng, cần chuẩn hóa vòng đầu</td><td class="fit">4/5</td><td>Mở rộng sau khi có bằng chứng</td></tr>
+              <tr><td><strong>Trường, bootcamp, chương trình fresher</strong></td><td>Đánh giá đầu vào hàng loạt</td><td class="fit">3/5</td><td>Doanh thu mùa vụ</td></tr>
+              <tr><td><strong>Retail, logistics, nhà máy</strong></td><td>Tuyển lao động số lượng lớn</td><td class="fit">2/5</td><td>Cần Zalo/SMS, không-CV, xếp ca</td></tr>
+              <tr><td><strong>Doanh nghiệp trên 1.000 người</strong></td><td>SSO, SLA, kiểm toán, phân quyền sâu</td><td class="fit">2/5</td><td>ACV cao nhưng sales cycle dài</td></tr>
+              <tr><td><strong>ATS và job board</strong></td><td>Nhúng chấm CV/phỏng vấn bằng API</td><td class="fit">4/5</td><td>Đối tác kênh chiến lược</td></tr>
+              <tr><td><strong>Ứng viên B2C</strong></td><td>Tìm việc, luyện phỏng vấn</td><td class="fit">1/5</td><td>Không phải người trả tiền ban đầu</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Việt Nam có gần 930.000 doanh nghiệp hoạt động và khoảng 98% là SME, nhưng đa số không tuyển đủ thường xuyên để mua một hệ thống AI tuyển dụng. Không nên dùng toàn bộ con số này làm khách hàng mục tiêu.</p>
+      </section>
+
+      <section class="section" id="beachhead">
+        <p class="section-number">02 · Thị trường tiền tiêu</p>
+        <h2>Vì sao chọn công ty phần mềm và ITO/BPO?</h2>
+        <div class="grid-2">
+          <article class="card green">
+            <h3>Khớp sản phẩm hiện tại</h3>
+            <ul class="check-list">
+              <li>JD và CV có cấu trúc tương đối rõ.</li>
+              <li>Vai trò tuyển dụng lặp lại theo dự án.</li>
+              <li>Ứng viên quen làm việc và phỏng vấn online.</li>
+              <li>Có cả nhu cầu tiếng Việt và tiếng Anh.</li>
+              <li>Có khả năng tích hợp API.</li>
+            </ul>
+          </article>
+          <article class="card blue">
+            <h3>Khớp go-to-market</h3>
+            <ul class="check-list">
+              <li>Head of HR, COO hoặc founder dễ tiếp cận.</li>
+              <li>Đo được số giờ HR tiết kiệm.</li>
+              <li>Có thể pilot trên một JD mà không thay ATS.</li>
+              <li>VINASA và VNITO tạo kênh tiếp cận tập trung.</li>
+              <li>Dễ hình thành giới thiệu truyền miệng trong ngành.</li>
+            </ul>
+          </article>
+        </div>
+        <div class="quote">Công ty phần mềm/ITO/BPO tại Hà Nội, TP.HCM và Đà Nẵng; quy mô 50–500 nhân sự; đội HR 1–6 người; nhận 50–500 CV mỗi tháng.</div>
+      </section>
+
+      <section class="section" id="persona">
+        <p class="section-number">03 · Chân dung khách hàng</p>
+        <h2>Người mua điển hình: Trưởng phòng tuyển dụng</h2>
+        <div class="grid-3">
+          <article class="card soft"><h3>Bối cảnh</h3><p>30–42 tuổi, quản lý 2–6 recruiter, tuyển 10–50 vị trí mỗi quý. Hiện làm việc với Excel, email, job board và Google Meet hoặc ATS cơ bản.</p></article>
+          <article class="card soft"><h3>KPI</h3><p>Time-to-shortlist, time-to-hire, tỷ lệ ứng viên đạt, chi phí tuyển, tỷ lệ nhận việc và đánh giá của hiring manager.</p></article>
+          <article class="card soft"><h3>Động lực mua</h3><p>Có đợt tuyển gấp, recruiter quá tải, hiring manager chậm xếp lịch hoặc ban giám đốc yêu cầu báo cáo hiệu quả.</p></article>
+        </div>
+        <div class="grid-2">
+          <article class="card amber">
+            <h3>Khó khăn hằng ngày</h3>
+            <ul class="check-list avoid-list">
+              <li>CV trùng từ nhiều nguồn.</li>
+              <li>Mất giờ đọc hồ sơ không phù hợp.</li>
+              <li>Điểm chấm không đồng nhất giữa recruiter.</li>
+              <li>Hiring manager không có thời gian phỏng vấn vòng đầu.</li>
+              <li>Không giải thích được vì sao ứng viên đạt hoặc trượt.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Phản đối cần xử lý</h3>
+            <ul class="check-list avoid-list">
+              <li>AI có chấm sai hoặc thiên lệch không?</li>
+              <li>Ứng viên có chịu phỏng vấn với máy không?</li>
+              <li>CV, âm thanh và hình ảnh được lưu ở đâu?</li>
+              <li>Có giải thích được điểm số không?</li>
+              <li>Có phải thay hệ thống hiện tại không?</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="tam">
+        <p class="section-number">04 · Quy mô thị trường</p>
+        <h2>TAM phải tính từ số tài khoản có thể mua</h2>
+        <div class="formula"><strong>TAM = Số công ty phù hợp × Doanh thu trung bình mỗi công ty mỗi năm</strong></div>
+        <div class="funnel" aria-label="Phễu ước tính thị trường">
+          <div class="funnel-row">500–600 tài khoản trong hệ sinh thái tiếp cận được</div>
+          <div class="funnel-row">200–300 công ty đúng quy mô và tuyển thường xuyên</div>
+          <div class="funnel-row">40–60 khách hàng mục tiêu trong 3 năm</div>
+          <div class="funnel-row">10 design partners đầu tiên</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kịch bản</th><th>Khách hàng</th><th>ACV</th><th>TAM mỗi năm</th></tr></thead>
+            <tbody>
+              <tr><td>Thận trọng</td><td>200</td><td>36 triệu đồng</td><td><strong>7,2 tỷ đồng</strong></td></tr>
+              <tr><td>Cơ sở</td><td>250</td><td>48 triệu đồng</td><td><strong>12 tỷ đồng</strong></td></tr>
+              <tr><td>Cao</td><td>300</td><td>72 triệu đồng</td><td><strong>21,6 tỷ đồng</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">SOM ba năm hợp lý: 40–60 khách hàng × ACV trung bình 48 triệu đồng = khoảng 1,9–2,9 tỷ đồng ARR. TAM này chưa tính headhunter, ngân hàng, retail, logistics và đối tác ATS.</p>
+      </section>
+
+      <section class="section" id="icp">
+        <p class="section-number">05 · Hồ sơ khách hàng mục tiêu</p>
+        <h2>Quy tắc chấm ICP trước khi sales</h2>
+        <div class="grid-2">
+          <article class="card green">
+            <h3>Ưu tiên nếu đạt ít nhất 5/7</h3>
+            <ul class="check-list">
+              <li>50–500 nhân sự.</li>
+              <li>Trên 50 hồ sơ mỗi tháng.</li>
+              <li>Tuyển ít nhất 5 vị trí thường xuyên.</li>
+              <li>HR mất trên 30 giờ/tháng cho vòng đầu.</li>
+              <li>Dùng từ hai nguồn CV trở lên.</li>
+              <li>Có ATS hoặc người hỗ trợ API.</li>
+              <li>Sẵn sàng chạy pilot trong 30 ngày.</li>
+            </ul>
+          </article>
+          <article class="card amber">
+            <h3>Chưa ưu tiên nếu có dấu hiệu này</h3>
+            <ul class="check-list avoid-list">
+              <li>Chỉ tuyển dưới 5 người mỗi năm.</li>
+              <li>Chủ yếu tuyển vị trí không dùng CV.</li>
+              <li>Bắt buộc on-premise ngay từ pilot.</li>
+              <li>Muốn AI tự động loại ứng viên hoàn toàn.</li>
+              <li>Đòi SSO, ISO và SLA enterprise trước khi thử.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="buying">
+        <p class="section-number">06 · Chu kỳ mua hàng</p>
+        <h2>Từ đợt tuyển gấp đến hợp đồng</h2>
+        <div class="timeline">
+          <div class="timeline-item"><strong>1. Trigger</strong><span>Có dự án mới, nhận quá nhiều CV hoặc hiring manager không đủ thời gian phỏng vấn.</span></div>
+          <div class="timeline-item"><strong>2. Khám phá</strong><span>Biết đến PAI Hire qua giới thiệu, hiệp hội, đối tác ATS hoặc tìm kiếm.</span></div>
+          <div class="timeline-item"><strong>3. Demo bằng dữ liệu thật</strong><span>Dùng 10–30 CV và một JD của khách hàng, không demo bằng dữ liệu mẫu chung chung.</span></div>
+          <div class="timeline-item"><strong>4. Pilot 14–30 ngày</strong><span>Chạy một vị trí, đo thời gian tiết kiệm, chất lượng shortlist và completion rate.</span></div>
+          <div class="timeline-item"><strong>5. Security/API review</strong><span>Kiểm tra nơi lưu CV, consent, quyền truy cập, retention và khả năng tích hợp.</span></div>
+          <div class="timeline-item"><strong>6. Phê duyệt thương mại</strong><span>Head of HR hoặc COO duyệt gói tháng/quý và quota.</span></div>
+          <div class="timeline-item"><strong>7. Mở rộng</strong><span>Tăng quota, thêm phòng ban, thêm API key hoặc tích hợp ATS.</span></div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><h3>SME công nghệ</h3><p><strong>2–6 tuần</strong></p></div>
+          <div class="card"><h3>Recruitment agency</h3><p><strong>2–8 tuần</strong></p></div>
+          <div class="card"><h3>Enterprise</h3><p><strong>3–9 tháng</strong></p></div>
+        </div>
+      </section>
+
+      <section class="section" id="value">
+        <p class="section-number">07 · Đề xuất giá trị</p>
+        <h2>Bán hiệu quả có thể đo, không bán chữ “AI”</h2>
+        <div class="quote">PAI Hire giúp đội HR tinh gọn biến CV và JD thành một vòng sàng lọc, phỏng vấn AI tiếng Việt có bằng chứng trong vài giờ — tích hợp với quy trình hiện tại và quyết định cuối cùng vẫn thuộc về con người.</div>
+        <div class="grid-2">
+          <article class="card blue">
+            <h3>ROI giả định mỗi tháng</h3>
+            <p>100 CV × 15 phút = 25 giờ đọc CV.<br>30 phỏng vấn × 30 phút = 15 giờ.<br><strong>Tổng hiện tại: khoảng 40 giờ.</strong></p>
+          </article>
+          <article class="card green">
+            <h3>Giá trị sau tự động hóa</h3>
+            <p>HR còn khoảng 8–12 giờ để duyệt shortlist và báo cáo. Giả định tiết kiệm 28–32 giờ, tương đương khoảng 4,2–8 triệu đồng/tháng nếu chi phí HR là 150–250 nghìn đồng/giờ.</p>
+          </article>
+        </div>
+        <p class="note">Giả thuyết giá: 3–5 triệu đồng/tháng có thể hợp lý nếu pilot chứng minh được số giờ tiết kiệm và chất lượng shortlist. Cần đo bằng dữ liệu khách hàng trước khi chốt bảng giá.</p>
+      </section>
+
+      <section class="section" id="first-ten">
+        <p class="section-number">08 · Mười khách hàng đầu tiên</p>
+        <h2>Danh sách tài khoản để tiếp cận và kiểm chứng</h2>
+        <p class="lede">Đây là lead hypotheses dựa trên hệ sinh thái ITO/BPO công khai, chưa phải khách hàng đã đồng ý. Ưu tiên warm introduction qua VNITO/VINASA thay vì gửi email hàng loạt.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Tài khoản tiếp cận</th><th>Giả thuyết nhu cầu</th><th>Mục tiêu</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td><strong>IMT Solutions</strong></td><td>Tuyển kỹ sư theo dự án</td><td>Pilot CV + interview</td></tr>
+              <tr><td>2</td><td><strong>Kyanon Digital</strong></td><td>Nhiều vai trò digital/engineering</td><td>Pilot một JD lặp lại</td></tr>
+              <tr><td>3</td><td><strong>LARION</strong></td><td>Tuyển kỹ thuật và data</td><td>So shortlist AI với HR</td></tr>
+              <tr><td>4</td><td><strong>S3 Corporation</strong></td><td>Outsourcing theo nhu cầu dự án</td><td>Đo time-to-shortlist</td></tr>
+              <tr><td>5</td><td><strong>Savvycom</strong></td><td>Đội ngũ phát triển đa vai trò</td><td>Phỏng vấn vòng đầu</td></tr>
+              <tr><td>6</td><td><strong>Success Software Services</strong></td><td>Tuyển kỹ thuật định kỳ</td><td>Design partner</td></tr>
+              <tr><td>7</td><td><strong>LogiGear Vietnam</strong></td><td>QA/testing phù hợp rubric chuẩn</td><td>Đánh giá chuyên môn sơ bộ</td></tr>
+              <tr><td>8</td><td><strong>DIGI-TEXX Vietnam</strong></td><td>BPO có khối lượng ứng viên</td><td>Kiểm chứng high-volume</td></tr>
+              <tr><td>9</td><td><strong>Saigon BPO</strong></td><td>Vai trò vận hành lặp lại</td><td>Kiểm chứng ngoài IT</td></tr>
+              <tr><td>10</td><td><strong>Đối tác tuyển dụng IT của CTPAI</strong></td><td>Có quan hệ sẵn và nhiều CV</td><td>Khách hàng trả phí đầu tiên</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid-2">
+          <article class="card blue"><h3>Gói pilot</h3><p>30 ngày · 1 JD thật · tối đa 100 CV · tối đa 20 phỏng vấn · khách hàng cung cấp đánh giá HR để đối chiếu.</p></article>
+          <article class="card green"><h3>Ngưỡng xác nhận</h3><p>7/10 đồng ý thử · 6/10 hoàn thành · 4/10 sẵn sàng trả từ 3 triệu/tháng.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="core">
+        <p class="section-number">09 · Năng lực cốt lõi</p>
+        <h2>Lợi thế hiện tại và moat cần xây</h2>
+        <div class="grid-2">
+          <article class="card">
+            <h3>Đang có</h3>
+            <ul class="check-list">
+              <li>Luồng CV → JD → câu hỏi → voice interview → báo cáo.</li>
+              <li>Tiếng Việt và ngữ cảnh tuyển dụng Việt Nam.</li>
+              <li>Cả giao diện ATS lẫn External API.</li>
+              <li>Dữ liệu tách theo công ty và API key.</li>
+              <li>Bằng chứng theo từng câu hỏi và câu trả lời.</li>
+              <li>HR chỉnh câu hỏi trước khi gửi.</li>
+            </ul>
+          </article>
+          <article class="card blue">
+            <h3>Cần xây thành moat</h3>
+            <ul class="check-list">
+              <li>Rubric chuẩn theo từng vị trí.</li>
+              <li>Dữ liệu HR đồng ý/không đồng ý với AI.</li>
+              <li>Theo dõi quality-of-hire sau tuyển dụng.</li>
+              <li>Hiệu chỉnh điểm riêng theo từng công ty.</li>
+              <li>Tích hợp sâu với ATS và job board.</li>
+              <li>Audit log, consent, retention và human override.</li>
+            </ul>
+          </article>
+        </div>
+        <p class="note"><strong>Nguyên tắc sản phẩm:</strong> Camera/proctoring chỉ là tín hiệu tham khảo, không nên tự động cộng trừ điểm hoặc trở thành định vị chính. CV, âm thanh và hình ảnh là dữ liệu cá nhân; hệ thống cần consent rõ, mục đích cụ thể và chính sách xóa dữ liệu.</p>
+      </section>
+
+      <section class="section" id="positioning">
+        <p class="section-number">10 · Định vị sản phẩm</p>
+        <h2>Một lớp AI tuyển dụng, không phải một job board khác</h2>
+        <div class="quote">Lớp sàng lọc và phỏng vấn AI tiếng Việt dành cho đội tuyển dụng tinh gọn.</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nhóm thay thế/đối thủ</th><th>Họ mạnh ở đâu</th><th>PAI Hire phải thắng bằng</th></tr></thead>
+            <tbody>
+              <tr><td>TopCV, Indeed</td><td>Nguồn ứng viên và độ phủ</td><td>Đánh giá sâu sau khi đã nhận CV</td></tr>
+              <tr><td>Base, MISA, 1Office</td><td>Workflow doanh nghiệp</td><td>AI interview và API chuyên biệt</td></tr>
+              <tr><td>Công cụ test</td><td>Bài kiểm tra kỹ năng</td><td>CV + câu hỏi thích ứng + voice interview</td></tr>
+              <tr><td>Workable, Greenhouse</td><td>ATS trưởng thành, nhiều tích hợp</td><td>Tiếng Việt, giá Việt Nam, triển khai nhanh</td></tr>
+              <tr><td>Excel, email, Google Meet</td><td>Rẻ và quen thuộc</td><td>Tự động hóa, bằng chứng, báo cáo và đo lường</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid-2">
+          <article class="card amber"><h3>Không nên nói</h3><p>“AI tự động chọn người tốt nhất”, “thay thế recruiter”, “phát hiện gian lận tuyệt đối” hoặc “job board dành cho mọi ngành”.</p></article>
+          <article class="card green"><h3>Nên nói</h3><p>“Giảm tải vòng đầu”, “đánh giá có bằng chứng”, “HR quyết định cuối”, “dùng độc lập hoặc tích hợp API”.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="actions">
+        <p class="section-number">Kế hoạch thực thi</p>
+        <h2>90 ngày để xác nhận hoặc bác bỏ beachhead</h2>
+        <div class="grid-3">
+          <article class="card blue"><span class="tag">Ngày 1–30</span><h3 style="margin-top:12px">Khám phá vấn đề</h3><p>Phỏng vấn 20 Head of HR/recruiter, lấy dữ liệu thời gian vòng đầu, nguồn CV, số vị trí và rào cản bảo mật.</p></article>
+          <article class="card blue"><span class="tag">Ngày 31–60</span><h3 style="margin-top:12px">Chạy 10 pilot</h3><p>Mỗi khách dùng JD và CV thật. Đo completion rate, thời gian tiết kiệm, mức đồng thuận HR–AI và lỗi vận hành.</p></article>
+          <article class="card blue"><span class="tag">Ngày 61–90</span><h3 style="margin-top:12px">Chuyển đổi trả phí</h3><p>Chốt 4 khách trả phí, chuẩn hóa onboarding, case study, bảng giá và kênh giới thiệu qua hiệp hội.</p></article>
+        </div>
+        <div class="metrics">
+          <div class="metric"><small>Tỷ lệ hoàn thành phỏng vấn</small><strong>≥ 70%</strong></div>
+          <div class="metric"><small>Giảm thời gian vòng đầu</small><strong>≥ 50%</strong></div>
+          <div class="metric"><small>HR chấp nhận shortlist</small><strong>≥ 80%</strong></div>
+          <div class="metric"><small>Pilot chuyển trả phí</small><strong>≥ 40%</strong></div>
+        </div>
+      </section>
+
+      <section class="section" id="sources">
+        <p class="section-number">Nguồn nghiên cứu</p>
+        <h2>Dữ liệu và benchmark tham khảo</h2>
+        <ul class="source-list">
+          <li><a href="https://www.mpi.gov.vn/portal/Pages/2024-8-28/Bo-truong-Nguyen-Chi-Dung-doanh-nghiep-nho-va-vua-lyv5l6.aspx">Bộ Kế hoạch và Đầu tư</a> — gần 930.000 doanh nghiệp hoạt động, khoảng 98% là SME.</li>
+          <li><a href="https://www.nso.gov.vn/du-lieu-va-so-lieu-thong-ke/2026/01/thi-truong-lao-dong-viec-lam-cua-viet-nam-nam-2025-nhung-diem-sang-va-han-che/">Cơ quan Thống kê Quốc gia</a> — thị trường lao động Việt Nam năm 2025.</li>
+          <li><a href="https://vinasa.org.vn/Default.aspx?catid=4287&amp;catname=introduction&amp;pageid=3144&amp;sid=5&amp;sname=vinasa-en">VINASA</a> — hơn 500 doanh nghiệp thành viên phần mềm và dịch vụ CNTT.</li>
+          <li><a href="https://vnito.org/">VNITO Alliance</a> — hệ sinh thái hơn 100 công ty ITO/BPO/phần mềm được công bố trên trang giới thiệu.</li>
+          <li><a href="https://www.linkedin.com/business/talent/blog/talent-acquisition/future-of-recruiting-2025">LinkedIn Future of Recruiting 2025</a> — xu hướng AI, quality-of-hire và skills-based hiring.</li>
+          <li><a href="https://tuyendung.topcv.vn/en">TopCV dành cho nhà tuyển dụng</a> — benchmark đối thủ nội địa về nguồn ứng viên, AI, hồ sơ và báo cáo.</li>
+          <li><a href="https://vbpl.moj.gov.vn/bocongan/Pages/vbpq-toanvan.aspx?ItemID=161106">Nghị định 13/2023/NĐ-CP</a> — bảo vệ dữ liệu cá nhân, sự đồng ý và giới hạn mục đích xử lý.</li>
+          <li><a href="https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689">EU AI Act</a> — hệ thống AI dùng trong tuyển dụng thuộc nhóm rủi ro cao tại EU.</li>
+        </ul>
+        <p class="note">Các con số TAM, ACV, ROI và tỷ lệ chuyển đổi trong báo cáo là giả định vận hành của PAI Hire. Chúng phải được thay bằng số thực sau 10 pilot đầu tiên.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">PAI Hire · Nghiên cứu thị trường tiền tiêu · Bản nội bộ 2026</footer>
+</body>
+</html>

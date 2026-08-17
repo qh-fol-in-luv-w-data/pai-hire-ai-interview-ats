@@ -22,6 +22,7 @@ __pycache__/
 
 # Output & Generated Data
 outputs/
+outputs_dev/
 inputs/
 Generated_CVs/
 LatentSync/
@@ -30,6 +31,7 @@ LatentSync/
 test_*.py
 test_*.js
 patch_*.py
+!backend/patch_asgi.py
 update_*.py
 serve_https.py
 fix_*.py

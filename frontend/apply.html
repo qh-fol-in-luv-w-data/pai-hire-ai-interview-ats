@@ -485,9 +485,8 @@ function renderJobs() {
       <div>
         <div class="flex items-start justify-between gap-3 mb-3">
           <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-xl bg-[#0a2540] text-white flex items-center justify-center font-black text-base shadow-sm shrink-0 border border-blue-900/40">
-              CT
-            </div>
+            ${j.logo_url ? `<img src="${j.logo_url}" class="w-11 h-11 rounded-xl object-contain shadow-sm shrink-0 border border-slate-100" />` : 
+            `<div class="w-11 h-11 rounded-xl bg-[#0a2540] text-white flex items-center justify-center font-black text-base shadow-sm shrink-0 border border-blue-900/40">CT</div>`}
             <div>
               <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">CT GROUP</p>
               <h3 class="text-base font-bold text-slate-900 group-hover:text-[#0051d5] transition-colors line-clamp-1">${cleanTitle(j.title)}</h3>
@@ -497,10 +496,10 @@ function renderJobs() {
 
         <div class="flex items-center gap-1.5 flex-wrap text-xs my-3">
           <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold flex items-center gap-1 border border-emerald-200/60">
-            <span class="material-symbols-outlined text-xs">payments</span> Thỏa thuận
+            <span class="material-symbols-outlined text-xs">payments</span> ${j.salary_range || 'Thỏa thuận'}
           </span>
           <span class="px-2.5 py-1 rounded-lg bg-blue-50 text-[#0051d5] font-semibold flex items-center gap-1 border border-blue-100">
-            <span class="material-symbols-outlined text-xs">location_on</span> TP.HCM
+            <span class="material-symbols-outlined text-xs">location_on</span> ${j.location || 'Hồ Chí Minh'}
           </span>
           <span class="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold border border-purple-100">
             Cấp bậc: ${selectedLevel}
@@ -568,61 +567,38 @@ function renderDetail(job) {
   const jdHtml = job.jd_content ? parseMarkdown(job.jd_content) : '';
   const pageMode = isApplyPageMode();
 
-  document.getElementById('detail-content').innerHTML = `
-    <div class="p-6 border-b border-[#e5e7eb] bg-white/70 flex justify-between items-start sticky top-0 z-10 backdrop-blur-md">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#eff6ff] text-[#003ca3] text-[11px] font-bold mb-2 border border-[#003ca3]/10">
-            <span class="material-symbols-outlined text-[14px]">auto_awesome</span> Điểm phù hợp AI: Cao
-          </span>
-          <h2 class="text-2xl font-bold leading-snug text-[#191b23]">${title}</h2>
-          <p class="text-sm text-[#434654] flex items-center gap-2 mt-1">
-            <span class="material-symbols-outlined text-[16px]">location_on</span> TP. Hồ Chí Minh
-            <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
-            <span>${job.category||''}</span>
-            <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
-            <span class="font-bold text-[#0051d5] flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">payments</span> 15.000.000 - 30.000.000 VNĐ</span>
-          </p>
-        </div>
-        <button onclick="closeDetail()" class="${pageMode ? 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#ededf8] text-[#434654] text-xs font-bold hover:bg-[#dfe3f2]' : 'text-[#434654] hover:bg-[#ededf8] rounded-full p-1.5'}">
-          <span class="material-symbols-outlined ${pageMode ? 'text-base' : 'text-xl'}">${pageMode ? 'arrow_back' : 'close'}</span>
-          ${pageMode ? '<span>Danh sách việc làm</span>' : ''}
+  const user = JSON.parse(localStorage.getItem('pai_candidate_user') || 'null');
+  
+  let formHtml = '';
+  if (!user) {
+    formHtml = `
+      <div class="flex flex-col items-center justify-center p-6 text-center">
+        <span class="material-symbols-outlined text-4xl text-blue-300 mb-3">lock</span>
+        <h4 class="text-sm font-bold text-slate-700 mb-1">Yêu cầu Đăng nhập</h4>
+        <p class="text-xs text-slate-500 mb-4">Bạn cần đăng nhập hoặc tạo tài khoản để ứng tuyển vị trí này.</p>
+        <button onclick="pendingApplyAfterAuth = true; openCandidateAuthModal('login')" class="px-6 py-2.5 bg-[#0051d5] text-white font-bold rounded-xl hover:bg-blue-700 transition">
+          Đăng nhập / Đăng ký ngay
         </button>
       </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-      <div class="flex flex-col gap-3">
-        <h4 class="text-sm font-bold text-[#191b23] border-b border-[#e5e7eb] pb-1">Mô tả công việc</h4>
-        ${jdHtml ? `<div class="jd-body">${jdHtml}</div>` : '<p class="text-gray-400 text-sm">Không có mô tả.</p>'}
-      </div>
-
-      <div class="bg-[#f3f3fe] rounded-xl p-6 border border-[#e5e7eb]/80 relative overflow-hidden">
-      <div class="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-white/70 backdrop-blur-sm rounded-full border border-[#e5e7eb] shadow-sm z-10">
-        <div class="w-2 h-2 rounded-full bg-[#003ca3]"></div>
-        <span class="text-[10px] font-bold text-[#434654]">AI Form Assist</span>
-      </div>
-      <h3 class="font-bold text-[#191b23] text-sm mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-[#003ca3] text-base">description</span>
-        Thông tin ứng tuyển
-      </h3>
-
+    `;
+  } else {
+    formHtml = `
       <div class="space-y-2.5">
         <div>
           <label for="apply-name" class="block text-[.7rem] font-bold text-gray-500 mb-1 cursor-pointer">Họ tên đầy đủ <span class="text-red-500">*</span></label>
-          <input id="apply-name" type="text" placeholder="Nguyễn Văn A"
-            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+          <input id="apply-name" type="text" placeholder="Nguyễn Văn A" value="${user.name || ''}" disabled
+            class="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
         </div>
         <div>
           <label for="apply-email" class="block text-[.7rem] font-bold text-gray-500 mb-1 cursor-pointer">Email <span class="text-red-500">*</span></label>
-          <input id="apply-email" type="email" placeholder="email@example.com"
-            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+          <input id="apply-email" type="email" placeholder="email@example.com" value="${user.email || ''}" disabled
+            class="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
           <p class="text-[.68rem] text-gray-400 mt-1">Kết quả & link phỏng vấn gửi về đây</p>
         </div>
         <div>
           <label for="apply-phone" class="block text-[.7rem] font-bold text-gray-500 mb-1 cursor-pointer">Số điện thoại</label>
-          <input id="apply-phone" type="tel" placeholder="0901 234 567"
-            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
+          <input id="apply-phone" type="tel" placeholder="0901 234 567" value="${user.phone || ''}" disabled
+            class="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#0051d5] focus:outline-none"/>
         </div>
         <div>
           <label class="block text-[.7rem] font-bold text-gray-500 mb-1">CV / Resume <span class="text-red-500">*</span></label>
@@ -652,11 +628,52 @@ function renderDetail(job) {
       <p class="text-center text-[.65rem] text-gray-400 mt-2.5">
         Bằng cách nộp đơn, bạn đồng ý cho CT Group xử lý thông tin để đánh giá ứng viên.
       </p>
+    `;
+  }
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="p-6 border-b border-[#e5e7eb] bg-white/70 flex justify-between items-start sticky top-0 z-10 backdrop-blur-md">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#eff6ff] text-[#003ca3] text-[11px] font-bold mb-2 border border-[#003ca3]/10">
+            <span class="material-symbols-outlined text-[14px]">auto_awesome</span> Điểm phù hợp AI: Cao
+          </span>
+          <h2 class="text-2xl font-bold leading-snug text-[#191b23]">${title}</h2>
+          <p class="text-sm text-[#434654] flex items-center gap-2 mt-1">
+            <span class="material-symbols-outlined text-[16px]">location_on</span> ${job.location || 'TP. Hồ Chí Minh'}
+            <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
+            <span>${job.category||''}</span>
+            <span class="w-1 h-1 rounded-full bg-[#737686]"></span>
+            <span class="font-bold text-[#0051d5] flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">payments</span> ${job.salary_range || 'Thỏa thuận'}</span>
+          </p>
+        </div>
+        <button onclick="closeDetail()" class="${pageMode ? 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#ededf8] text-[#434654] text-xs font-bold hover:bg-[#dfe3f2]' : 'text-[#434654] hover:bg-[#ededf8] rounded-full p-1.5'}">
+          <span class="material-symbols-outlined ${pageMode ? 'text-base' : 'text-xl'}">${pageMode ? 'arrow_back' : 'close'}</span>
+          ${pageMode ? '<span>Danh sách việc làm</span>' : ''}
+        </button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div class="flex flex-col gap-3">
+        <h4 class="text-sm font-bold text-[#191b23] border-b border-[#e5e7eb] pb-1">Mô tả công việc</h4>
+        ${jdHtml ? `<div class="jd-body">${jdHtml}</div>` : '<p class="text-gray-400 text-sm">Không có mô tả.</p>'}
+      </div>
+
+      <div class="bg-[#f3f3fe] rounded-xl p-6 border border-[#e5e7eb]/80 relative overflow-hidden">
+      <div class="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-white/70 backdrop-blur-sm rounded-full border border-[#e5e7eb] shadow-sm z-10">
+        <div class="w-2 h-2 rounded-full bg-[#003ca3]"></div>
+        <span class="text-[10px] font-bold text-[#434654]">AI Form Assist</span>
+      </div>
+      <h3 class="font-bold text-[#191b23] text-sm mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[#003ca3] text-base">description</span>
+        Thông tin ứng tuyển
+      </h3>
+
+      ${formHtml}
+      
       </div>
     </div>`;
-  try {
-    fillApplyFormFromUser(JSON.parse(localStorage.getItem('pai_candidate_user') || 'null'));
-  } catch(_) {}
 }
 
 function closeDetail() {
@@ -841,7 +858,7 @@ function checkAdminAuthStatus() {
               <span class="material-symbols-outlined text-base text-indigo-600">smart_toy</span> Kết quả phỏng vấn AI
             </a>
             ${isAdmin ? `
-              <a href="/admin" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-800 hover:bg-amber-50 transition border-t border-slate-100">
+              <a href="/admin?v=2" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-800 hover:bg-amber-50 transition border-t border-slate-100">
                 <span class="material-symbols-outlined text-base text-amber-600">admin_panel_settings</span> Trang Quản Trị Admin
               </a>
             ` : ''}
@@ -917,17 +934,23 @@ function finishCandidateAuth(data) {
   localStorage.setItem('pai_candidate_user', JSON.stringify(data.user));
   localStorage.setItem('pai_candidate_token', data.token);
   if (data.admin_key) {
-    sessionStorage.setItem('pai_admin_key', data.admin_key);
+    localStorage.setItem('pai_admin_key', data.admin_key);
   }
   closeCandidateAuthModal();
   checkAdminAuthStatus();
-  fillApplyFormFromUser(data.user);
 
   const isAdminUser = data.user && data.user.role === 'admin';
   if (isAdminUser) {
     pendingApplyAfterAuth = false;
     return;
   }
+  
+  if (selectedJob) {
+    renderDetail(selectedJob); // Re-render to show the application form
+  } else {
+    fillApplyFormFromUser(data.user);
+  }
+
   if (!selectedJob && !isApplyPageMode() && !pendingApplyAfterAuth) {
     location.href = '/candidate/history?tab=apps';
   }

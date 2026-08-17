@@ -20,13 +20,17 @@ OPENAI_API_KEY      = os.environ.get("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY  = os.environ.get("ELEVENLABS_API_KEY", "")
 MINIO_ENDPOINT   = os.environ.get("MINIO_ENDPOINT", "http://192.168.90.230:9002")
 MINIO_BUCKET     = os.environ.get("MINIO_BUCKET", "pai-hire")
-MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "pai_hire")
-MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "yHCwFhOMWCQrktCnnUuTI3JcbVnmGnr1CNrGBGv3Aeg")
+MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "")
+MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "")
 PASS_SCORE      = 3.0
 SMTP_HOST       = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT       = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER       = os.environ.get("SMTP_USER", "")
 SMTP_PASS       = os.environ.get("SMTP_PASS", "")
+SEPAY_WEBHOOK_SECRET = os.environ.get("SEPAY_WEBHOOK_SECRET", "")
+SEPAY_BANK_CODE = os.environ.get("SEPAY_BANK_CODE", "")
+SEPAY_ACCOUNT_NUMBER = os.environ.get("SEPAY_ACCOUNT_NUMBER", "")
+SEPAY_ACCOUNT_NAME = os.environ.get("SEPAY_ACCOUNT_NAME", "")
 IMAP_HOST       = os.environ.get("IMAP_HOST", "imap.gmail.com")
 IMAP_PORT       = int(os.environ.get("IMAP_PORT", "993"))
 def _detect_local_ip() -> str:
@@ -62,9 +66,13 @@ ALLOWED_ORIGINS = [
 
 from fastapi import Header, HTTPException
 def require_admin(x_admin_key: str = Header(None)):
-    if not ADMIN_KEY:
-        raise HTTPException(500, "ADMIN_KEY chưa được cấu hình")
-    if not x_admin_key or not compare_digest(x_admin_key, ADMIN_KEY):
+    # Existing admin endpoints keep their header contract, but the browser
+    # supplies an opaque server-side session instead of the global secret.
+    from backend.services.auth_service import is_valid_admin_session
+    if is_valid_admin_session(x_admin_key):
+        return
+    # Temporary CLI compatibility only.  Never expose ADMIN_KEY to browsers.
+    if not ADMIN_KEY or not x_admin_key or not compare_digest(x_admin_key, ADMIN_KEY):
         raise HTTPException(401, "Unauthorized — sai admin key")
 
 FRONTEND_DIR   = BASE_DIR / "frontend"
@@ -125,12 +133,12 @@ CATEGORY_LABELS = {
 
 QUESTIONS_BANK = {
     "01": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_A", "is_dynamic": False, "text": "Theo anh/chị, đâu là 03 kỹ năng chuyên môn quan trọng nhất để làm tốt vị trí này? Vì sao?" },
-    "02": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị tự đánh giá mức độ thành thạo của bản thân với từng kỹ năng bắt buộc trong JD như thế nào (theo thang cơ bản/thành thạo/chuyên sâu)?" },
-    "03": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_B", "is_dynamic": True, "text": "JD của vị trí yêu cầu kỹ năng [kỹ năng chính trong JD]. Anh/chị hãy chia sẻ một tình huống thực tế đã sử dụng kỹ năng này và kết quả đạt được." },
-    "04": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_B", "is_dynamic": True, "text": "JD yêu cầu [kỹ năng chính trong JD]. Nếu CV của anh/chị có kinh nghiệm liên quan hoặc có thể chuyển đổi sang kỹ năng này, hãy mô tả bằng chứng cụ thể; nếu chưa có, anh/chị sẽ bù đắp khoảng trống như thế nào?" },
-    "05": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_C", "is_dynamic": True, "text": "Nếu không có sẵn công cụ/tài nguyên quen thuộc, anh/chị sẽ vận dụng kỹ năng [kỹ năng JD] như thế nào để vẫn hoàn thành công việc đúng chất lượng?" },
-    "06": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_C", "is_dynamic": False, "text": "Anh/chị có thể nêu một chỉ số hoặc kết quả cụ thể để chứng minh mức độ thành thạo kỹ năng vừa chia sẻ không?" },
-    "07": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_D", "is_dynamic": False, "text": "Đưa 1 bài tập/tình huống chuyên môn thực tế đang xảy ra tại phòng ban, yêu cầu ứng viên nêu hướng xử lý ngắn gọn để xác nhận mức độ thành thạo kỹ năng thực tế." },
+    "02": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị tự đánh giá mức độ thành thạo của bản thân đối với các kỹ năng chuyên môn cốt lõi của vị trí này như thế nào (theo thang cơ bản/thành thạo/chuyên sâu)?" },
+    "03": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_B", "is_dynamic": True, "text": "Đối với kỹ năng [kỹ năng chính], anh/chị hãy chia sẻ một tình huống thực tế đã trực tiếp sử dụng kỹ năng này và kết quả đạt được." },
+    "04": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_B", "is_dynamic": True, "text": "Với yêu cầu về [kỹ năng chính], anh/chị hãy nêu kinh nghiệm liên quan nhất của mình; hoặc nếu chưa có nhiều kinh nghiệm thực tế, anh/chị dự định sẽ học hỏi và bù đắp khoảng trống này như thế nào?" },
+    "05": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_C", "is_dynamic": True, "text": "Nếu không có sẵn các công cụ và tài nguyên quen thuộc, anh/chị sẽ xoay sở và vận dụng [kỹ năng chính] ra sao để vẫn đảm bảo hoàn thành công việc đúng tiến độ và chất lượng?" },
+    "06": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_C", "is_dynamic": False, "text": "Anh/chị có thể dẫn chứng bằng một số liệu, chỉ số hoặc kết quả cụ thể để minh họa rõ hơn mức độ thành thạo của bản thân đối với kỹ năng vừa chia sẻ không?" },
+    "07": { "type": "Technical", "label": "Tiêu chí 01", "group": "Nhóm_D", "is_dynamic": False, "text": "Giả sử có một tình huống/bài toán chuyên môn thực tế đang xảy ra, anh/chị hãy vạch ra hướng xử lý ngắn gọn để giải quyết vấn đề đó." },
     "08": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_A", "is_dynamic": False, "text": "Anh/chị hãy giới thiệu ngắn gọn về quá trình làm việc, vai trò và trách nhiệm chính qua từng vị trí đã đảm nhận." },
     "09": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_B", "is_dynamic": True, "text": "Dựa trên CV, anh/chị có kinh nghiệm [số năm] năm ở vị trí [chức danh]. Kinh nghiệm nào liên quan trực tiếp nhất đến trách nhiệm trong JD này, và phần nào còn là khoảng cách cần bù đắp?" },
     "10": { "type": "Experience", "label": "Tiêu chí 02", "group": "Nhóm_B", "is_dynamic": False, "text": "Nếu được nhận vào vị trí này, trong 2 tuần đầu tiên anh/chị sẽ ưu tiên tìm hiểu và triển khai những việc gì để bắt nhịp công việc dựa trên kinh nghiệm đã có?" },
@@ -415,33 +423,23 @@ Trả về JSON (không markdown):
   "normalized_transcript": "Viết lại câu trả lời rõ ràng trong tối đa 900 ký tự dựa trên ngữ cảnh câu hỏi '{question}': giữ nguyên ý chính của ứng viên, sửa lỗi STT/chính tả, bỏ từ à/ừm/thì/là/mà dư thừa, thêm dấu câu phù hợp, diễn đạt tự nhiên như người đang kể chuyện/trả lời phỏng vấn"
 }}"""
 
-CV_QUESTIONS_PROMPT = """Bạn là HR Interviewer đang chuẩn bị phỏng vấn cho vị trí {position} (cấp bậc: {level}).
+CV_QUESTIONS_PROMPT = """Bạn là Chuyên gia Tuyển dụng (HR Interviewer) đang phỏng vấn ứng viên cho vị trí {position} (cấp bậc: {level}).
 
-MỤC TIÊU BẮT BUỘC: Tạo câu hỏi phỏng vấn dựa trên JD là chính. CV chỉ là nguồn phụ để cá nhân hóa câu hỏi, chọn bằng chứng cần xác minh, kiểm tra khoảng trống, hoặc đào sâu kinh nghiệm có liên quan trực tiếp đến JD.
-
-Mô tả công việc (JD) - nguồn ưu tiên:
+Mô tả công việc (JD):
 {jd_text}
 
-CV của ứng viên - nguồn đối chiếu:
+CV của ứng viên:
 {cv_text}
 
-Tạo đúng {num_gen} câu hỏi phỏng vấn để kiểm tra mức độ phù hợp với JD.
-Yêu cầu:
-- Ưu tiên 100% các năng lực, trách nhiệm, công cụ, nghiệp vụ và tiêu chí bắt buộc/nổi bật trong JD.
-- Chỉ hỏi về thông tin trong CV nếu thông tin đó LIÊN QUAN trực tiếp đến JD hoặc giúp xác minh khoảng cách so với JD.
-- Nếu CV có kinh nghiệm/kỹ năng không liên quan JD, BẮT BUỘC bỏ qua; không tạo câu hỏi chỉ vì CV có nhắc tới.
-- Nếu CV lệch vai trò/ngành so với JD (ví dụ JD Tuyển dụng nhưng CV chủ yếu Tech/Developer), KHÔNG hỏi sâu chuyên môn cũ như coding, framework, system design. Thay vào đó hỏi về khả năng chuyển đổi sang yêu cầu JD, kinh nghiệm có thể chuyển giao, hiểu biết về nghiệp vụ JD, và kế hoạch bù đắp gap.
-- Nếu CV thiếu minh chứng cho yêu cầu quan trọng trong JD, hãy hỏi để ứng viên chứng minh năng lực hoặc làm rõ khoảng trống.
-- Mỗi câu BẮT BUỘC gắn với một yêu cầu JD rõ ràng: kỹ năng chuyên môn, trách nhiệm chính, kinh nghiệm thực tế, quy mô công việc, công cụ/hệ thống, chỉ số/kết quả, rủi ro/kiểm soát.
-- Không hỏi về công ty/dự án/kỹ năng trong CV nếu không nêu được vì sao nó liên quan tới yêu cầu JD.
-- Nếu dùng cụm "Trong CV bạn có đề cập...", cùng câu đó phải nối rõ với yêu cầu JD, ví dụ "JD yêu cầu X, trong CV bạn có đề cập Y liên quan đến X...".
-- Tuyệt đối không tạo câu hỏi dạng "Bạn đã dùng công nghệ/công cụ/kỹ thuật X trong CV như thế nào?" nếu X không phải yêu cầu hoặc năng lực chuyển giao trực tiếp trong JD.
-- Câu hỏi hợp lệ phải trả lời được câu: "Câu này giúp đánh giá yêu cầu nào trong JD?" Nếu không trả lời được, câu hỏi đó không hợp lệ.
-- Điều chỉnh độ khó/chiều sâu phù hợp với cấp bậc {level} (Entry=cơ bản, Mid=dự án thực tế, Senior/Manager=lãnh đạo/chiến lược)
-- Hỏi cụ thể, không hỏi chung chung; ưu tiên yêu cầu ứng viên nêu ví dụ, vai trò cá nhân, số liệu/kết quả, công cụ và cách xử lý rủi ro.
-- Có thể bắt đầu bằng: "JD yêu cầu...", "Vị trí này cần...", "Trong CV bạn có đề cập...", "Bạn có thể chứng minh kinh nghiệm..." hoặc tương tự.
-- Viết bằng tiếng Việt, ngắn gọn (1-2 câu mỗi câu hỏi)
-- Trước khi trả JSON, tự kiểm tra từng câu: nếu câu nào không truy ra được một yêu cầu trong JD thì viết lại câu đó.
+Tạo đúng {num_gen} câu hỏi phỏng vấn.
+YÊU CẦU QUAN TRỌNG NHẤT:
+1. Đặt câu hỏi cực kỳ TỰ NHIÊN, như hai người đang trò chuyện. KHÔNG BAO GIỜ dùng các cụm từ máy móc như "Theo JD...", "JD yêu cầu...", "Trong CV bạn ghi...", "Dựa trên CV của bạn...", "So chiếu với JD...".
+2. Bắt thẳng vào kinh nghiệm thực tế của ứng viên trong CV (tên công ty, tên dự án, thành tích, công cụ cụ thể đã làm) để kiểm tra những năng lực mà vị trí đang tuyển cần.
+   - Ví dụ TỐT: "Khi làm dự án CRM ở công ty ABC, bạn đã xử lý bài toán hiệu suất cơ sở dữ liệu như thế nào?"
+   - Ví dụ XẤU (CẤM DÙNG): "JD yêu cầu tối ưu DB. CV của bạn có ghi làm dự án CRM, vậy bạn tối ưu thế nào?"
+3. Nếu ứng viên thiếu kinh nghiệm quan trọng so với vị trí đang tuyển, hãy hỏi thẳng tình huống để họ thể hiện tư duy học hỏi, KHÔNG ĐƯỢC chê bai hay nói "CV của bạn thiếu kỹ năng này...".
+   - Ví dụ TỐT: "Nếu phải triển khai một hệ thống bằng công nghệ Z trong 2 tuần mà bạn chưa từng dùng, bạn sẽ tiếp cận như thế nào?"
+4. Ngắn gọn, trực diện (tối đa 1-2 câu). Chỉ hỏi, tuyệt đối KHÔNG giải thích bối cảnh tại sao lại hỏi câu đó.
 
 Trả về JSON (không markdown):
 {json_format}"""
@@ -461,8 +459,8 @@ Yêu cầu:
 Trả về JSON: {{"questions": ["câu 1", "câu 2", ...]}}"""
 
 _DEFAULT_EXPERIENCE = {
-    "q07": "Dựa trên yêu cầu quan trọng nhất của JD, hãy mô tả kinh nghiệm liên quan nhất của bạn. Nếu CV hiện chưa có kinh nghiệm đúng vai trò, hãy nêu năng lực có thể chuyển giao và kế hoạch bù đắp khoảng trống.",
-    "q08": "JD của vị trí này yêu cầu xử lý các tình huống thực tế trong đúng nghiệp vụ ứng tuyển. Bạn hãy nêu một tình huống liên quan trực tiếp; nếu chưa từng làm, hãy trình bày cách bạn sẽ tiếp cận và học để đáp ứng yêu cầu."
+    "q07": "Đối với những yêu cầu chuyên môn quan trọng nhất của vị trí này, bạn hãy chia sẻ kinh nghiệm liên quan nhất của bản thân. Nếu trước đây bạn chưa từng đảm nhiệm đúng vai trò tương tự, bạn có thể vận dụng những năng lực nào để nhanh chóng nắm bắt công việc?",
+    "q08": "Vị trí này đòi hỏi khả năng xử lý nhạy bén các tình huống thực tế trong nghiệp vụ. Bạn hãy kể một tình huống thực tế bạn từng giải quyết; hoặc nếu chưa từng gặp, bạn sẽ tiếp cận và học hỏi như thế nào để xử lý hiệu quả?"
 }
 
 LEVEL_ORDER = {"nắm vững": 10, "am hiểu": 7.5, "có biết qua": 5, "không biết": 0}
@@ -498,6 +496,33 @@ Ví dụ:
   "Câu hỏi 1",
   "Câu hỏi 2"
 ]
+"""
+
+CV_UPDATE_CHECK_PROMPT = """Bạn là một Chuyên gia Tuyển dụng.
+Bạn sẽ nhận được 3 thông tin:
+1. CV cũ của ứng viên.
+2. Các câu hỏi phỏng vấn (deep questions) mà hệ thống đã đặt ra cho ứng viên dựa trên CV cũ.
+3. CV mới của ứng viên (đã cập nhật).
+
+Nhiệm vụ của bạn là đánh giá xem ứng viên có ĐÁP ỨNG / BỔ SUNG thông tin vào CV mới để giải quyết những câu hỏi đó hay không.
+Hãy khắt khe. Chỉ ghi nhận nếu họ thực sự có thêm nội dung có giá trị, chứ không phải chỉ thêm vài từ khóa sáo rỗng.
+
+Trả về kết quả chuẩn JSON (KHÔNG bọc trong ```json):
+{
+  "addressed_questions": true/false,
+  "score": <từ 0.0 đến 1.0, thể hiện mức độ đáp ứng>,
+  "reason": "<giải thích ngắn gọn>"
+}
+
+---
+CV CŨ:
+{old_cv}
+---
+CÂU HỎI TRƯỚC ĐÓ:
+{deep_questions}
+---
+CV MỚI:
+{new_cv}
 """
 
 EVALUATE_REPLY_PROMPT = """Bạn là Chuyên gia Tuyển dụng cấp cao. 
