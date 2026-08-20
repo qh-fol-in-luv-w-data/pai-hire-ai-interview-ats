@@ -57,15 +57,16 @@ async def process_and_send_webhook(req: DeepAnalysisRequest):
         
     try:
         # 1. Generate questions using AI
-        questions = await generate_deep_questions(
+        deep_result = await generate_deep_questions(
             cv_text=req.cv_text,
             jd_text=req.jd_text,
-            n_questions=req.n_questions
         )
-        
+        questions = deep_result.get("questions", [])
+
         payload = {
             "status": "success",
             "n_questions_requested": req.n_questions,
+            "coverage": deep_result.get("coverage"),
             "questions": questions
         }
         

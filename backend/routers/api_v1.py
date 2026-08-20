@@ -33,7 +33,6 @@ from backend.config import (
     INTERVIEW_URL,
     OPENAI_API_KEY,
     SCORE_PROMPT,
-    DEEP_ANALYSIS_PROMPT,
     PASS_SCORE,
 )
 from backend.security import (
@@ -285,11 +284,15 @@ async def api_score_cv(
         verdict = "pass" if total >= pass_score else "fail"
 
     # --- Sinh câu hỏi chuyên sâu ---
+    # Dùng JD text hash làm job_id tạm thời, đồng thời làm khoá cache năng lực JD
+    # (khung năng lực trích một lần cho mỗi nội dung JD, không phụ thuộc ứng viên).
+    jd_slug = "jd_" + hashlib.md5(jd_text.encode()).hexdigest()[:8]
     deep_questions = []
+    deep_coverage = None
     bonus_applied = False
     bonus_reason = ""
     bonus_points = 0.0
-    
+
     old_hist = None
     if candidate_id and not skip_scoring:
         with db() as conn:
@@ -329,26 +332,14 @@ async def api_score_cv(
         # Không sinh câu hỏi mới cho ứng viên nộp lại
         deep_questions = []
     else:
-        # Lần đầu -> Sinh câu hỏi chuyên sâu
+        # Lần đầu -> Sinh câu hỏi chuyên sâu, ràng buộc theo năng lực cốt lõi của JD
         try:
-            deep_prompt = DEEP_ANALYSIS_PROMPT.format(
-                cv_text=cv_text[:5000],
-                jd_text=jd_text[:3000],
+            from backend.services.ai_service import generate_deep_questions
+            deep_result = await generate_deep_questions(
+                cv_text, jd_text, job_id=jd_slug, level=level,
             )
-            dq_resp = await client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": deep_prompt}],
-                temperature=0.5,
-                max_tokens=1200,
-            )
-            dq_raw = dq_resp.choices[0].message.content.strip()
-            dq_raw = re.sub(r"^```(?:json)?\s*", "", dq_raw)
-            dq_raw = re.sub(r"\s*```$", "", dq_raw)
-            dq_data = json.loads(dq_raw)
-            if isinstance(dq_data, list):
-                deep_questions = dq_data
-            elif isinstance(dq_data, dict):
-                deep_questions = dq_data.get("questions", dq_data.get("deep_questions", []))
+            deep_questions = deep_result["questions"]
+            deep_coverage = deep_result["coverage"]
         except Exception as e:
             print(f"[API v1] Deep questions error: {e}")
 
@@ -364,14 +355,13 @@ async def api_score_cv(
             )
 
     score_breakdown = {
-        **score_result, 
+        **score_result,
         "deep_questions": deep_questions,
+        "deep_questions_coverage": deep_coverage,
         "bonus_applied": bonus_applied,
         "bonus_points": bonus_points,
         "bonus_reason": bonus_reason
     }
-    # Dùng JD text hash làm job_id tạm thời
-    jd_slug = "jd_" + hashlib.md5(jd_text.encode()).hexdigest()[:8]
     with db() as conn:
         conn.execute(
             """INSERT INTO cv_applications

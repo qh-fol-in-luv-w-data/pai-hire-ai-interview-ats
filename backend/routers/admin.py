@@ -767,7 +767,7 @@ async def admin_update_prep_questions(app_id: str, body: dict, background: Backg
     if any(not value for value in cleaned.values()):
         raise HTTPException(400, "Câu hỏi không được để trống")
 
-    from backend.services.prep_service import _prep_from_row
+    from backend.services.prep_service import _prep_from_row, _audio_filename
     from backend.config import QUESTION_AUDIO_DIR
     from backend.services.ai_service import _tts
     with db() as conn:
@@ -781,21 +781,42 @@ async def admin_update_prep_questions(app_id: str, body: dict, background: Backg
             n: text for n, text in cleaned.items()
             if text != str(old_questions.get(n, "")).strip()
         }
-        try:
-            saved_edits = json.loads(prep["edited_questions"] or "{}")
-        except Exception:
-            saved_edits = {}
-        # Frontend chỉ gửi các câu vừa đổi. Giữ nguyên các lần sửa trước đó.
-        saved_edits.update(changed_questions)
-        conn.execute(
-            "UPDATE interview_prep SET edited_questions=? WHERE id=?",
-            (json.dumps(saved_edits, ensure_ascii=False), prep["id"]),
-        )
+
+        # Prep đóng băng (questions_json) sửa thẳng vào đó — audio_url đổi theo
+        # hash nội dung mới nên không cần cache-bust thủ công. Prep cũ (chưa có
+        # questions_json) giữ đường edited_questions như trước.
+        is_frozen = bool(prep["questions_json"]) if "questions_json" in prep.keys() else False
+        if is_frozen:
+            frozen = json.loads(prep["questions_json"])
+            for n, text in changed_questions.items():
+                q = (frozen.get("questions") or {}).get(n)
+                if not q:
+                    continue
+                q["text"] = text
+                q["audio_url"] = f"/audio/{_audio_filename(text)}"
+            conn.execute(
+                "UPDATE interview_prep SET questions_json=? WHERE id=?",
+                (json.dumps(frozen, ensure_ascii=False), prep["id"]),
+            )
+        else:
+            try:
+                saved_edits = json.loads(prep["edited_questions"] or "{}")
+            except Exception:
+                saved_edits = {}
+            # Frontend chỉ gửi các câu vừa đổi. Giữ nguyên các lần sửa trước đó.
+            saved_edits.update(changed_questions)
+            conn.execute(
+                "UPDATE interview_prep SET edited_questions=? WHERE id=?",
+                (json.dumps(saved_edits, ensure_ascii=False), prep["id"]),
+            )
 
     async def regenerate_audio():
         for n, text in changed_questions.items():
             try:
-                await _tts(text, QUESTION_AUDIO_DIR / f"{prep['id']}_q{n}.mp3")
+                if is_frozen:
+                    await _tts(text, QUESTION_AUDIO_DIR / _audio_filename(text))
+                else:
+                    await _tts(text, QUESTION_AUDIO_DIR / f"{prep['id']}_q{n}.mp3", force=True)
             except Exception as exc:
                 print(f"[Prep] Không tạo lại audio q{n}: {exc}")
     if changed_questions:
@@ -1017,29 +1038,30 @@ async def request_reinterview(interview_id: str, body: dict,
         if not iv:
             raise HTTPException(404, "Không tìm thấy buổi phỏng vấn")
 
-        # Lấy app_ref từ prep cũ (để prep mới cũng linked cùng app_ref)
+        # Lấy app_ref + nội dung câu hỏi trong phạm vi (scope) từ prep cũ, để
+        # prep mới cũng linked cùng app_ref và mang đúng câu hỏi cần hỏi lại.
+        from backend.services.prep_service import _prep_from_row, normalize_interview_config
         app_ref = None
-        q05_text = ""
-        q06_text = ""
-        q07_text = ""
-        q08_text = ""
+        scoped_questions = {}
         if iv["prep_id"]:
-            old_prep = conn.execute(
-                "SELECT app_ref, q05_text, q06_text, q07_text, q08_text FROM interview_prep WHERE id=?",
-                (iv["prep_id"],)
-            ).fetchone()
+            old_prep = conn.execute("SELECT * FROM interview_prep WHERE id=?", (iv["prep_id"],)).fetchone()
             if old_prep:
-                app_ref  = old_prep["app_ref"]
-                q05_text = old_prep["q05_text"]
-                q06_text = old_prep["q06_text"]
-                q07_text = old_prep["q07_text"] if "q07_text" in old_prep.keys() else ""
-                q08_text = old_prep["q08_text"] if "q08_text" in old_prep.keys() else ""
+                app_ref = old_prep["app_ref"]
+                resolved = _prep_from_row(old_prep)
+                wanted = {s.strip() for s in scope.split(",") if s.strip()}
+                scoped_questions = {n: q for n, q in resolved["questions"].items() if n in wanted}
 
         # Tạo prep mới linked cùng app_ref → POST /interview/prep sẽ dùng prep này (ORDER BY created_at DESC)
         new_prep_id = "PREP-" + uuid.uuid4().hex[:10].upper()
+        new_frozen = {
+            "prep_id": new_prep_id,
+            "intro_audio": f"/audio/intro_{iv['position_id']}.mp3",
+            "questions": scoped_questions,
+            "follow_up_limit": normalize_interview_config(None)["PART_3_FOLLOW_UP"],
+        }
         conn.execute(
-            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, q07_text, q08_text, scope, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (new_prep_id, app_ref, iv["position_id"], q05_text, q06_text, q07_text, q08_text, scope, now),
+            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, scope, created_at, questions_json) VALUES (?,?,?,?,?,?,?,?)",
+            (new_prep_id, app_ref, iv["position_id"], "", "", scope, now, json.dumps(new_frozen, ensure_ascii=False)),
         )
 
         # Cập nhật interview GỐC: đánh dấu pending_reinterview, lưu scope

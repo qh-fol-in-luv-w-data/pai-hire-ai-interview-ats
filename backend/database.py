@@ -722,6 +722,43 @@ def init_db():
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_quota_order_payment_code ON company_quota_orders(payment_code) WHERE payment_code IS NOT NULL")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_quota_order_provider_tx ON company_quota_orders(provider, provider_transaction_id) WHERE provider_transaction_id IS NOT NULL")
 
+    # Migration v18: khung năng lực JD (dùng chung cho bộ đề phỏng vấn và câu hỏi
+    # bổ sung qua email) + bộ đề đóng băng tại thời điểm tạo, không dựng lại từ đĩa
+    # mỗi lần đọc + câu hỏi đào sâu lưu ở server thay vì chỉ trong localStorage.
+    with db() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS jd_competencies (
+            id TEXT PRIMARY KEY,
+            job_id TEXT NOT NULL,
+            jd_hash TEXT NOT NULL,
+            competencies_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(job_id, jd_hash)
+        );
+
+        CREATE TABLE IF NOT EXISTS interview_follow_ups (
+            id            TEXT PRIMARY KEY,
+            prep_id       TEXT NOT NULL,
+            base_n        TEXT NOT NULL,
+            follow_index  INTEGER NOT NULL,
+            question_text TEXT NOT NULL,
+            audio_path    TEXT,
+            transcript    TEXT,
+            created_at    TEXT NOT NULL,
+            UNIQUE(prep_id, base_n, follow_index)
+        );
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_prep ON interview_follow_ups(prep_id, base_n);
+        """)
+        for col, typedef in [
+            ("questions_json", "TEXT"),
+            ("prep_status", "TEXT"),
+            ("prep_error", "TEXT"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE interview_prep ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
+
     print(f"[DB] Sẵn sàng: {DB_PATH}")
 
 

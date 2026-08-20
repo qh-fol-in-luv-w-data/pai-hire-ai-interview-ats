@@ -14,9 +14,9 @@ from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile,
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from backend.database import db, log_application_event
 from backend.services.ai_service import _tts
-from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, BASE_DIR, LEVEL_ORDER
+from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, QUESTION_AUDIO_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, BASE_DIR, LEVEL_ORDER
 
-from backend.services.prep_service import _create_prep, _prep_from_row
+from backend.services.prep_service import _create_prep, _prep_from_row, normalize_interview_config, follow_up_total_limit, _audio_filename
 from backend.services.ai_service import _do_evaluate_interview
 from backend.services.ai_service import _tts
 from backend.config import OPENAI_API_KEY, ELEVENLABS_API_KEY
@@ -60,6 +60,7 @@ def _report_date_label(value: str | None) -> str:
 
 @router.post("/interview/prep")
 async def create_interview_prep(
+    background:  BackgroundTasks,
     position_id: str = Form(...),
     app_ref:     str = Form(None),
     level:       str = Form("Junior"),
@@ -67,7 +68,7 @@ async def create_interview_prep(
     x_interview_session: str = Header(None),
 ):
     from backend.routers.api_v1 import parse_slot_datetime
-    
+
     # Check if app_ref has an expired slot
     if app_ref:
         require_access(app_ref, x_interview_session)
@@ -84,7 +85,9 @@ async def create_interview_prep(
                 except Exception:
                     pass
 
-    # Nếu app_ref đã có prep sẵn → trả luôn, không gen lại
+    # Nếu app_ref đã có prep sẵn → trả luôn, không gen lại. Prep đang sinh nền
+    # (do HR pre-warm qua admin panel, hoặc do một request khác vừa kích hoạt)
+    # thì báo generating để candidate poll, tránh gọi CV/LLM/TTS trùng lặp.
     if app_ref and not force:
         with db() as conn:
             existing = conn.execute(
@@ -92,10 +95,86 @@ async def create_interview_prep(
                 (app_ref,)
             ).fetchone()
         if existing:
+            existing_status = existing["prep_status"] if "prep_status" in existing.keys() else None
+            if existing_status == "generating":
+                return {"prep_id": existing["id"], "prep_status": "generating"}
+            if existing_status == "error":
+                return {"prep_id": existing["id"], "prep_status": "error", "prep_error": existing["prep_error"]}
             print(f"[Prep] Dùng prep sẵn {existing['id']} cho {app_ref}")
-            return _prep_from_row(existing)
+            result = _prep_from_row(existing)
+            return _merge_follow_ups({**result, "prep_status": "ready"})
 
-    return await _create_prep(position_id, app_ref, level=level)
+    # Chưa có gì dùng được — tạo dòng placeholder rồi sinh nội dung ở background,
+    # trả lời ngay cho request thay vì bắt ứng viên chờ suốt quá trình gọi
+    # CV/LLM/TTS (có thể mất hàng chục giây tới vài phút).
+    new_prep_id = "PREP-" + uuid.uuid4().hex[:10].upper()
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, created_at, prep_status) VALUES (?,?,?,?,?,?,?)",
+            (new_prep_id, app_ref, position_id, "", "", now, "generating"),
+        )
+    from backend.services.prep_service import _run_prep_generation
+    background.add_task(_run_prep_generation, new_prep_id, position_id, app_ref, level)
+    return {"prep_id": new_prep_id, "prep_status": "generating"}
+
+
+@router.get("/interview/prep/{prep_id}/status")
+async def get_interview_prep_status(
+    prep_id: str,
+    app_ref: str = None,
+    x_interview_session: str = Header(None),
+):
+    """Candidate poll trạng thái bộ đề đang sinh nền (xem create_interview_prep)."""
+    if app_ref:
+        require_access(app_ref, x_interview_session)
+    with db() as conn:
+        row = conn.execute("SELECT * FROM interview_prep WHERE id=?", (prep_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Không tìm thấy bộ câu hỏi")
+    status = row["prep_status"] if "prep_status" in row.keys() else None
+    if status == "generating":
+        return {"prep_id": prep_id, "prep_status": "generating"}
+    if status == "error":
+        return {"prep_id": prep_id, "prep_status": "error", "prep_error": row["prep_error"]}
+    result = _prep_from_row(row)
+    return _merge_follow_ups({**result, "prep_status": "ready"})
+
+
+def _merge_follow_ups(result: dict) -> dict:
+    """Gộp câu hỏi đào sâu đã sinh và lưu ở server (bảng interview_follow_ups)
+    vào bộ câu hỏi trả về, ngay sau câu hỏi gốc của chúng. Server là nguồn sự
+    thật cho câu đào sâu — không phải localStorage — nên tải lại trang hay đổi
+    thiết bị không làm mất câu đang dở, và một prep_id mới (bộ đề mới) không
+    bao giờ vô tình thừa hưởng câu đào sâu của prep cũ vì khoá theo prep_id."""
+    prep_id = result.get("prep_id")
+    if not prep_id:
+        return result
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT base_n, follow_index, question_text, audio_path FROM interview_follow_ups"
+            " WHERE prep_id=? ORDER BY base_n, follow_index",
+            (prep_id,),
+        ).fetchall()
+    if not rows:
+        return result
+    follow_ups_by_base: dict[str, list] = {}
+    for r in rows:
+        follow_ups_by_base.setdefault(r["base_n"], []).append(r)
+    merged = {}
+    for n, q in result["questions"].items():
+        merged[n] = q
+        for r in follow_ups_by_base.get(n, []):
+            merged[f"{n}_{r['follow_index']}"] = {
+                "text": r["question_text"],
+                "audio_url": r["audio_path"],
+                "type": "FollowUp",
+                "label": "Câu hỏi đào sâu",
+                "is_generated": True,
+                "allow_follow_up": False,
+            }
+    result["questions"] = merged
+    return result
 
 
 @router.get("/interview/questions")
@@ -162,7 +241,8 @@ async def evaluate_step(
     question_type: str = Form(...),
     question_number: str = Form(""),
     history: str = Form("[]"),
-    follow_up_limit: int = Form(5),
+    prep_id: str = Form(None),
+    reset_follow_ups: bool = Form(False),
     app_ref: str = Form(None),
     x_interview_session: str = Header(None),
 ):
@@ -211,29 +291,64 @@ async def evaluate_step(
     except Exception as e:
         print(f"[Eval] STT error: {e}")
 
+    question_number = (question_number or "").split("_", 1)[0]
+
+    # Ghi âm lại câu hỏi GỐC: huỷ toàn bộ nhánh đào sâu cũ của câu đó trước khi
+    # đánh giá lại — đáp án nền đã đổi thì các câu đào sâu dựa trên đáp án cũ
+    # không còn ý nghĩa, và số đếm phải reset về 0 để đánh giá lại từ đầu.
+    if reset_follow_ups and prep_id and question_number:
+        with db() as conn:
+            conn.execute(
+                "DELETE FROM interview_follow_ups WHERE prep_id=? AND base_n=?",
+                (prep_id, question_number),
+            )
+
     if not transcript:
         return {"need_pushback": False, "transcript": transcript}
 
-    question_number = (question_number or "").split("_", 1)[0]
-    if follow_up_limit <= 0 or question_number == "01" or "giới thiệu" in (question_text or "").lower():
+    if question_number == "01" or "giới thiệu" in (question_text or "").lower():
         return {"need_pushback": False, "transcript": transcript}
 
     # Theo yêu cầu: Chỉ follow-up các câu hỏi chuyên môn (Technical) và nghề nghiệp (Experience)
     if question_type not in ["Technical", "Experience"]:
         return {"need_pushback": False, "transcript": transcript}
 
+    # Server là nguồn sự thật cho giới hạn đào sâu — không tin follow_up_limit
+    # do client tự tính (client có thể lệch giữa các câu hỏi, hoặc bị sửa).
+    # Có 2 trần tách biệt: mỗi câu hỏi, và tổng cả buổi phỏng vấn.
+    limits = normalize_interview_config(None)
+    if app_ref:
+        with db() as conn:
+            cfg_row = conn.execute("SELECT interview_config FROM cv_applications WHERE id=?", (app_ref,)).fetchone()
+            if cfg_row and cfg_row["interview_config"]:
+                try:
+                    limits = normalize_interview_config(json.loads(cfg_row["interview_config"]))
+                except Exception:
+                    pass
+    per_question_limit = limits["PART_3_FOLLOW_UP"]
+    total_limit = follow_up_total_limit(per_question_limit)
+
+    per_question_count = 0
+    total_count = 0
+    if prep_id:
+        with db() as conn:
+            per_question_count = conn.execute(
+                "SELECT COUNT(*) c FROM interview_follow_ups WHERE prep_id=? AND base_n=?",
+                (prep_id, question_number),
+            ).fetchone()["c"]
+            total_count = conn.execute(
+                "SELECT COUNT(*) c FROM interview_follow_ups WHERE prep_id=?",
+                (prep_id,),
+            ).fetchone()["c"]
+
+    if per_question_limit <= 0 or per_question_count >= per_question_limit or total_count >= total_limit:
+        return {"need_pushback": False, "transcript": transcript}
+
     # 3. Parse History
-    import json
     try:
         hist_data = json.loads(history)
     except:
         hist_data = []
-        
-    # Tính số lượng câu hỏi follow-up đã hỏi
-    # Số lần AI đã hỏi (trừ câu gốc đầu tiên ra)
-    follow_up_count = sum(1 for h in hist_data if h.get("role") == "assistant") - 1
-    if follow_up_count >= follow_up_limit:
-        return {"need_pushback": False, "transcript": transcript}
 
     history_text = ""
     for h in hist_data:
@@ -309,19 +424,37 @@ BẮT BUỘC trả về định dạng JSON hợp lệ (không kèm theo block c
     if ai_resp.strip().upper() == "PASS":
         return {"need_pushback": False, "transcript": transcript}
 
-    # 5. TTS for pushback
-    out_audio_name = f"{req_id}_out.mp3"
-    out_audio_path = TEMP_PUSHBACKS_DIR / out_audio_name
+    # 5. TTS for pushback — lưu bền theo hash nội dung dưới route /audio/ tĩnh,
+    # không dùng URL tạm có hạn (TEMP_PUSHBACKS_DIR bị dọn hoặc chữ ký hết hạn
+    # thì audio câu đào sâu chết lặng khi ứng viên tải lại trang).
+    out_audio_name = _audio_filename(ai_resp)
+    out_audio_path = QUESTION_AUDIO_DIR / out_audio_name
     try:
         await _tts(ai_resp, out_audio_path)
     except Exception as e:
         print(f"[EvalStep] TTS lỗi: {e}")
         return {"need_pushback": False, "transcript": transcript}
 
+    follow_index = per_question_count + 1
+    pushback_audio_url = f"/audio/{out_audio_name}"
+    if prep_id:
+        with db() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO interview_follow_ups"
+                " (id, prep_id, base_n, follow_index, question_text, audio_path, created_at)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (
+                    f"FU-{uuid.uuid4().hex[:10].upper()}", prep_id, question_number,
+                    follow_index, ai_resp, pushback_audio_url,
+                    time.strftime("%Y-%m-%dT%H:%M:%S"),
+                ),
+            )
+
     return {
         "need_pushback": True,
         "pushback_text": ai_resp,
-        "pushback_audio": signed_temp_file_url(out_audio_name),
+        "pushback_audio": pushback_audio_url,
+        "pushback_n": f"{question_number}_{follow_index}",
         "transcript": transcript
     }
 

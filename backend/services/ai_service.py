@@ -78,9 +78,9 @@ def normalize_cv_score(score_result: dict) -> tuple[dict, float]:
     return score_result, total
 
 
-async def _tts(text: str, out_path: Path) -> None:
+async def _tts(text: str, out_path: Path, force: bool = False) -> None:
     """Sinh audio atomically; corrupt/empty cached files are regenerated."""
-    if out_path.exists() and out_path.stat().st_size > 512:
+    if not force and out_path.exists() and out_path.stat().st_size > 512:
         return
     out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
@@ -96,12 +96,14 @@ async def _tts(text: str, out_path: Path) -> None:
 
 async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Junior"):
 
-    from backend.services.document_service import extract_cv_text, get_jd_content
+    from backend.services.document_service import extract_cv_text, get_jd_content, get_all_jobs
     from backend.services.prep_service import _create_prep
     from backend.services.email_service import send_pass_email, send_fail_email
 
     cv_text = extract_cv_text(cv_path)
     jd_text = get_jd_content(job_id)
+    job_row = next((j for j in get_all_jobs(include_inactive=True) if j["id"] == job_id), None)
+    job_title = job_row["title"] if job_row else job_id.replace("_", " ")
 
     try:
         from openai import AsyncOpenAI
@@ -138,12 +140,17 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
 
         # Generate deep analysis questions
         try:
-            deep_qs = await generate_deep_questions(cv_text, jd_text)
+            deep_result = await generate_deep_questions(cv_text, jd_text, job_id=job_id, position=job_title, level=level)
+            deep_qs = deep_result.get("questions", [])
+            deep_coverage = deep_result.get("coverage", "medium")
             result["deep_questions"] = deep_qs
+            result["deep_questions_coverage"] = deep_coverage
         except Exception as e:
             print(f"[CV Score] Deep questions error: {e}")
             result["deep_questions"] = []
+            result["deep_questions_coverage"] = None
             deep_qs = []
+            deep_coverage = None
 
         with db() as conn:
             conn.execute(
@@ -164,15 +171,23 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
                 {"score": total, "verdict": ai_verdict, "status": pending_status},
             )
 
-        if row and deep_qs:
+        if row and deep_qs and deep_coverage != "low":
             from backend.services.email_service import send_deep_questions_email
             send_deep_questions_email(row["name"], row["email"], row["job_id"], app_id, deep_qs)
             log_application_event(
                 app_id,
                 row["email"],
                 "deep_questions_sent",
-                f"Đã gửi {len(deep_qs)} câu hỏi bổ sung cho ứng viên.",
-                {"question_count": len(deep_qs)},
+                f"Đã gửi {len(deep_qs)} câu hỏi bổ sung cho ứng viên (coverage={deep_coverage}).",
+                {"question_count": len(deep_qs), "coverage": deep_coverage},
+            )
+        elif row and deep_qs and deep_coverage == "low":
+            log_application_event(
+                app_id,
+                row["email"],
+                "deep_questions_skipped_low_coverage",
+                f"Bỏ qua gửi {len(deep_qs)} câu hỏi bổ sung vì CV không cùng lĩnh vực với JD (coverage=low).",
+                {"question_count": len(deep_qs), "coverage": deep_coverage},
             )
 
     except Exception as e:
@@ -504,37 +519,22 @@ async def analyze_candidate_reply(cv_text: str, jd_text: str, deep_questions: li
     result_json = tool_call.function.arguments
     return json.loads(result_json)
 
-async def generate_deep_questions(cv_text: str, jd_text: str) -> list:
-    """Sử dụng GPT-4o để sinh các câu hỏi deep analysis xoáy sâu vào CV (số lượng tuỳ ý)."""
-    from openai import AsyncOpenAI
-    from backend.config import OPENAI_API_KEY, DEEP_ANALYSIS_PROMPT
-    
+async def generate_deep_questions(
+    cv_text: str, jd_text: str, job_id: str | None = None,
+    position: str = "", level: str = "", num_questions: int = 5,
+) -> dict:
+    """Sinh câu hỏi bổ sung sau khi chấm CV. Dùng chung khung năng lực JD
+    (backend.services.competency_service) với luồng tạo bộ đề phỏng vấn: mỗi câu
+    hỏi được ràng buộc vào một năng lực cốt lõi cụ thể của JD (PROBE nếu CV có
+    bằng chứng, TRANSFER nếu không) thay vì lọc hậu kiểm theo từ khoá."""
+    from backend.config import OPENAI_API_KEY
     if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY chưa được cấu hình.")
-        
-    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-    prompt = DEEP_ANALYSIS_PROMPT.format(cv_text=cv_text[:5000], jd_text=jd_text[:4000])
-    
-    resp = await client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.5,
-        max_tokens=1200,
-    )
-    
-    import json
-    import re
-    dq_raw = resp.choices[0].message.content.strip()
-    dq_raw = re.sub(r"^```(?:json)?\s*", "", dq_raw)
-    dq_raw = re.sub(r"\s*```$", "", dq_raw)
-    dq_data = json.loads(dq_raw)
-    
-    if isinstance(dq_data, list):
-        return dq_data
-    elif isinstance(dq_data, dict):
-        return dq_data.get("questions", dq_data.get("deep_questions", []))
-    
-    return []
+
+    from backend.services.competency_service import generate_competency_questions
+    result = await generate_competency_questions(cv_text, jd_text, job_id, position, level, num_questions)
+    questions = [q["question"] for q in result["questions"]]
+    return {"coverage": result["coverage"], "questions": questions}
 
 async def evaluate_cv_round_1(cv_text: str, jd_text: str, criteria_text: str) -> dict:
     """Đánh giá vòng 1: Kiểm tra xem CV có đủ thông tin không. Nếu thiếu trả về câu hỏi bổ sung."""

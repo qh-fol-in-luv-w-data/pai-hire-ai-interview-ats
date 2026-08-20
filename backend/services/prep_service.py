@@ -1,3 +1,4 @@
+import hashlib
 import time
 import uuid
 import re
@@ -6,7 +7,8 @@ from backend.database import db
 from backend.services.document_service import extract_cv_text, get_all_jobs, get_jd_content, resolve_job_id
 from backend.config import QUESTION_AUDIO_DIR, OPENAI_API_KEY, BASE_DIR, INTRO_TEMPLATE, _GEN_AUDIO_NAMES, QUESTIONS_BANK, _DEFAULT_EXPERIENCE
 from backend.services.ai_service import _tts
-from backend.config import CV_QUESTIONS_PROMPT, _parse_q0306, _find_position_files
+from backend.config import _parse_q0306, _find_position_files
+from backend.services.competency_service import generate_competency_questions
 
 DEFAULT_PART_1_LIMIT = 11
 DEFAULT_PART_2_LIMIT = 7
@@ -14,6 +16,17 @@ DEFAULT_FOLLOW_UP_LIMIT = 5
 MAX_PART_1_LIMIT = 11
 MAX_PART_2_LIMIT = 13
 MAX_FOLLOW_UP_LIMIT = 5
+
+_FOLLOW_UP_ELIGIBLE_TYPES = {"Technical", "Experience"}
+
+_FALLBACK_PART1_QUESTIONS = {
+    "01": "Bạn hãy giới thiệu về bản thân và kinh nghiệm làm việc liên quan đến vị trí này.",
+    "02": "Mục tiêu nghề nghiệp của bạn trong 3-5 năm tới là gì?",
+    "03": "Hãy chia sẻ về một dự án hoặc nhiệm vụ khó khăn nhất mà bạn từng thực hiện.",
+    "04": "Bạn tiếp cận việc học hỏi kiến thức mới như thế nào trong công việc?",
+    "05": "Hãy kể về một lần bạn có quan điểm trái ngược với đồng nghiệp và cách giải quyết.",
+    "06": "Bạn làm gì khi nhận được quá nhiều công việc cùng lúc với deadline sát nhau?",
+}
 
 
 def _bounded_int(value, default: int, minimum: int, maximum: int) -> int:
@@ -55,7 +68,27 @@ def normalize_interview_config(config: dict | None) -> dict:
     return normalized
 
 
+def follow_up_total_limit(per_question_limit: int) -> int:
+    """Trần TỔNG số câu đào sâu trong cả buổi phỏng vấn, tách khỏi trần MỖI câu
+    hỏi (PART_3_FOLLOW_UP). Trước đây không có trần tổng — trần chỉ tính theo
+    từng câu hỏi nên với bộ đề nhiều câu, tổng có thể lên tới per_question_limit
+    × số câu được phép đào sâu. Nhân hệ số cố định thay vì thêm một trường cấu
+    hình HR mới; điều chỉnh hệ số ở đây nếu cần khác biệt theo vị trí."""
+    return max(0, min(per_question_limit * 3, 15))
+
+
+def _audio_filename(text: str) -> str:
+    """Tên file audio theo hash nội dung câu hỏi. Text đổi thì tên đổi — cache
+    không còn thể phục vụ nhầm audio cũ cho nội dung mới, và vẫn dùng chung được
+    giữa các ứng viên/prep có cùng nội dung câu hỏi."""
+    digest = hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:20]
+    return f"q_{digest}.mp3"
+
+
 def _infer_generated_question_type(text: str) -> str:
+    """Đoán loại câu hỏi bằng từ khoá — chỉ dùng khi KHÔNG có type do model tự
+    khai báo (đường dự phòng lúc AI sinh câu hỏi thất bại hoàn toàn, hoặc khi
+    đọc lại prep cũ tạo trước khi có questions_json)."""
     lowered = (text or "").lower()
     soft_terms = (
         "giao tiếp", "phối hợp", "mâu thuẫn", "bất đồng", "áp lực",
@@ -89,37 +122,6 @@ def _question_type_for_prep(n: str, text: str, is_generated: bool = False) -> st
     return QUESTIONS_BANK.get(n, {}).get("type", "General")
 
 
-def _allow_follow_up_for_prep(n: str, text: str, is_generated: bool = False) -> bool:
-    return _question_type_for_prep(n, text, is_generated) in {"Technical", "Experience"}
-
-
-_TECH_QUESTION_TERMS = (
-    "api", "backend", "frontend", "framework", "database", "sql", "python",
-    "javascript", "typescript", "react", "node", "docker", "kubernetes",
-    "cloud", "aws", "server", "system design", "microservice", "deploy",
-    "code", "coding", "lập trình", "phần mềm", "cơ sở dữ liệu", "thuật toán",
-)
-_TECH_JD_TERMS = (
-    "developer", "engineer", "frontend", "backend", "fullstack", "devops",
-    "data", "ai/ml", "automation tester", "qa/qc", "system admin",
-    "công nghệ thông tin", "lập trình", "phần mềm", "dữ liệu",
-)
-_JD_ANCHORS = (
-    "jd yêu cầu", "vị trí này", "yêu cầu công việc", "trách nhiệm chính",
-    "mô tả công việc", "công việc này", "vai trò này", "yêu cầu trong jd",
-    "một trách nhiệm chính", "ở vị trí này", "công việc sẽ cần",
-    "vai trò này cần", "liên quan đến", "theo yêu cầu", "phần tuyển dụng",
-    "phần sàng lọc", "phần phỏng vấn", "phần biên soạn",
-)
-_CV_ANCHORS = (
-    "trong cv", "cv của bạn", "cv bạn", "bạn có đề cập", "kinh nghiệm tại",
-    "vai trò tại", "dự án", "thành tích", "nhiệm vụ",
-)
-_GENERIC_QUESTION_TERMS = (
-    "giới thiệu", "mục tiêu nghề nghiệp", "điểm mạnh", "điểm yếu",
-    "khó khăn gì", "cải thiện quy trình", "quản lý thời gian", "làm việc đa nhiệm",
-    "mâu thuẫn nào", "dự án hoặc nhiệm vụ", "chia sẻ một ví dụ cụ thể",
-)
 _JD_REQUIREMENT_TERMS = (
     "yêu cầu", "trách nhiệm", "nhiệm vụ", "kinh nghiệm", "kỹ năng",
     "thành thạo", "phụ trách", "quản lý", "thực hiện", "triển khai",
@@ -159,28 +161,10 @@ def _jd_requirement_lines(jd_text: str, limit: int = 12) -> list[str]:
     return lines
 
 
-def _question_relevant_to_jd(question: str, jd_text: str) -> bool:
-    text = (question or "").lower()
-    jd = (jd_text or "").lower()
-    if not text.strip():
-        return False
-    jd_is_tech = any(term in jd for term in _TECH_JD_TERMS)
-    asks_old_tech = any(term in text for term in _TECH_QUESTION_TERMS)
-    if asks_old_tech and not jd_is_tech:
-        return False
-    has_jd_anchor = any(anchor in text for anchor in _JD_ANCHORS)
-    has_cv_anchor = any(anchor in text for anchor in _CV_ANCHORS)
-    if not has_jd_anchor and not has_cv_anchor:
-        return False
-    if has_cv_anchor and not any(term in text for term in ("jd", "vị trí", "yêu cầu", "công việc", "trách nhiệm")):
-        return False
-    too_generic = any(term in text for term in _GENERIC_QUESTION_TERMS)
-    if too_generic and not has_jd_anchor and not has_cv_anchor:
-        return False
-    return True
-
-
 def _jd_gap_question(position: str, jd_text: str, offset: int = 0) -> str:
+    """Câu hỏi dự phòng khi sinh câu hỏi theo năng lực JD thất bại hoàn toàn
+    (không có CV, chưa cấu hình OPENAI_API_KEY, hoặc lỗi mạng) — KHÔNG dùng để
+    lọc chất lượng, chỉ dùng để không để trống Phần 2."""
     jd_hint = "yêu cầu quan trọng nhất trong JD"
     jd_lines = _jd_requirement_lines(jd_text)
     if jd_lines:
@@ -212,13 +196,19 @@ def _dedupe_questions(questions: list[str]) -> list[str]:
 
 
 async def _create_prep(position_id: str, app_ref: str,
-                       level: str = "Junior") -> dict:
+                       level: str = "Junior", prep_id: str | None = None) -> dict:
     """
-    Gen câu hỏi kinh nghiệm từ CV + TTS toàn bộ.
-    Trả về dict {prep_id, intro_audio, questions}.
+    Gen câu hỏi kinh nghiệm từ CV + TTS toàn bộ, rồi ĐÓNG BĂNG kết quả vào cột
+    questions_json. Một khi đã tạo, bộ đề của ứng viên này không đổi theo các
+    lần đọc sau — sửa QUESTIONS_BANK, sửa file .md nguồn, hay đổi cấu hình
+    PART_1_DEFAULT/PART_2_GENERATED sau khi tạo prep sẽ không còn làm trôi đề
+    so với audio đã sinh cho ứng viên đó.
+
+    prep_id: truyền vào khi caller đã tạo sẵn dòng placeholder (xem
+    _run_prep_generation) — ghi đè đúng dòng đó thay vì tạo id mới.
     """
     now     = time.strftime("%Y-%m-%dT%H:%M:%S")
-    prep_id = "PREP-" + uuid.uuid4().hex[:10].upper()
+    prep_id = prep_id or ("PREP-" + uuid.uuid4().hex[:10].upper())
 
     limits = normalize_interview_config(None)
     limit_p1 = limits["PART_1_DEFAULT"]
@@ -233,7 +223,7 @@ async def _create_prep(position_id: str, app_ref: str,
                     limit_p1 = cfg["PART_1_DEFAULT"]
                     limit_p2 = cfg["PART_2_GENERATED"]
                     limit_p3 = cfg["PART_3_FOLLOW_UP"]
-                except:
+                except Exception:
                     pass
 
     app_job_id = ""
@@ -257,15 +247,8 @@ async def _create_prep(position_id: str, app_ref: str,
     md_path, gen_audio_dir = _find_position_files(position_id)
     q_texts = _parse_q0306(md_path) if md_path else {}
     if not q_texts:
-        q_texts = {
-            "01": "Bạn hãy giới thiệu về bản thân và kinh nghiệm làm việc liên quan đến vị trí này.",
-            "02": "Mục tiêu nghề nghiệp của bạn trong 3-5 năm tới là gì?",
-            "03": "Hãy chia sẻ về một dự án hoặc nhiệm vụ khó khăn nhất mà bạn từng thực hiện.",
-            "04": "Bạn tiếp cận việc học hỏi kiến thức mới như thế nào trong công việc?",
-            "05": "Hãy kể về một lần bạn có quan điểm trái ngược với đồng nghiệp và cách giải quyết.",
-            "06": "Bạn làm gì khi nhận được quá nhiều công việc cùng lúc với deadline sát nhau?",
-        }
-        
+        q_texts = dict(_FALLBACK_PART1_QUESTIONS)
+
     if len(q_texts) > limit_p1:
         q_texts = dict(list(q_texts.items())[:limit_p1])
     elif len(q_texts) < limit_p1:
@@ -277,103 +260,69 @@ async def _create_prep(position_id: str, app_ref: str,
                 new_k = str(len(q_texts) + 1).zfill(2)
                 q_texts[new_k] = v["text"]
 
-    generated_qs = {}
+    # Phần 2: câu hỏi ràng buộc theo năng lực cốt lõi của JD (PROBE nếu CV có
+    # bằng chứng, TRANSFER nếu không) — độ phủ JD được bảo đảm bằng cấu trúc,
+    # không phải bằng bộ lọc hậu kiểm theo từ khoá.
+    generated_meta: dict[str, dict] = {}
     if app_ref and OPENAI_API_KEY and limit_p2 > 0:
         with db() as conn:
             row = conn.execute(
                 "SELECT cv_path FROM cv_applications WHERE id=?", (app_ref,)
             ).fetchone()
+        cv_text = ""
         if row and row["cv_path"]:
             cv_text = extract_cv_text(BASE_DIR / row["cv_path"])
-            if cv_text.strip():
-                try:
-                    from openai import AsyncOpenAI
-                    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        if cv_text.strip():
+            try:
+                start_idx = len(q_texts) + 1
+                result = await generate_competency_questions(
+                    cv_text, jd_text, jd_lookup_id, job_title, level or resolved_level, limit_p2,
+                )
+                for i, item in enumerate(result["questions"][:limit_p2]):
+                    k = str(i + start_idx).zfill(2)
+                    generated_meta[k] = {
+                        "text": item["question"],
+                        "type": item["type"],
+                        "anchor_mode": item["anchor_mode"],
+                        "competency_id": item["competency_id"],
+                    }
+            except Exception as e:
+                print(f"[Prep] Competency questions error: {e}")
 
-                    num_gen = limit_p2
-                    start_idx = len(q_texts) + 1
-                    json_format = ", ".join([f'"q{str(i+start_idx).zfill(2)}": "câu hỏi thứ {i+1}"' for i in range(num_gen)])
-                    json_format = f"{{{json_format}}}"
-
-                    prompt = CV_QUESTIONS_PROMPT.format(
-                        position=job_title,
-                        level=level or resolved_level,
-                        jd_text=jd_text[:5000],
-                        cv_text=cv_text[:4000],
-                        num_gen=num_gen,
-                        json_format=json_format
-                    )
-                    resp = await client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.3,
-                        max_tokens=max(1000, num_gen * 180),
-                        response_format={"type": "json_object"},
-                    )
-                    raw = resp.choices[0].message.content.strip()
-                    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-                    raw = re.sub(r"\s*```$", "", raw)
-                    parsed = json.loads(raw)
-
-                    # Robust parsing: take all string values from parsed dict/list
-                    ai_texts = []
-                    if isinstance(parsed, dict):
-                        for k, v in parsed.items():
-                            if isinstance(v, str): ai_texts.append(v)
-                            elif isinstance(v, dict) and "text" in v: ai_texts.append(v["text"])
-                    elif isinstance(parsed, list):
-                        for item in parsed:
-                            if isinstance(item, str): ai_texts.append(item)
-                            elif isinstance(item, dict) and "text" in item: ai_texts.append(item["text"])
-
-                    ai_texts = _dedupe_questions([
-                        text for text in ai_texts
-                        if _question_relevant_to_jd(text, jd_text)
-                    ])
-                    while len(ai_texts) < num_gen:
-                        ai_texts.append(_jd_gap_question(job_title, jd_text, len(ai_texts)))
-
-                    for i, text in enumerate(ai_texts[:num_gen]):
-                        generated_qs[str(i + start_idx).zfill(2)] = text
-
-                except Exception as e:
-                    print(f"[Prep] CV questions error: {e}")
-
-    if not generated_qs and limit_p2 > 0:
+    if not generated_meta and limit_p2 > 0:
+        # AI thất bại hoàn toàn (không có CV, chưa cấu hình API key, hoặc lỗi
+        # mạng) — dự phòng bằng câu hỏi tổng quát cố định thay vì để trống Phần 2.
         start_idx = len(q_texts) + 1
         fallback_texts = [
             _DEFAULT_EXPERIENCE["q07"],
             _DEFAULT_EXPERIENCE["q08"],
         ]
-        while len(fallback_texts) < limit_p2:
-            fallback_texts.append(_jd_gap_question(job_title, jd_text, len(fallback_texts)))
+        attempts = 0
+        while len(fallback_texts) < limit_p2 and attempts < limit_p2 * 4:
+            fallback_texts = _dedupe_questions(fallback_texts)
+            if len(fallback_texts) >= limit_p2:
+                break
+            fallback_texts.append(_jd_gap_question(job_title, jd_text, len(fallback_texts) + attempts))
+            attempts += 1
+        fallback_texts = _dedupe_questions(fallback_texts)
         for i, text in enumerate(fallback_texts[:limit_p2]):
-            generated_qs[str(start_idx + i).zfill(2)] = text
+            k = str(start_idx + i).zfill(2)
+            generated_meta[k] = {
+                "text": text,
+                "type": _infer_generated_question_type(text),
+                "anchor_mode": "transfer",
+                "competency_id": "",
+            }
 
-    for k, v in generated_qs.items():
-        q_texts[k] = v
+    for k, meta in generated_meta.items():
+        q_texts[k] = meta["text"]
 
-    generated_json = json.dumps(generated_qs, ensure_ascii=False)
-
-    with db() as conn:
-        conn.execute(
-            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, q07_text, q08_text, created_at, generated_questions, edited_questions)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (prep_id, app_ref, position_id, "", "", generated_qs.get("07", ""), generated_qs.get("08", ""), now, generated_json, None),
-        )
-
-    audio_map = {}
-    for k in q_texts:
-        if k not in generated_qs:
-            audio_map[k] = f"{position_id}_q{k}.mp3"
-        else:
-            audio_map[k] = f"{prep_id}_q{k}.mp3"
-            
     intro_file = f"intro_{position_id}.mp3"
+    audio_map = {k: _audio_filename(text) for k, text in q_texts.items()}
 
     try:
         import shutil
-        
+
         dst_intro = QUESTION_AUDIO_DIR / intro_file
         if not dst_intro.exists() or dst_intro.stat().st_size <= 512:
             src_intro = BASE_DIR / "outputs" / "question_audio" / intro_file
@@ -413,7 +362,7 @@ async def _create_prep(position_id: str, app_ref: str,
         for k, text in q_texts.items():
             dst = QUESTION_AUDIO_DIR / audio_map[k]
             tts_tasks.append(_safe_tts(k, text, dst))
-            
+
         if tts_tasks:
             await asyncio.gather(*tts_tasks)
 
@@ -421,30 +370,81 @@ async def _create_prep(position_id: str, app_ref: str,
     except Exception as e:
         print(f"[Prep] TTS error: {e}")
 
-    questions = {
-        n: {
-            "text":      q_texts[n],
-            "audio_url": f"/audio/{audio_map[n]}",
-            "type":      _question_type_for_prep(n, q_texts[n], n in generated_qs),
-            "is_generated": n in generated_qs,
-            "allow_follow_up": _allow_follow_up_for_prep(n, q_texts[n], n in generated_qs),
+    questions = {}
+    for n, text in q_texts.items():
+        meta = generated_meta.get(n)
+        is_generated = meta is not None
+        qtype = meta["type"] if meta else _question_type_for_prep(n, text, False)
+        questions[n] = {
+            "text":            text,
+            "audio_url":       f"/audio/{audio_map[n]}",
+            "type":            qtype,
+            "is_generated":    is_generated,
+            "allow_follow_up": qtype in _FOLLOW_UP_ELIGIBLE_TYPES,
+            "anchor_mode":     meta["anchor_mode"] if meta else None,
+            "competency_id":   meta["competency_id"] if meta else None,
         }
-        for n in q_texts
-    }
-    return {
+
+    result = {
         "prep_id":         prep_id,
         "intro_audio":     f"/audio/{intro_file}",
         "questions":       questions,
-        "follow_up_limit": limit_p3
+        "follow_up_limit": limit_p3,
     }
+
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO interview_prep (id, app_ref, position_id, q05_text, q06_text, created_at, questions_json, prep_status, prep_error)"
+            " VALUES (?,?,?,?,?,?,?,?,NULL)"
+            " ON CONFLICT(id) DO UPDATE SET questions_json=excluded.questions_json, prep_status=excluded.prep_status, prep_error=NULL",
+            (prep_id, app_ref, position_id, "", "", now, json.dumps(result, ensure_ascii=False), "ready"),
+        )
+
+    return result
+
+
+async def _run_prep_generation(prep_id: str, position_id: str, app_ref: str, level: str) -> None:
+    """Chạy _create_prep trong background task, ghi kết quả (hoặc lỗi) vào đúng
+    dòng placeholder prep_id đã tạo sẵn (prep_status='generating'). Dùng khi
+    ứng viên là người đầu tiên kích hoạt tạo bộ đề — trả lời ngay cho request
+    HTTP thay vì bắt ứng viên chờ suốt quá trình gọi CV/LLM/TTS."""
+    try:
+        await _create_prep(position_id, app_ref, level=level, prep_id=prep_id)
+    except Exception as e:
+        print(f"[Prep] Sinh bộ đề nền thất bại cho {prep_id}: {e}")
+        with db() as conn:
+            conn.execute(
+                "UPDATE interview_prep SET prep_status='error', prep_error=? WHERE id=?",
+                (str(e)[:500], prep_id),
+            )
 
 
 def _prep_from_row(row) -> dict:
-    """Rebuild response dict từ DB row (prep đã tồn tại)."""
+    """Trả về bộ đề của prep. Prep tạo bởi _create_prep có toàn bộ nội dung đã
+    đóng băng trong questions_json — đọc thẳng, không dựng lại từ đĩa. Prep tạo
+    trước khi có cột này, hoặc prep khung dùng cho phỏng vấn lại (xem
+    admin.request_reinterview), dùng đường dựng lại như trước."""
+    row_dict = dict(row)
+    raw = row_dict.get("questions_json")
+    if raw:
+        try:
+            data = json.loads(raw)
+            if data and data.get("questions"):
+                return data
+        except Exception:
+            pass
+    return _prep_from_row_legacy(row)
+
+
+def _prep_from_row_legacy(row) -> dict:
+    """Dựng lại bộ đề từ file .md + QUESTIONS_BANK + các cột rời rạc cũ
+    (generated_questions/edited_questions/q07_text/q08_text). Giữ nguyên hành vi
+    lịch sử cho các prep tạo trước khi có questions_json — KHÔNG dùng cho prep
+    mới, vì đây chính là đường đọc-lại-mỗi-lần từng gây trôi đề so với audio."""
     pid     = row["id"]
     pos     = row["position_id"]
     app_ref = row["app_ref"]
-    
+
     limits = normalize_interview_config(None)
     limit_p1 = limits["PART_1_DEFAULT"]
     limit_p2 = limits["PART_2_GENERATED"]
@@ -458,21 +458,14 @@ def _prep_from_row(row) -> dict:
                     limit_p1 = cfg["PART_1_DEFAULT"]
                     limit_p2 = cfg["PART_2_GENERATED"]
                     limit_p3 = cfg["PART_3_FOLLOW_UP"]
-                except:
+                except Exception:
                     pass
 
     md_path, _ = _find_position_files(pos)
     q0106   = _parse_q0306(md_path) if md_path else {}
     if not q0106:
-        q0106 = {
-            "01": "Bạn hãy giới thiệu về bản thân và kinh nghiệm làm việc liên quan đến vị trí này.",
-            "02": "Mục tiêu nghề nghiệp của bạn trong 3-5 năm tới là gì?",
-            "03": "Hãy chia sẻ về một dự án hoặc nhiệm vụ khó khăn nhất mà bạn từng thực hiện.",
-            "04": "Bạn tiếp cận việc học hỏi kiến thức mới như thế nào trong công việc?",
-            "05": "Hãy kể về một lần bạn có quan điểm trái ngược với đồng nghiệp và cách giải quyết.",
-            "06": "Bạn làm gì khi nhận được quá nhiều công việc cùng lúc với deadline sát nhau?",
-        }
-    
+        q0106 = dict(_FALLBACK_PART1_QUESTIONS)
+
     if len(q0106) > limit_p1:
         q0106 = dict(list(q0106.items())[:limit_p1])
     elif len(q0106) < limit_p1:
@@ -482,18 +475,16 @@ def _prep_from_row(row) -> dict:
             if not v.get("is_dynamic") and v["text"] not in q0106.values():
                 new_k = str(len(q0106) + 1).zfill(2)
                 q0106[new_k] = v["text"]
-        
-    q_texts = {}
-    for k, v in q0106.items():
-        q_texts[k] = v
-        
+
+    q_texts = dict(q0106)
+
     generated_qs = {}
     if "generated_questions" in row.keys() and row["generated_questions"]:
         try:
             generated_qs = json.loads(row["generated_questions"])
-        except:
+        except Exception:
             pass
-    
+
     row_dict = dict(row)
     if not generated_qs:
         if row_dict.get("q07_text"): generated_qs["07"] = row_dict["q07_text"]
@@ -510,13 +501,13 @@ def _prep_from_row(row) -> dict:
         generated_qs = dict(
             sorted(generated_qs.items(), key=lambda item: int(item[0]) if str(item[0]).isdigit() else 999)[:limit_p2]
         )
-        
+
     for k, v in generated_qs.items():
         q_texts[k] = v
     for k, v in edited_qs.items():
         if str(v).strip():
             q_texts[str(k)] = str(v).strip()
-        
+
     audio_map = {}
     for k in q_texts:
         if k not in generated_qs and k not in edited_qs:
@@ -533,7 +524,7 @@ def _prep_from_row(row) -> dict:
                 "audio_url": f"/audio/{audio_map[n]}",
                 "type":      _question_type_for_prep(n, q_texts[n], n in generated_qs),
                 "is_generated": n in generated_qs,
-                "allow_follow_up": _allow_follow_up_for_prep(n, q_texts[n], n in generated_qs),
+                "allow_follow_up": _question_type_for_prep(n, q_texts[n], n in generated_qs) in _FOLLOW_UP_ELIGIBLE_TYPES,
             }
             for n in q_texts if q_texts[n]
         },

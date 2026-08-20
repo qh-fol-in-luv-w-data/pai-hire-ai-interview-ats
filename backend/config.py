@@ -423,26 +423,48 @@ Trả về JSON (không markdown):
   "normalized_transcript": "Viết lại câu trả lời rõ ràng trong tối đa 900 ký tự dựa trên ngữ cảnh câu hỏi '{question}': giữ nguyên ý chính của ứng viên, sửa lỗi STT/chính tả, bỏ từ à/ừm/thì/là/mà dư thừa, thêm dấu câu phù hợp, diễn đạt tự nhiên như người đang kể chuyện/trả lời phỏng vấn"
 }}"""
 
-CV_QUESTIONS_PROMPT = """Bạn là Chuyên gia Tuyển dụng (HR Interviewer) đang phỏng vấn ứng viên cho vị trí {position} (cấp bậc: {level}).
+COMPETENCY_EXTRACTION_PROMPT = """Bạn là chuyên gia tuyển dụng. Đọc JD dưới đây và liệt kê các năng lực/yêu cầu CỐT LÕI (tối đa 8 mục) mà vị trí này đòi hỏi ứng viên phải có — kỹ năng chuyên môn, công cụ, phạm vi trách nhiệm.
 
-Mô tả công việc (JD):
+JD:
 {jd_text}
+
+Với mỗi năng lực, cho:
+- "id": mã ngắn, chữ thường không dấu, snake_case (vd: "toi_uu_database")
+- "label": tên năng lực ngắn gọn bằng tiếng Việt
+- "weight": mức độ quan trọng 1-3 (3 = bắt buộc phải có, 1 = có thì tốt)
+
+BẮT BUỘC trả về JSON: {{"competencies": [{{"id": "...", "label": "...", "weight": 1}}]}}"""
+
+COMPETENCY_QUESTIONS_PROMPT = """Bạn là Chuyên gia Tuyển dụng (HR Interviewer) đang phỏng vấn ứng viên cho vị trí {position} (cấp bậc: {level}).
+
+Danh sách năng lực CỐT LÕI của vị trí này (đã xác định trước, không tự thêm bớt):
+{competency_list}
 
 CV của ứng viên:
 {cv_text}
 
-Tạo đúng {num_gen} câu hỏi phỏng vấn.
-YÊU CẦU QUAN TRỌNG NHẤT:
-1. Đặt câu hỏi cực kỳ TỰ NHIÊN, như hai người đang trò chuyện. KHÔNG BAO GIỜ dùng các cụm từ máy móc như "Theo JD...", "JD yêu cầu...", "Trong CV bạn ghi...", "Dựa trên CV của bạn...", "So chiếu với JD...".
-2. Bắt thẳng vào kinh nghiệm thực tế của ứng viên trong CV (tên công ty, tên dự án, thành tích, công cụ cụ thể đã làm) để kiểm tra những năng lực mà vị trí đang tuyển cần.
-   - Ví dụ TỐT: "Khi làm dự án CRM ở công ty ABC, bạn đã xử lý bài toán hiệu suất cơ sở dữ liệu như thế nào?"
-   - Ví dụ XẤU (CẤM DÙNG): "JD yêu cầu tối ưu DB. CV của bạn có ghi làm dự án CRM, vậy bạn tối ưu thế nào?"
-3. Nếu ứng viên thiếu kinh nghiệm quan trọng so với vị trí đang tuyển, hãy hỏi thẳng tình huống để họ thể hiện tư duy học hỏi, KHÔNG ĐƯỢC chê bai hay nói "CV của bạn thiếu kỹ năng này...".
-   - Ví dụ TỐT: "Nếu phải triển khai một hệ thống bằng công nghệ Z trong 2 tuần mà bạn chưa từng dùng, bạn sẽ tiếp cận như thế nào?"
-4. Ngắn gọn, trực diện (tối đa 1-2 câu). Chỉ hỏi, tuyệt đối KHÔNG giải thích bối cảnh tại sao lại hỏi câu đó.
+CÁCH LÀM (bắt buộc theo đúng thứ tự):
+1. Với MỖI năng lực trong danh sách trên, kiểm tra CV có bằng chứng cụ thể hay không.
+   - CÓ bằng chứng cụ thể (dự án, công ty, công cụ, thành tích liên quan trực tiếp) → đặt câu hỏi kiểu PROBE: xoáy sâu vào chính dự án/kinh nghiệm đó, tự nhiên như hai người đang trò chuyện. KHÔNG BAO GIỜ dùng cụm máy móc như "Theo JD...", "Trong CV bạn ghi...".
+     Ví dụ TỐT: "Khi làm dự án CRM ở công ty ABC, bạn đã xử lý bài toán hiệu suất cơ sở dữ liệu như thế nào?"
+   - KHÔNG có bằng chứng, hoặc bằng chứng yếu → đặt câu hỏi kiểu TRANSFER: nêu thẳng yêu cầu của vị trí, hỏi ứng viên năng lực gần nhất họ có để vận dụng và cách họ sẽ tiếp cận để bắt nhịp công việc. KHÔNG chê bai CV thiếu gì.
+     Ví dụ TỐT: "Nếu phải triển khai một hệ thống bằng công nghệ Z trong 2 tuần mà bạn chưa từng dùng, bạn sẽ tiếp cận như thế nào?"
+2. Tạo đúng {num_gen} câu hỏi, ưu tiên năng lực có weight cao hơn trước.
+3. Ngắn gọn, trực diện (tối đa 1-2 câu mỗi câu hỏi). Chỉ hỏi, tuyệt đối KHÔNG giải thích bối cảnh tại sao lại hỏi câu đó.
+4. KHÔNG bịa chi tiết CV không có.
 
-Trả về JSON (không markdown):
-{json_format}"""
+ĐÁNH GIÁ MỨC ĐỘ PHÙ HỢP TỔNG THỂ (coverage) — sau khi đối chiếu toàn bộ danh sách năng lực với CV:
+- "high": phần lớn năng lực có bằng chứng trực tiếp hoặc gần trong CV.
+- "medium": một phần năng lực có bằng chứng, phần còn lại phải hỏi kiểu TRANSFER.
+- "low": CV thuộc lĩnh vực/ngành nghề khác hẳn JD — ứng viên thiếu nền tảng cơ bản để đảm nhiệm vị trí, không đơn thuần là thiếu kinh nghiệm cụ thể.
+
+BẮT BUỘC trả về đúng JSON sau (không kèm markdown, không giải thích thêm):
+{{
+  "coverage": "high" | "medium" | "low",
+  "questions": [
+    {{"competency_id": "<id từ danh sách trên>", "anchor_mode": "probe" | "transfer", "type": "Technical" | "Experience" | "Soft Skill", "question": "<câu hỏi>"}}
+  ]
+}}"""
 
 HOD_QUESTIONS_PROMPT = """Bạn là chuyên gia tuyển dụng cấp cao. Dựa trên kết quả phỏng vấn bên dưới, hãy gợi ý 3-5 câu hỏi sâu hơn để trưởng bộ phận (HOD) khai thác thêm trong vòng phỏng vấn tiếp theo.
 
@@ -473,30 +495,6 @@ THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS = {
     for host in os.environ.get("THIRD_PARTY_WEBHOOK_ALLOWED_HOSTS", "").split(",")
     if host.strip()
 }
-
-DEEP_ANALYSIS_PROMPT = """Bạn là một Chuyên gia Tuyển dụng cấp cao. 
-Nhiệm vụ của bạn là phân tích sâu CV của ứng viên đối chiếu với Mô tả công việc (JD), sau đó sinh ra một số câu hỏi phỏng vấn chuyên sâu (deep analysis) phù hợp với các điểm cần xác minh thực tế.
-
-YÊU CẦU CHO CÁC CÂU HỎI:
-1. Phải dựa hoàn toàn vào các dự án, kỹ năng, kinh nghiệm CỤ THỂ mà ứng viên đã ghi trong CV.
-2. Phải xoáy sâu vào chuyên môn, cách giải quyết vấn đề, khó khăn vướng mắc thực tế ứng viên đã trải qua.
-3. Liên kết chặt chẽ với các yêu cầu cốt lõi của JD.
-4. Tránh tuyệt đối các câu hỏi chung chung (ví dụ: "Bạn hãy giới thiệu bản thân", "Điểm mạnh của bạn là gì?").
-5. Tuỳ vào độ phong phú của CV và mức độ rủi ro so với JD mà tạo số lượng câu hỏi cho hợp lý. Không cố định số lượng; chỉ hỏi các điểm thật sự cần xác minh. Thông thường 1-5 câu, trường hợp CV/JD phức tạp có thể tối đa 8 câu.
-
-CV Ứng Viên:
-{cv_text}
-
-Mô tả công việc (JD):
-{jd_text}
-
-HÃY XUẤT RA DANH SÁCH CÁC CÂU HỎI THEO ĐÚNG ĐỊNH DẠNG JSON MẢNG (Array of strings). Không kèm giải thích.
-Ví dụ:
-[
-  "Câu hỏi 1",
-  "Câu hỏi 2"
-]
-"""
 
 CV_UPDATE_CHECK_PROMPT = """Bạn là một Chuyên gia Tuyển dụng.
 Bạn sẽ nhận được 3 thông tin:
