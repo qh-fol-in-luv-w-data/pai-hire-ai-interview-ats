@@ -18,5 +18,5 @@ export type Interview = {
   hr_score?: number | null; hr_notes?: string; expert_score?: number | null; expert_notes?: string;
   answers?: InterviewAnswer[]; hod_questions?: string | string[]; overall_strengths?: string; overall_weaknesses?: string;
 };
-export type InterviewAnswer = { question_number: string; question_type?: string; question_text?: string; transcript?: string; ai_level?: string; ai_feedback?: string; duration_sec?: number; time_spent?: number; score?: number | null; notes?: string };
+export type InterviewAnswer = { question_number: string; question_type?: string; question_text?: string; transcript?: string; ai_level?: string; ai_feedback?: string; duration_sec?: number; time_spent?: number; score?: number | null; notes?: string; attempt_number?: number | null };
 export type ApiErrorShape = { detail?: string | { message?: string }; msg?: string; message?: string };

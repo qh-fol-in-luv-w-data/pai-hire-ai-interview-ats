@@ -13,6 +13,7 @@ WORKDIR /app
 # Install system dependencies (ffmpeg is required for audio processing)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    fonts-dejavu-core \
     libsm6 \
     libxext6 \
     && rm -rf /var/lib/apt/lists/*

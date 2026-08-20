@@ -63,8 +63,8 @@ function ApplyListPage() {
           <div><p className="text-sm font-bold text-blue-200">Cơ hội nghề nghiệp</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Tìm công việc phù hợp với bạn</h1><p className="mt-3 text-sm text-slate-200">Khám phá vị trí đang tuyển và ứng tuyển trực tiếp.</p></div>
         </div>
         <div className="mt-7 grid gap-2 rounded-2xl border border-white/20 bg-white/10 p-2 shadow-xl backdrop-blur md:grid-cols-[1.5fr_1fr_auto]">
-          <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 ring-1 ring-inset ring-slate-100"><Search className="h-5 w-5 text-slate-400"/><input className="w-full border-0 bg-transparent py-3 text-sm outline-none" placeholder="Chức danh, kỹ năng hoặc lĩnh vực" value={q} onChange={(event) => setQ(event.target.value)}/></label>
-          <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 ring-1 ring-inset ring-slate-100"><span className="text-lg text-slate-400">⌖</span><input className="w-full border-0 bg-transparent py-3 text-sm outline-none" placeholder="Địa điểm" value={location} onChange={(event) => setLocation(event.target.value)}/></label>
+          <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 ring-1 ring-inset ring-slate-100"><Search className="h-5 w-5 text-slate-400"/><input className="w-full border-0 bg-transparent py-3 text-sm text-slate-900 outline-none" placeholder="Chức danh, kỹ năng hoặc lĩnh vực" value={q} onChange={(event) => setQ(event.target.value)}/></label>
+          <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 ring-1 ring-inset ring-slate-100"><span className="text-lg text-slate-400">⌖</span><input className="w-full border-0 bg-transparent py-3 text-sm text-slate-900 outline-none" placeholder="Địa điểm" value={location} onChange={(event) => setLocation(event.target.value)}/></label>
           <Button className="min-h-12 px-7" type="button">Tìm việc</Button>
         </div>
       </div>

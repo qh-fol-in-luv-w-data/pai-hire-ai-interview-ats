@@ -1,13 +1,17 @@
 import os
+import re
 import uuid
 import time
 import json
 import httpx
 import shutil
+import html
+import unicodedata
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, Header, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from backend.database import db, log_application_event
 from backend.services.ai_service import _tts
 from backend.config import ADMIN_KEY, require_admin, PASS_SCORE, OUTPUT_DIR, CV_UPLOAD_DIR, TEMP_PUSHBACKS_DIR, _find_position_files, _parse_q0306, QUESTIONS_BANK, CATEGORY_LABELS, BASE_DIR, LEVEL_ORDER
@@ -29,6 +33,30 @@ from backend.security import (
 )
 from backend.services.interview_access import require_access, mark_submitted
 router = APIRouter()
+
+
+def _report_position_label(value: str | None) -> str:
+    raw = str(value or "").strip()
+    parenthetical = re.search(r"\(([^)]+)\)", raw)
+    label = parenthetical.group(1) if parenthetical else raw
+    label = re.sub(r"^(Entry|Junior|Mid|Senior|Manager|Director)[_-]", "", label, flags=re.I)
+    label = re.sub(r"[_-]+", " ", label)
+    return re.sub(r"\s+", " ", label).strip() or "Chưa xác định"
+
+
+def _report_level_label(value: str | None, position: str | None) -> str:
+    level = str(value or "").strip() or str(position or "").split("_", 1)[0]
+    labels = {"Entry": "Thực tập / Mới bắt đầu", "Junior": "Chuyên viên (Junior)", "Mid": "Chuyên viên (Mid-level)", "Senior": "Chuyên viên cao cấp", "Manager": "Quản lý", "Director": "Giám đốc"}
+    return labels.get(level, level or "Chưa xác định")
+
+
+def _report_date_label(value: str | None) -> str:
+    if not value:
+        return "Chưa có dữ liệu"
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%H:%M · %d/%m/%Y")
+    except ValueError:
+        return str(value)
 
 @router.post("/interview/prep")
 async def create_interview_prep(
@@ -644,14 +672,14 @@ def list_interviews(status: str = None, position_id: str = None, limit: int = 50
                    c.name as candidate_name,
                    COUNT(a.id) as answer_count,
                    (
-                     SELECT ROUND(AVG(best_score), 1)
+                     SELECT ROUND(AVG(group_score), 1)
                      FROM (
-                       SELECT MAX(CASE ax.ai_level
+                       SELECT AVG(CASE ax.ai_level
                          WHEN 'nắm vững'    THEN 10.0
                          WHEN 'am hiểu'     THEN 7.5
                          WHEN 'có biết qua' THEN 5.0
                          WHEN 'không biết'  THEN 0.0
-                         ELSE NULL END) AS best_score
+                         ELSE NULL END) AS group_score
                        FROM answers ax
                        WHERE ax.interview_id = i.id
                        GROUP BY ax.attempt_number,
@@ -708,7 +736,7 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
 
     rows = [dict(a) for a in answers]
 
-    # Avg score: gộp follow-up vào câu cha, lấy điểm tốt nhất của mỗi cụm câu.
+    # Avg score: follow-up chỉ nâng điểm khi nó cao hơn câu gốc.
     grouped_scores = {}
     scored_levels = []
     for r in rows:
@@ -718,11 +746,23 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
         base_qn = str(r["question_number"] or "").split(".", 1)[0]
         group_key = f"{r.get('attempt_number', 1)}:{base_qn}"
         score = LEVEL_ORDER[level]
-        if group_key not in grouped_scores or score > grouped_scores[group_key]["score"]:
-            grouped_scores[group_key] = {"score": score, "level": level}
+        group = grouped_scores.setdefault(group_key, {"base_score": None, "follow_up_scores": [], "levels": []})
+        if "." in str(r["question_number"] or ""):
+            group["follow_up_scores"].append(score)
+        else:
+            group["base_score"] = score
+        group["levels"].append(level)
 
-    scores = [item["score"] for item in grouped_scores.values()]
-    scored_levels = [item["level"] for item in grouped_scores.values()]
+    scores = []
+    for item in grouped_scores.values():
+        base_score = item["base_score"]
+        if base_score is None:
+            included_scores = item["follow_up_scores"]
+        else:
+            included_scores = [base_score, *(value for value in item["follow_up_scores"] if value > base_score)]
+        if included_scores:
+            scores.append(sum(included_scores) / len(included_scores))
+    scored_levels = [level for item in grouped_scores.values() for level in item["levels"]]
     avg_score = round(sum(scores) / len(scores), 2) if scores else 0
     summary   = {l: scored_levels.count(l) for l in LEVEL_ORDER}
 
@@ -737,6 +777,7 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
         "interview_id":   interview_id,
         "candidate_name": iv["candidate_name"],
         "position":       iv["position_id"],
+        "level":          iv["level"],
         "status":         iv["status"],
         "submitted_at":   iv["submitted_at"],
         "avg_score":      avg_score,
@@ -747,3 +788,148 @@ def interview_report(interview_id: str, x_admin_key: str = Header(None)):
         "groups":         groups,
         "answers":        rows,
     }
+
+
+@router.get("/interview/{interview_id}/report.pdf")
+def download_interview_report_pdf(interview_id: str, x_admin_key: str = Header(None)):
+    """Generate a searchable, Unicode-safe PDF rather than a browser screenshot."""
+    report = interview_report(interview_id, x_admin_key)
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.graphics.shapes import Drawing, Rect, String
+        from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError as error:
+        raise HTTPException(503, "Chưa cài bộ tạo PDF. Hãy build lại Docker.") from error
+
+    font_dir = "/usr/share/fonts/truetype/dejavu"
+    pdfmetrics.registerFont(TTFont("DejaVu", f"{font_dir}/DejaVuSans.ttf"))
+    pdfmetrics.registerFont(TTFont("DejaVu-Bold", f"{font_dir}/DejaVuSans-Bold.ttf"))
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("InterviewTitle", parent=styles["Title"], fontName="DejaVu-Bold", fontSize=20, leading=25, textColor=colors.white, spaceAfter=4)
+    subtitle = ParagraphStyle("InterviewSubtitle", parent=styles["Normal"], fontName="DejaVu", fontSize=9, leading=13, textColor=colors.HexColor("#C7D9F1"))
+    heading = ParagraphStyle("InterviewHeading", parent=styles["Heading2"], fontName="DejaVu-Bold", fontSize=13, leading=17, textColor=colors.HexColor("#102A4C"), spaceBefore=12, spaceAfter=6)
+    question = ParagraphStyle("InterviewQuestion", parent=styles["Normal"], fontName="DejaVu-Bold", fontSize=10, leading=14, textColor=colors.HexColor("#172033"), spaceBefore=5, spaceAfter=4)
+    body = ParagraphStyle("InterviewBody", parent=styles["BodyText"], fontName="DejaVu", fontSize=9, leading=14, textColor=colors.HexColor("#334155"))
+    small = ParagraphStyle("InterviewSmall", parent=body, fontSize=8, leading=11, textColor=colors.HexColor("#52657B"))
+    white_small = ParagraphStyle("InterviewWhiteSmall", parent=small, textColor=colors.HexColor("#C7D9F1"))
+    score_style = ParagraphStyle("InterviewScore", parent=question, fontName="DejaVu-Bold", fontSize=15, leading=19, textColor=colors.HexColor("#0F5CC0"))
+
+    def paragraph_text(value):
+        return html.escape(str(value or "")).replace("\n", "<br/>")
+
+    def score_label(value):
+        return "Chưa chấm" if value is None else f"{value:.1f}/10"
+
+    score_map = {"nắm vững": 10.0, "am hiểu": 7.5, "có biết qua": 5.0, "không biết": 0.0}
+    groups = {}
+    for answer in report["answers"]:
+        question_number = str(answer.get("question_number") or "")
+        base_number = question_number.split(".", 1)[0]
+        key = (answer.get("attempt_number") or 1, base_number)
+        group = groups.setdefault(key, {"attempt": key[0], "number": base_number, "answers": [], "base_score": None, "follow_up_scores": []})
+        group["answers"].append(answer)
+        value = score_map.get(answer.get("ai_level"))
+        if value is not None:
+            if "." in question_number:
+                group["follow_up_scores"].append(value)
+            else:
+                group["base_score"] = value
+    for group in groups.values():
+        base_score = group["base_score"]
+        included = group["follow_up_scores"] if base_score is None else [base_score, *(value for value in group["follow_up_scores"] if value > base_score)]
+        group["score"] = sum(included) / len(included) if included else None
+
+    competency_labels = {"Technical": "Chuyên môn", "Experience": "Kinh nghiệm", "General": "Tổng quát", "Situational": "Xử lý tình huống", "Behavioral": "Hành vi"}
+    competency_scores = {}
+    for group in groups.values():
+        root = next((answer for answer in group["answers"] if "." not in str(answer.get("question_number") or "")), None)
+        category = competency_labels.get((root or {}).get("question_type") or "General", "Tổng quát")
+        if group["score"] is not None:
+            competency_scores.setdefault(category, []).append(group["score"])
+    competency_profile = [(label, sum(values) / len(values)) for label, values in competency_scores.items()]
+    if not competency_profile and report.get("avg_score") is not None:
+        competency_profile = [("Đánh giá tổng hợp", report["avg_score"])]
+
+    candidate_name = report.get("candidate_name") or "Ứng viên"
+    position_label = _report_position_label(report.get("position"))
+    level_label = _report_level_label(report.get("level"), report.get("position"))
+    submitted_label = _report_date_label(report.get("submitted_at"))
+    buffer = BytesIO()
+    document = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=16 * mm, rightMargin=16 * mm, topMargin=16 * mm, bottomMargin=16 * mm, title=f"Báo cáo phỏng vấn - {candidate_name}")
+    status_labels = {"submitted": "Đã nộp", "evaluated": "Đã đánh giá", "passed": "Đạt", "failed": "Không đạt", "reviewed": "Đã duyệt"}
+    average = report.get("avg_score")
+    if average is None:
+        recommendation = "Chưa đủ dữ liệu đánh giá"
+    elif average >= 8.5:
+        recommendation = "Khuyến nghị cao"
+    elif average >= 7:
+        recommendation = "Khuyến nghị xem xét"
+    elif average >= 5:
+        recommendation = "Cần phỏng vấn bổ sung"
+    else:
+        recommendation = "Chưa khuyến nghị"
+
+    header = Table([[Paragraph("PAI HIRE", white_small), Paragraph("BÁO CÁO ĐÁNH GIÁ PHỎNG VẤN", white_small)], [Paragraph(paragraph_text(candidate_name), title), ""], [Paragraph(paragraph_text(f"Vị trí ứng tuyển: {position_label}"), subtitle), Paragraph(paragraph_text(f"Hoàn thành: {submitted_label}"), subtitle)], [Paragraph(paragraph_text(f"Cấp bậc: {level_label}"), subtitle), Paragraph(paragraph_text(f"Mã báo cáo: {interview_id}"), subtitle)]], colWidths=[110 * mm, 68 * mm])
+    header.setStyle(TableStyle([("SPAN", (0, 1), (1, 1)), ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0B2447")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (1, 0), (1, 0), "RIGHT"), ("LEFTPADDING", (0, 0), (-1, -1), 8 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 8 * mm), ("TOPPADDING", (0, 0), (-1, -1), 3 * mm), ("BOTTOMPADDING", (0, 0), (-1, -1), 3 * mm)]))
+    story = [header, Spacer(1, 6 * mm), Paragraph("1. Tóm tắt điều hành", heading)]
+
+    chart_width, chart_height = 110 * mm, 48 * mm
+    competency_chart = Drawing(chart_width, chart_height)
+    competency_chart.add(String(0, chart_height - 4 * mm, "HỒ SƠ NĂNG LỰC", fontName="DejaVu-Bold", fontSize=8, fillColor=colors.HexColor("#334155")))
+    for index, (label, value) in enumerate(competency_profile[:4]):
+        y = chart_height - (11 + index * 9) * mm
+        competency_chart.add(String(0, y + 1.5 * mm, label, fontName="DejaVu", fontSize=7.5, fillColor=colors.HexColor("#475569")))
+        competency_chart.add(Rect(35 * mm, y, 61 * mm, 3.5 * mm, fillColor=colors.HexColor("#E2E8F0"), strokeColor=None))
+        competency_chart.add(Rect(35 * mm, y, max(0, min(value, 10)) * 6.1 * mm, 3.5 * mm, fillColor=colors.HexColor("#2563EB"), strokeColor=None))
+        competency_chart.add(String(99 * mm, y + 0.4 * mm, score_label(value), fontName="DejaVu-Bold", fontSize=7.5, fillColor=colors.HexColor("#1E3A5F")))
+    executive = Table([[Paragraph("<b>ĐIỂM ĐÁNH GIÁ AI</b><br/>" + score_label(average) + f"<br/><br/><b>Khuyến nghị</b><br/>{recommendation}<br/><br/><font size=8>Đây là dữ liệu hỗ trợ hội đồng tuyển dụng đưa ra quyết định.</font>", body), competency_chart]], colWidths=[62 * mm, 116 * mm])
+    executive.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#F8FAFC")), ("BACKGROUND", (1, 0), (1, 0), colors.white), ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 5 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 5 * mm), ("TOPPADDING", (0, 0), (-1, -1), 4 * mm), ("BOTTOMPADDING", (0, 0), (-1, -1), 4 * mm)]))
+    interview_info = [[Paragraph("<b>Trạng thái</b>", small), Paragraph(paragraph_text(status_labels.get(report.get("status"), report.get("status") or "—")), body)], [Paragraph("<b>Câu trả lời ghi nhận</b>", small), Paragraph(str(len(report["answers"])), body)], [Paragraph("<b>Phương pháp tính</b>", small), Paragraph("Follow-up chỉ được cộng khi có điểm cao hơn câu gốc.", body)]]
+    info_table = Table(interview_info, colWidths=[52 * mm, 126 * mm])
+    info_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F8FAFC")), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E2E8F0")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 4 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 4 * mm), ("TOPPADDING", (0, 0), (-1, -1), 2.5 * mm), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5 * mm)]))
+    story.extend([executive, Spacer(1, 5 * mm), info_table, Paragraph("2. Nhận định trọng tâm", heading)])
+
+    insights = [Paragraph(f"<b>Điểm mạnh</b><br/>{paragraph_text(report.get('overall_strengths') or 'Chưa có nhận định.')}", body), Paragraph(f"<b>Điểm cần làm rõ / cải thiện</b><br/>{paragraph_text(report.get('overall_weaknesses') or 'Chưa có nhận định.')}", body)]
+    insight_table = Table([insights], colWidths=[89 * mm, 89 * mm])
+    insight_table.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")), ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 4 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 4 * mm), ("TOPPADDING", (0, 0), (-1, -1), 4 * mm), ("BOTTOMPADDING", (0, 0), (-1, -1), 4 * mm)]))
+    story.extend([insight_table, Paragraph("3. Bảng tổng hợp theo cụm câu hỏi", heading)])
+
+    type_labels = competency_labels
+    score_rows = [[Paragraph("<b>Câu</b>", small), Paragraph("<b>Năng lực đánh giá</b>", small), Paragraph("<b>Follow-up</b>", small), Paragraph("<b>Điểm nhóm</b>", small)]]
+    for group in groups.values():
+        root = next((answer for answer in group["answers"] if "." not in str(answer.get("question_number") or "")), None)
+        question_type = (root or {}).get("question_type") or "General"
+        score_rows.append([Paragraph(f"Câu {group['number']}", body), Paragraph(paragraph_text(type_labels.get(question_type, question_type)), body), Paragraph(str(sum("." in str(answer.get("question_number") or "") for answer in group["answers"])), body), Paragraph(f"<b>{score_label(group['score'])}</b>", body)])
+    score_table = Table(score_rows, colWidths=[28 * mm, 82 * mm, 34 * mm, 34 * mm], repeatRows=1)
+    score_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0F7")), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D7E0EA")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (2, 1), (-1, -1), "CENTER"), ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 3 * mm), ("TOPPADDING", (0, 0), (-1, -1), 2.5 * mm), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5 * mm)]))
+    story.extend([score_table, Paragraph("4. Phụ lục: chi tiết câu trả lời", heading), Paragraph("Phần này lưu lại bằng chứng cho việc xem xét của hội đồng tuyển dụng.", small)])
+    for group in groups.values():
+        attempt = f" · Lần phỏng vấn {group['attempt']}" if group["attempt"] > 1 else ""
+        story.extend([Spacer(1, 5 * mm), Paragraph(f"CÂU {group['number']}{attempt}  ·  Điểm nhóm {score_label(group['score'])}", question)])
+        for answer in group["answers"]:
+            question_number = str(answer.get("question_number") or "")
+            kind = f"Follow-up {question_number.split('.', 1)[1]}" if "." in question_number else "Câu hỏi gốc"
+            answer_score = score_map.get(answer.get("ai_level"))
+            answer_block = Table([[Paragraph(paragraph_text(f"{kind} · {score_label(answer_score)} · {answer.get('ai_level') or 'Chưa đánh giá'}"), small)], [Paragraph(paragraph_text(answer.get("question_text") or "Nội dung câu hỏi"), question)], [Paragraph(paragraph_text(answer.get("transcript") or "Không có bản ghi nội dung."), body)]], colWidths=[178 * mm])
+            answer_block.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#F1F5F9")), ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor("#E2E8F0")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 4 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 4 * mm), ("TOPPADDING", (0, 0), (-1, -1), 2.5 * mm), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5 * mm)]))
+            story.extend([Spacer(1, 2.5 * mm), answer_block])
+            if answer.get("ai_feedback"):
+                story.append(Paragraph(paragraph_text(f"Nhận xét AI: {answer['ai_feedback']}"), small))
+
+    def add_page_number(canvas, doc):
+        canvas.saveState()
+        canvas.setFont("DejaVu", 8)
+        canvas.setFillColor(colors.HexColor("#64748B"))
+        canvas.drawCentredString(A4[0] / 2, 9 * mm, f"PAI Hire · Trang {doc.page}")
+        canvas.restoreState()
+
+    document.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
+    safe_name = unicodedata.normalize("NFD", candidate_name)
+    safe_name = "".join(char for char in safe_name if not unicodedata.combining(char))
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", safe_name).strip("-") or "ung-vien"
+    return StreamingResponse(BytesIO(buffer.getvalue()), media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="bao-cao-phong-van-{safe_name}.pdf"'})

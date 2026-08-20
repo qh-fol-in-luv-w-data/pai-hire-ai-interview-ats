@@ -8,4 +8,5 @@ edge-tts
 python-docx
 pdfplumber
 pypdf
+reportlab
 minio

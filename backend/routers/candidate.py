@@ -119,7 +119,7 @@ def get_candidate_questions(ref: str):
     return JSONResponse({
         "name": row["name"],
         "job_id": row["job_id"],
-        "questions": deep_qs,
+        "questions": [{"question_text": q} if isinstance(q, str) else q for q in deep_qs],
         "already_replied": already_replied
     })
 
@@ -155,7 +155,8 @@ async def submit_candidate_reply(request: Request, background: BackgroundTasks):
     for i, q in enumerate(deep_qs):
         ans = answers[i] if i < len(answers) else ""
         ans = bounded_text(str(ans), f"answers[{i}]", 5000)
-        reply_parts.append(f"Câu {i+1}: {q.get('question_text', '')}\nTrả lời: {ans}")
+        q_text = q.get('question_text', '') if isinstance(q, dict) else str(q)
+        reply_parts.append(f"Câu {i+1}: {q_text}\nTrả lời: {ans}")
     reply_text = "\n\n".join(reply_parts)
 
     pending_score = row_dict.get("cv_score") or 0

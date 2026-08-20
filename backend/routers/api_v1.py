@@ -577,6 +577,7 @@ async def api_schedule_with_cv(
     part2_limit: int = Form(7, description="Số câu hỏi phần 2 (sinh từ CV)"),
     part3_limit: int = Form(5, description="Số câu hỏi phần 3 (đào sâu)"),
     authorization: str = Header(None),
+    idempotency_key: str | None = Header(None),
 ):
     """
     Tạo lịch phỏng vấn trong một request.
@@ -619,6 +620,7 @@ async def api_schedule_with_cv(
             # không tạo hồ sơ với điểm mặc định 10/10.
             skip_scoring=False,
             authorization=authorization,
+            idempotency_key=f"{idempotency_key}:score" if idempotency_key else None,
         )
         score_data = json.loads(score_response.body)
         app_id = score_data["app_id"]
@@ -666,6 +668,7 @@ async def api_schedule_with_cv(
             level=level,
         ),
         authorization=authorization,
+        idempotency_key=f"{idempotency_key}:schedule" if idempotency_key else None,
     )
     schedule_data = json.loads(schedule_response.body.decode('utf-8'))
     return JSONResponse({
@@ -768,9 +771,18 @@ def api_get_report(
                 base_qn = str(a["question_number"] or "").split(".", 1)[0]
                 group_key = f"{a['attempt_number'] or 1}:{base_qn}"
                 score_value = score_map[level_name]
-                if group_key not in grouped_scores or score_value > grouped_scores[group_key]:
-                    grouped_scores[group_key] = score_value
-            interview_avg_score = round(sum(grouped_scores.values()) / len(grouped_scores), 2) if grouped_scores else 0
+                group = grouped_scores.setdefault(group_key, {"base_score": None, "follow_up_scores": []})
+                if "." in str(a["question_number"] or ""):
+                    group["follow_up_scores"].append(score_value)
+                else:
+                    group["base_score"] = score_value
+            group_averages = []
+            for group in grouped_scores.values():
+                base_score = group["base_score"]
+                included_scores = group["follow_up_scores"] if base_score is None else [base_score, *(value for value in group["follow_up_scores"] if value > base_score)]
+                if included_scores:
+                    group_averages.append(sum(included_scores) / len(included_scores))
+            interview_avg_score = round(sum(group_averages) / len(group_averages), 2) if group_averages else 0
 
             interviews_out.append({
                 "interview_id": iv_dict["id"],

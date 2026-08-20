@@ -17,6 +17,35 @@ from backend.routers.auth import _group_consecutive_alerts
 router = APIRouter()
 
 
+def _interview_average_score(answer_rows):
+    """Score a question group without letting a weaker follow-up lower its base answer."""
+    score_map = {"nắm vững": 10.0, "am hiểu": 7.5, "có biết qua": 5.0, "không biết": 0.0}
+    groups = {}
+    for answer in answer_rows:
+        level = answer["ai_level"]
+        if level not in score_map:
+            continue
+        question_number = str(answer["question_number"] or "")
+        base_number = question_number.split(".", 1)[0]
+        key = (answer["attempt_number"] or 1, base_number)
+        group = groups.setdefault(key, {"base_score": None, "follow_up_scores": []})
+        if "." in question_number:
+            group["follow_up_scores"].append(score_map[level])
+        else:
+            group["base_score"] = score_map[level]
+
+    group_scores = []
+    for group in groups.values():
+        base_score = group["base_score"]
+        included = group["follow_up_scores"] if base_score is None else [
+            base_score,
+            *(score for score in group["follow_up_scores"] if score > base_score),
+        ]
+        if included:
+            group_scores.append(sum(included) / len(included))
+    return round(sum(group_scores) / len(group_scores), 2) if group_scores else None
+
+
 @router.get("/admin/accounts")
 def admin_list_accounts(x_admin_key: str = Header(None)):
     """Main admin can review existing web accounts and their access level."""
@@ -177,14 +206,14 @@ def admin_list_interviews(
                    ca.application_source,
                    COUNT(a.id) as answer_count,
                    (
-                     SELECT ROUND(AVG(best_score), 1)
+                     SELECT ROUND(AVG(group_score), 1)
                      FROM (
-                       SELECT MAX(CASE ax.ai_level
+                       SELECT AVG(CASE ax.ai_level
                          WHEN 'nắm vững'    THEN 10.0
                          WHEN 'am hiểu'     THEN 7.5
                          WHEN 'có biết qua' THEN 5.0
                          WHEN 'không biết'  THEN 0.0
-                         ELSE NULL END) AS best_score
+                         ELSE NULL END) AS group_score
                        FROM answers ax
                        WHERE ax.interview_id = i.id
                        GROUP BY ax.attempt_number,
@@ -204,8 +233,19 @@ def admin_list_interviews(
             ORDER BY i.submitted_at DESC
             LIMIT ? OFFSET ?
         """, (*params, limit, offset)).fetchall()
+        interview_ids = [row["id"] for row in rows]
+        answer_rows = conn.execute(
+            f"SELECT interview_id, question_number, ai_level, attempt_number FROM answers WHERE interview_id IN ({','.join('?' for _ in interview_ids)})",
+            interview_ids,
+        ).fetchall() if interview_ids else []
 
-    return {"total": len(rows), "interviews": [dict(r) for r in rows]}
+    answers_by_interview = {}
+    for answer in answer_rows:
+        answers_by_interview.setdefault(answer["interview_id"], []).append(answer)
+    interviews = [dict(row) for row in rows]
+    for interview in interviews:
+        interview["avg_score"] = _interview_average_score(answers_by_interview.get(interview["id"], []))
+    return {"total": len(rows), "interviews": interviews}
 
 
 @router.patch("/interview/{interview_id}/review")
@@ -1061,12 +1101,12 @@ def get_prev_interview(app_id: str, x_admin_key: str = Header(None)):
         prev_ivs = conn.execute("""
             SELECT i.id, i.status, i.submitted_at,
                    (
-                     SELECT ROUND(AVG(best_score), 1)
+                     SELECT ROUND(AVG(group_score), 1)
                      FROM (
-                       SELECT MAX(CASE ax.ai_level
+                       SELECT AVG(CASE ax.ai_level
                          WHEN 'nắm vững' THEN 10.0 WHEN 'am hiểu' THEN 7.5
                          WHEN 'có biết qua' THEN 5.0 WHEN 'không biết' THEN 0.0
-                         ELSE NULL END) AS best_score
+                         ELSE NULL END) AS group_score
                        FROM answers ax
                        WHERE ax.interview_id = i.id
                        GROUP BY ax.attempt_number,
