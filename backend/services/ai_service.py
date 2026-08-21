@@ -178,7 +178,7 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
                 app_id,
                 row["email"],
                 "deep_questions_sent",
-                f"Đã gửi {len(deep_qs)} câu hỏi bổ sung cho ứng viên (coverage={deep_coverage}).",
+                f"Chúng tôi đã gửi email chứa {len(deep_qs)} câu hỏi bổ sung tới hộp thư của bạn — vui lòng kiểm tra email và trả lời để tiếp tục quy trình.",
                 {"question_count": len(deep_qs), "coverage": deep_coverage},
             )
         elif row and deep_qs and deep_coverage == "low":

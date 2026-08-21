@@ -151,9 +151,29 @@ describe('giám sát chống gian lận trong lúc phỏng vấn', () => {
   it('hiện cảnh báo khi cửa sổ mất focus dù tab vẫn hiển thị (đa màn hình)', async () => {
     await bootToInterviewing();
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    const dateSpy = vi.spyOn(Date, 'now');
+    dateSpy.mockReturnValue(1_000_000);
     act(() => { window.dispatchEvent(new Event('blur')); });
+    // Mất focus lâu (>2.5s) — phân biệt với thao tác chụp màn hình nhanh (xem test bên dưới).
+    dateSpy.mockReturnValue(1_000_000 + 4000);
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    dateSpy.mockRestore();
     await waitFor(() => expect(screen.getByText(/Cửa sổ phỏng vấn mất focus/i)).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText(/Rời khỏi phỏng vấn/).nextSibling?.textContent).not.toBe('0 lần'));
+  });
+
+  it('mất focus RẤT NGẮN rồi quay lại ngay -> nghi ngờ chụp màn hình, không tính là rời buổi phỏng vấn', async () => {
+    await bootToInterviewing();
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    const dateSpy = vi.spyOn(Date, 'now');
+    dateSpy.mockReturnValue(2_000_000);
+    act(() => { window.dispatchEvent(new Event('blur')); });
+    // Đúng kiểu Cmd+Shift+3/4 trên Mac hoặc Win+Shift+S: mất focus rất ngắn.
+    dateSpy.mockReturnValue(2_000_000 + 800);
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    dateSpy.mockRestore();
+    await waitFor(() => expect(screen.getByText(/Nghi ngờ hành vi chụp màn hình/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Cố gắng chụp màn hình').nextSibling?.textContent).not.toBe('0 lần'));
   });
 
   it('chặn phím tắt chụp màn hình / devtools và ghi nhận cảnh báo', async () => {
@@ -169,5 +189,18 @@ describe('giám sát chống gian lận trong lúc phỏng vấn', () => {
     const evt = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
     act(() => { document.dispatchEvent(evt); });
     expect(evt.defaultPrevented).toBe(true);
+  });
+
+  it('chặn copy văn bản (Ctrl+C, sự kiện copy, và user-select:none trên body)', async () => {
+    await bootToInterviewing();
+    expect(document.body.classList.contains('select-none')).toBe(true);
+
+    const keyEvt = new KeyboardEvent('keydown', { key: 'c', ctrlKey: true, bubbles: true, cancelable: true });
+    act(() => { document.dispatchEvent(keyEvt); });
+    expect(keyEvt.defaultPrevented).toBe(true);
+
+    const copyEvt = new Event('copy', { bubbles: true, cancelable: true });
+    act(() => { document.dispatchEvent(copyEvt); });
+    expect(copyEvt.defaultPrevented).toBe(true);
   });
 });

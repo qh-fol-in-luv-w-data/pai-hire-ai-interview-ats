@@ -680,7 +680,7 @@ async def admin_approve_application(app_id: str, request: Request, x_admin_key: 
         app_id,
         row["email"],
         "interview_email_sent",
-        "HR đã duyệt hồ sơ và gửi email mời phỏng vấn.",
+        "Hồ sơ của bạn đã được duyệt! Chúng tôi đã gửi email mời phỏng vấn kèm link tham gia tới hộp thư của bạn — vui lòng kiểm tra email (kể cả mục Spam/Quảng cáo) để xem chi tiết và khung giờ phỏng vấn.",
         {"slot_token": slot_token, "time_note": time_note, "level": level},
     )
     print(f"[HR Approve] {app_id} → passed → Email sent to {row['email']}")
@@ -852,7 +852,7 @@ def admin_reject_application(app_id: str, x_admin_key: str = Header(None)):
         app_id,
         row["email"],
         "application_rejected",
-        "HR đã từ chối hồ sơ và gửi email kết quả.",
+        "Chúng tôi đã gửi email thông báo kết quả xét duyệt hồ sơ tới hộp thư của bạn — vui lòng kiểm tra email để xem chi tiết.",
         {"job_id": row["job_id"]},
     )
     print(f"[HR Reject] {app_id} → failed → Email sent to {row['email']}")

@@ -272,24 +272,36 @@ async def evaluate_step(
     in_audio_path = TEMP_PUSHBACKS_DIR / f"{req_id}_in{audio_ext}"
     in_audio_path.write_bytes(audio_bytes)
 
-    # 2. STT via ElevenLabs
+    # 2. STT via ElevenLabs — thử lại tối đa 2 lần khi gặp lỗi tạm thời (429 rate
+    # limit hoặc 5xx), vì các câu hỏi liên tiếp trong một buổi phỏng vấn có thể
+    # gọi API này dồn dập trong thời gian ngắn.
     transcript = ""
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=30) as hx:
-            with open(in_audio_path, "rb") as f:
-                r = await hx.post(
-                    "https://api.elevenlabs.io/v1/speech-to-text",
-                    headers={"xi-api-key": ELEVENLABS_API_KEY},
-                    files={"file": (in_audio_path.name, f, media_content_type_for_path(in_audio_path))},
-                    data={"model_id": "scribe_v2", "language_code": "vi"},
-                )
-        if r.status_code >= 400:
-            print(f"[Eval] STT HTTP {r.status_code}: {r.text[:300]}")
-        else:
+    import httpx
+    import asyncio as _asyncio
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=30) as hx:
+                with open(in_audio_path, "rb") as f:
+                    r = await hx.post(
+                        "https://api.elevenlabs.io/v1/speech-to-text",
+                        headers={"xi-api-key": ELEVENLABS_API_KEY},
+                        files={"file": (in_audio_path.name, f, media_content_type_for_path(in_audio_path))},
+                        data={"model_id": "scribe_v2", "language_code": "vi"},
+                    )
+            if r.status_code >= 400:
+                print(f"[Eval] STT HTTP {r.status_code} (lần {attempt + 1}/3): {r.text[:300]}")
+                if r.status_code == 429 or r.status_code >= 500:
+                    if attempt < 2:
+                        await _asyncio.sleep(1.5 * (attempt + 1))
+                        continue
+                break
             transcript = r.json().get("text", "").strip()
-    except Exception as e:
-        print(f"[Eval] STT error: {e}")
+            break
+        except Exception as e:
+            print(f"[Eval] STT error (lần {attempt + 1}/3): {e}")
+            if attempt < 2:
+                await _asyncio.sleep(1.5 * (attempt + 1))
+                continue
 
     question_number = (question_number or "").split("_", 1)[0]
 

@@ -143,7 +143,7 @@ function ApplyJobPage({ jobId }: { jobId: string }) {
           <aside id="apply-form" className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
             <h2 className="text-lg font-extrabold text-slate-950">Nộp hồ sơ</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">Tải CV lên để hệ thống ghi nhận hồ sơ và HR theo dõi tiến trình.</p>
-            {submitted ? <div className="mt-5"><Success title="Đã nhận hồ sơ" description="Bạn có thể theo dõi tiến trình trong Hồ sơ của tôi."/></div> : <form className="mt-5 space-y-4" onSubmit={submit}>
+            {submitted ? <div className="mt-5"><Success title="Đã nhận hồ sơ" description="Hệ thống đang đánh giá CV của bạn. Vui lòng kiểm tra email (kể cả mục Spam/Quảng cáo) trong ít phút tới — chúng tôi sẽ gửi kết quả và bước tiếp theo qua email đã đăng ký."/><div className="mt-2 flex justify-center"><a className="btn-primary" href="/candidate/history?tab=apps">Xem tiến trình ứng tuyển</a></div></div> : <form className="mt-5 space-y-4" onSubmit={submit}>
               <Select label="Cấp bậc" value={level} onChange={setLevel} options={levelOptions}/>
               <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 p-5 text-center">
                 <span className="text-sm font-bold">Chọn CV PDF hoặc DOCX</span>
