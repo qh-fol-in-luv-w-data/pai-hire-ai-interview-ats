@@ -626,16 +626,19 @@ def send_interview_result(name: str, to_email: str, job_title: str, decision: st
 
 
 
-def send_deep_questions_email(name: str, to_email: str, job_title: str, app_id: str, deep_questions: list):
+def send_deep_questions_email(name: str, to_email: str, job_title: str, app_id: str, deep_questions: list, reply_token: str | None = None):
     if not SMTP_USER or not SMTP_PASS:
         print(f"[Email] Chưa cấu hình SMTP — bỏ qua gửi mail cho {to_email}")
         return
 
     job_display = job_title.replace("_", " ")
-    
-    # Build the web reply URL
+
+    # Build the web reply URL. `token` proves this link belongs to this
+    # candidate — /candidate/questions and /candidate/submit_reply require it.
     base_url = INTERVIEW_URL.replace("/interview", "")
     reply_url = f"{base_url}/candidate/reply?ref={app_id}"
+    if reply_token:
+        reply_url += f"&token={reply_token}"
 
     items_html = ""
     for idx, q in enumerate(deep_questions):

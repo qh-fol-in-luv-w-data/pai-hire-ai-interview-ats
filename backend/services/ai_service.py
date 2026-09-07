@@ -173,7 +173,9 @@ async def _do_score_cv(app_id: str, cv_path: Path, job_id: str, level: str = "Ju
 
         if row and deep_qs and deep_coverage != "low":
             from backend.services.email_service import send_deep_questions_email
-            send_deep_questions_email(row["name"], row["email"], row["job_id"], app_id, deep_qs)
+            from backend.services.candidate_access import issue as issue_reply_token
+            reply_token = issue_reply_token(app_id)
+            send_deep_questions_email(row["name"], row["email"], row["job_id"], app_id, deep_qs, reply_token)
             log_application_event(
                 app_id,
                 row["email"],

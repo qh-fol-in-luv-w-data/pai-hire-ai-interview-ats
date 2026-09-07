@@ -4,8 +4,25 @@ from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from backend.database import db
 from backend.security import bounded_text
+from backend.services.candidate_access import require_access as require_reply_access
+from backend.services.rate_limit import enforce as rate_limit_enforce
 
 router = APIRouter()
+
+
+def _clamp_score_adjustment(value) -> float:
+    """Ép score_adjustment do AI trả về vào đúng khoảng [-1.0, 1.0].
+
+    Prompt chỉ mô tả khoảng này bằng văn bản — không có gì ràng buộc con số
+    Gemini/GPT thực sự trả về, nên một câu trả lời bị thao túng (prompt
+    injection) có thể khiến model trả về giá trị lớn bất thường. Chỉ clamp
+    riêng số điều chỉnh — tổng điểm cuối vẫn được clamp về [1,5] riêng.
+    """
+    try:
+        value = float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(-1.0, min(1.0, value))
 
 
 async def _analyze_candidate_reply_background(ref: str):
@@ -70,7 +87,7 @@ async def _analyze_candidate_reply_background(ref: str):
     )
 
     # Re-score CV
-    score_adj = float(reply_analysis.get("score_adjustment") or 0.0)
+    score_adj = _clamp_score_adjustment(reply_analysis.get("score_adjustment"))
     new_cv_score = old_cv_score + score_adj
     new_cv_score = max(1.0, min(5.0, new_cv_score))
     if not reply_analysis.get("score_adjustment_reason"):
@@ -99,8 +116,15 @@ async def _analyze_candidate_reply_background(ref: str):
 
 
 @router.get("/candidate/questions")
-def get_candidate_questions(ref: str):
-    """Trả về danh sách câu hỏi phụ cho ứng viên (dùng cho trang web)."""
+def get_candidate_questions(ref: str, token: str, request: Request):
+    """Trả về danh sách câu hỏi phụ cho ứng viên (dùng cho trang web).
+
+    `ref` là mã hồ sơ, không phải bí mật — bắt buộc kèm `token` (chỉ có trong
+    link email gửi cho đúng ứng viên) để tránh người khác xem/nộp hộ câu trả
+    lời chỉ bằng cách đoán hoặc nhìn thấy `ref`.
+    """
+    rate_limit_enforce(request, "candidate_questions", limit=20, window_seconds=60)
+    require_reply_access(ref, token)
     with db() as conn:
         row = conn.execute(
             "SELECT name, job_id, score_breakdown, status FROM cv_applications WHERE id=?",
@@ -127,12 +151,15 @@ def get_candidate_questions(ref: str):
 @router.post("/candidate/submit_reply")
 async def submit_candidate_reply(request: Request, background: BackgroundTasks):
     """Nhận câu trả lời từ ứng viên qua form web, chấm điểm và cập nhật DB."""
+    rate_limit_enforce(request, "candidate_submit_reply", limit=10, window_seconds=60)
     body = await request.json()
     ref = body.get("ref")
+    token = body.get("token")
     answers = body.get("answers", [])
 
     if not ref:
         raise HTTPException(400, "Thiếu ref")
+    require_reply_access(ref, token)
 
     with db() as conn:
         row = conn.execute(

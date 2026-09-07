@@ -555,6 +555,14 @@ def init_db():
             used_at INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_interview_access_app ON interview_access_sessions(app_id, expires_at);
+        CREATE TABLE IF NOT EXISTS candidate_reply_access (
+            id TEXT PRIMARY KEY,
+            app_id TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_candidate_reply_access_app ON candidate_reply_access(app_id, expires_at);
         CREATE TABLE IF NOT EXISTS company_onboarding_tokens (
             id TEXT PRIMARY KEY,
             company_id TEXT NOT NULL REFERENCES companies(id),
